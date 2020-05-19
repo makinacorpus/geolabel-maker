@@ -1,0 +1,24 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.3.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        exclude: ^.*\.snap$
+  - repo: local
+    hooks:
+      - id: pylama
+        name: pylama
+        entry: pylama src
+        language: python
+        types: [file, python]
+        additional_dependencies: [pylama]
+  - repo: local
+    hooks:
+      - id: isort
+        name: isort
+        entry: isort -rc src
+        pass_filenames: false
+        language: python
+        types: [file, python]
+        additional_dependencies: [isort]
