@@ -162,8 +162,13 @@ geolabels.make_all(img, tiles, categories)
 
 ## Examples
 
-The **`data/`** repository contains images (`rasters/`) and geometries (`vectors/`) from Lyon, published as open data in the website [https://data.grandlyon.com](https://data.grandlyon.com).
+The **`data/`** folder contains geometries (`vectors/`) from Lyon, published as open data in the website [https://data.grandlyon.com](https://data.grandlyon.com).
 It contains also an example of a JSON file describing categories used to create labels.
+
+This folder doesn't contain images because this type of file is too big to be supported in Github. 
+To follow our example, just download these two files and put them in the folder `data/rasters/`:
+- [1843_5173_08_CC46.tif](https://download.data.grandlyon.com/files/grandlyon/imagerie/ortho2018/ortho/GeoTiff_YcBcR/1km_8cm_CC46/1843_5173_08_CC46.tif)
+- [1844_5173_08_CC46.tif](https://download.data.grandlyon.com/files/grandlyon/imagerie/ortho2018/ortho/GeoTiff_YcBcR/1km_8cm_CC46/1844_5173_08_CC46.tif)
 
 ### Notebooks
 
