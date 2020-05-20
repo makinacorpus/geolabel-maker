@@ -1,0 +1,12 @@
+{
+  "vegetation": {
+    "id": 1,
+    "file": "../data/vectors/vegetation.json",
+    "color": [0, 150, 0]
+  },
+  "buildings": {
+    "id": 2,
+    "file": "../data/vectors/buildings.json",
+    "color": [255, 255, 255]
+  }
+}
