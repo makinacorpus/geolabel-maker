@@ -15,8 +15,7 @@ from geolabel_maker import utils
 Image.MAX_IMAGE_PIXELS = 156250000
 
 
-def _select_vector(vector_file, raster_file,
-                   save=False, output_file='subset.geojson'):
+def _select_vector(vector_file, raster_file, save=False, output_file="subset.geojson"):
     """
     Get the geometries which are in the image's extent
 
@@ -60,12 +59,12 @@ def _select_vector(vector_file, raster_file,
             subset_file = vector_path.parent / Path(output_file)
             subset.to_file(subset_file)
     else:
-        raise ValueError('The geographic extents are not consistent.')
+        raise ValueError("The geographic extents are not consistent.")
 
     return subset.geometry.values
 
 
-def _create_label(raster_file, categories, dir_label=''):
+def _create_label(raster_file, categories, dir_label=""):
     """
     Convert geometries to a raster file which could be used as label.
 
@@ -92,15 +91,13 @@ def _create_label(raster_file, categories, dir_label=''):
         img_list = []
         for name, infos in categories.items():
             out_image, out_transform = rasterio.mask.mask(
-                src,
-                infos['geometry'],
-                crop=False
+                src, infos["geometry"], crop=False
             )
 
             out_image = np.rollaxis(out_image, 0, 3)
 
             # convert image in black & color
-            bw_image = utils.rgb2color(out_image, tuple(infos['color']))
+            bw_image = utils.rgb2color(out_image, tuple(infos["color"]))
 
             # create a PIL image
             img = Image.fromarray(bw_image.astype(rasterio.uint8))
@@ -114,11 +111,15 @@ def _create_label(raster_file, categories, dir_label=''):
             complete_img = ImageChops.add(complete_img, img)
 
     # update metadata
-    out_meta.update({"driver": "GTiff",
-                     "height": complete_img.size[1],  # bw_image.shape[1],
-                     "width": complete_img.size[0],  # bw_image.shape[2],
-                     "count": 3,
-                     "transform": out_transform})
+    out_meta.update(
+        {
+            "driver": "GTiff",
+            "height": complete_img.size[1],  # bw_image.shape[1],
+            "width": complete_img.size[0],  # bw_image.shape[2],
+            "count": 3,
+            "transform": out_transform,
+        }
+    )
 
     # create file path
     raster_path = Path(raster_file)
@@ -135,7 +136,7 @@ def _create_label(raster_file, categories, dir_label=''):
     return output_path
 
 
-def make_label(raster_file, categories, dir_label=''):
+def make_label(raster_file, categories, dir_label=""):
     """
     Make the label file corresponding to an image file.
     Labels are created with colors and geometries specified
@@ -157,15 +158,14 @@ def make_label(raster_file, categories, dir_label=''):
     name of the created label image
     """
     for name, infos in categories.items():
-        infos['geometry'] = _select_vector(infos['file'], raster_file)
+        infos["geometry"] = _select_vector(infos["file"], raster_file)
 
     output_path = _create_label(raster_file, categories, dir_label)
 
     return output_path
 
 
-def show(raster_file, label_file, img_size=512, title="",
-         show=True, save=False):
+def show(raster_file, label_file, img_size=512, title="", show=True, save=False):
     """
     Plot Image, Label and the superposition of the two.
 
@@ -224,11 +224,11 @@ def show(raster_file, label_file, img_size=512, title="",
     if save:
         plots_directory = raster_path.parent / Path("plots")
         plots_directory.mkdir(parents=True, exist_ok=True)
-        plot_file = 'plot-{}.png'.format(image_name)
+        plot_file = "plot-{}.png".format(image_name)
         figure.savefig(str(plots_directory / Path(plot_file)))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # example dataset
     raster_file = "../../../data/open-data/lyon/1844_5173_08_CC46.tif"
     categories_file = ""

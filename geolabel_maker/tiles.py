@@ -3,9 +3,9 @@ from pathlib import Path, PurePath
 
 from geolabel_maker import utils
 
-IMG_TILES_DIR = 'images'
+IMG_TILES_DIR = "images"
 LABEL_TILES_DIR = "labels"
-WEBVIEWER = 'openlayers'
+WEBVIEWER = "openlayers"
 
 
 def create_tiles(raster_file, dir_tiles):
@@ -26,9 +26,7 @@ def create_tiles(raster_file, dir_tiles):
     if not is_empty:
         utils.rm_tree(dir_tiles)
 
-    options = {
-        'webviewer': WEBVIEWER
-    }
+    options = {"webviewer": WEBVIEWER}
 
     gdal2tiles.generate_tiles(raster_file, dir_tiles, **options)
 

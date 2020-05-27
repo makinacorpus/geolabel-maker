@@ -40,7 +40,7 @@ def _create_sub_masks(mask_image, colors):
                     # Note: we add 1 pixel of padding in each direction
                     # because the contours module doesn't handle cases
                     # where pixels bleed to the edge of the image
-                    sub_masks[pixel] = Image.new('1', (width + 2, height + 2))
+                    sub_masks[pixel] = Image.new("1", (width + 2, height + 2))
 
                 # set the pixel value to 1 (default is 0),
                 # accounting for padding
@@ -49,8 +49,9 @@ def _create_sub_masks(mask_image, colors):
     return sub_masks
 
 
-def _create_sub_mask_annotation(sub_mask, image_id, category_id,
-                                annotation_id, is_crowd):
+def _create_sub_mask_annotation(
+    sub_mask, image_id, category_id, annotation_id, is_crowd
+):
     """
             Parameters
             ----------
@@ -71,7 +72,7 @@ def _create_sub_mask_annotation(sub_mask, image_id, category_id,
     # find contours (boundary lines) around each sub-mask
     # Note: there could be multiple contours if the object
     # is partially occluded. (E.g. an elephant behind a tree)
-    contours = measure.find_contours(sub_mask, 0.5, positive_orientation='low')
+    contours = measure.find_contours(sub_mask, 0.5, positive_orientation="low")
 
     annotations = []
     for contour in contours:
@@ -96,13 +97,13 @@ def _create_sub_mask_annotation(sub_mask, image_id, category_id,
             area = poly.area
 
             annotation = {
-                'segmentation': [segmentation],
-                'iscrowd': int(is_crowd),
-                'image_id': int(image_id),
-                'category_id': int(category_id),
-                'id': int(annotation_id),
-                'bbox': bbox,
-                'area': area
+                "segmentation": [segmentation],
+                "iscrowd": int(is_crowd),
+                "image_id": int(image_id),
+                "category_id": int(category_id),
+                "id": int(annotation_id),
+                "bbox": bbox,
+                "area": area,
             }
 
             annotation_id += 1
@@ -131,11 +132,11 @@ def _write_annotations(dir_label, images_ids, categories, is_crowd):
             the annotations' dictionary for all labels
     """
     # create an empty annotations' dictionary
-    annotations_dict = {'annotations': []}
+    annotations_dict = {"annotations": []}
 
     dir_path = Path(dir_label)
     annotation_id = 1
-    colors = [tuple(group['color']) for group in categories.values()]
+    colors = [tuple(group["color"]) for group in categories.values()]
 
     for file in dir_path.rglob("*.png"):
         print(file)
@@ -152,23 +153,19 @@ def _write_annotations(dir_label, images_ids, categories, is_crowd):
         for color, sub_mask in sub.items():
             # find category id
             for infos in categories.values():
-                if tuple(infos['color']) == color:
-                    category_id = infos['id']
+                if tuple(infos["color"]) == color:
+                    category_id = infos["id"]
                     break
             # create a mask annotation
             last_annotation_id, annotations_new = _create_sub_mask_annotation(
-                sub_mask,
-                image_id,
-                category_id,
-                annotation_id,
-                is_crowd
+                sub_mask, image_id, category_id, annotation_id, is_crowd
             )
             # save the created annotation and its id
             annotation_id = last_annotation_id + 1
             annotations += annotations_new
 
         # add these file's annotations in the final dictionary
-        annotations_dict['annotations'] += annotations
+        annotations_dict["annotations"] += annotations
 
     return annotations_dict
 
@@ -184,15 +181,11 @@ def _write_categories(categories_list):
             the categories' dictionary
     """
     # create an empty categories' dictionary
-    categories_dict = {'categories': []}
+    categories_dict = {"categories": []}
 
     for id, category in enumerate(categories_list):
-        category_dict = {
-            "id": id + 1,
-            "name": category,
-            "supercategory": category
-        }
-        categories_dict['categories'].append(category_dict)
+        category_dict = {"id": id + 1, "name": category, "supercategory": category}
+        categories_dict["categories"].append(category_dict)
 
     return categories_dict
 
@@ -208,7 +201,7 @@ def _write_images(dir_img):
             the images' dictionary
     """
     # create an empty categories' dictionary
-    images_dict = {'images': []}
+    images_dict = {"images": []}
     images_ids = {}
 
     dir_path = Path(dir_img)
@@ -220,13 +213,9 @@ def _write_images(dir_img):
         width, height = img.size
         filename = str(file.relative_to(dir_path))
         # create image description
-        image = {
-            "id": img_id,
-            "width": width,
-            "height": height,
-            "file_name": filename}
+        image = {"id": img_id, "width": width, "height": height, "file_name": filename}
         # add this description in the dictionary
-        images_dict['images'].append(image)
+        images_dict["images"].append(image)
         # save the id associated with each image
         images_ids[filename] = img_id
         # increment id for the next image
@@ -249,19 +238,24 @@ def _write_info(description, zoom):
     """
     info_dict = {
         "info": {
-            'description': description,
-            'date_created': datetime.now().strftime('%Y/%m/%d'),
-            'zoom': zoom
-
+            "description": description,
+            "date_created": datetime.now().strftime("%Y/%m/%d"),
+            "zoom": zoom,
         }
     }
 
     return info_dict
 
 
-def write_complete_annotations(dir_img, dir_label, categories, is_crowd, zoom,
-                               description="Auto-generated by Geolabel-maker",
-                               output_file="annotations.json"):
+def write_complete_annotations(
+    dir_img,
+    dir_label,
+    categories,
+    is_crowd,
+    zoom,
+    description="Auto-generated by Geolabel-maker",
+    output_file="annotations.json",
+):
     """
         Parameters
         ----------
@@ -294,12 +288,7 @@ def write_complete_annotations(dir_img, dir_label, categories, is_crowd, zoom,
     images_dict, images_ids = _write_images(dir_img)
 
     # make annotations part
-    annotations_dict = _write_annotations(
-        dir_label,
-        images_ids,
-        categories,
-        is_crowd
-    )
+    annotations_dict = _write_annotations(dir_label, images_ids, categories, is_crowd)
 
     # make categories part
     categories_dict = _write_categories(list(categories.keys()))
@@ -309,7 +298,6 @@ def write_complete_annotations(dir_img, dir_label, categories, is_crowd, zoom,
         **images_dict,
         **annotations_dict,
         **categories_dict,
-
     }
 
     # write json file

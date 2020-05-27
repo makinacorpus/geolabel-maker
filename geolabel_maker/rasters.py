@@ -4,7 +4,7 @@ import rasterio.merge
 from shutil import copyfile
 
 
-def make_vrt(images, output_file='out.vrt'):
+def make_vrt(images, output_file="out.vrt"):
     """
         Builds a virtual raster from a list of rasters.
 
@@ -21,7 +21,7 @@ def make_vrt(images, output_file='out.vrt'):
     return gdal.BuildVRT(output_file, images)
 
 
-def merge_rasters(rasters, output_file='merged.tif'):
+def merge_rasters(rasters, output_file="merged.tif"):
     """
         Merge raster files from a specific directory to a single geotiff.
 
@@ -48,16 +48,18 @@ def merge_rasters(rasters, output_file='merged.tif'):
                 src_files_to_mosaic.append(src)
 
             # merge raster images
-            mosaic, output_transform = rasterio.merge.merge(
-                src_files_to_mosaic
-            )
+            mosaic, output_transform = rasterio.merge.merge(src_files_to_mosaic)
 
             # create metadata for the merged raster
             output_metadata = src.meta.copy()
-            output_metadata.update({"driver": "GTiff",
-                                    "height": mosaic.shape[1],
-                                    "width": mosaic.shape[2],
-                                    "transform": output_transform})
+            output_metadata.update(
+                {
+                    "driver": "GTiff",
+                    "height": mosaic.shape[1],
+                    "width": mosaic.shape[2],
+                    "transform": output_transform,
+                }
+            )
 
             # write the merged raster
             with rasterio.open(output_path, "w", **output_metadata) as dest:
