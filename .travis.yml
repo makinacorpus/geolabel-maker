@@ -1,0 +1,39 @@
+dist: bionic
+sudo: required
+language: python
+python:
+  - '3.6'
+  - '3.7'
+  - '3.8'
+
+stages:
+  - lint
+  - test
+  - deploy
+
+install:
+  - sudo apt-get -y install libproj-dev binutils gdal-bin libgdal-dev
+  - pip install gdal
+  - pip install -e .[dev]
+
+after_failure:
+  - pip freeze
+
+jobs:
+  include:
+    - stage: lint
+      install:
+        - pip install black flake8
+      script:
+        - black --check geolabel_maker
+        - flake8 geolabel_maker
+    - stage: deploy
+      install: skip
+      deploy:
+        stage: deploy
+        provider: pypi
+        user: __token__
+        password:
+          secure: pypi-AgEIcHlwaS5vcmcCJDI5NGVmZmFlLWZhZTktNGI2Yi1iNjQzLTU5NzM3ODcwYjIyNQACJXsicGVybWlzc2lvbnMiOiAidXNlciIsICJ2ZXJzaW9uIjogMX0AAAYg2UW-x8MGBgpotmRou2DjIx2F-vJ2Pl-Pc7grI19czVw
+        on:
+          tags: true
