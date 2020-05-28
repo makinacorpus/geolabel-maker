@@ -28,6 +28,7 @@ jobs:
         - flake8 geolabel_maker
     - stage: deploy
       install: skip
+      script: skip
       deploy:
         stage: deploy
         provider: pypi
