@@ -13,7 +13,7 @@ stages:
 install:
   - sudo apt-get -y install libproj-dev binutils gdal-bin libgdal-dev
   - pip install gdal==2.2.3 --global-option=build_ext --global-option="-I/usr/include/gdal/"
-  - pip install -e .[dev]
+  - pip install -e .
 
 after_failure:
   - pip freeze
