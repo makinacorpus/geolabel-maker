@@ -4,7 +4,7 @@
 from setuptools import setup, find_packages
 from importlib import import_module
 
-VERSION = import_module("geolabel_maker").__version__
+VERSION = import_module("geolabel_maker._version").__version__
 
 setup(
     name='geolabel_maker',
