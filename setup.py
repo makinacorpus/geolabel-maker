@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 from setuptools import setup, find_packages
-from importlib import import_module
 
-VERSION = import_module("geolabel_maker._version").__version__
+HERE = os.path.abspath(os.path.dirname(__file__))
 
 setup(
     name='geolabel_maker',
@@ -15,7 +15,7 @@ setup(
         "image",
         "ground truth"
     ],
-    version=VERSION,
+    version=open(os.path.join(HERE, "geolabel_maker", "VERSION.md")).read().strip(),
     packages=find_packages(),
     author="Makina Corpus",
     author_email="contact@makina-corpus.com",
