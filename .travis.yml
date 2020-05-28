@@ -12,7 +12,7 @@ stages:
 
 install:
   - sudo apt-get -y install libproj-dev binutils gdal-bin libgdal-dev
-  - pip install gdal
+  - pip install gdal==2.2.3 --global-option=build_ext --global-option="-I/usr/include/gdal/"
   - pip install -e .[dev]
 
 after_failure:
@@ -28,6 +28,7 @@ jobs:
         - flake8 geolabel_maker
     - stage: deploy
       install: skip
+      script: skip
       deploy:
         stage: deploy
         provider: pypi
