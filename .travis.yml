@@ -8,6 +8,7 @@ python:
 
 stages:
   - lint
+  - test
   - deploy
 
 install:
