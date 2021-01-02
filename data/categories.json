@@ -1,12 +1,12 @@
 {
   "vegetation": {
     "id": 1,
-    "file": "../data/vectors/vegetation.json",
+    "file": "categories/vegetation.json",
     "color": [0, 150, 0]
   },
   "buildings": {
     "id": 2,
-    "file": "../data/vectors/buildings.json",
+    "file": "categories/buildings.json",
     "color": [255, 255, 255]
   }
 }
