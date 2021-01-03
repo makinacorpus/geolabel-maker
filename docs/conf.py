@@ -44,6 +44,7 @@ release = '0.0.1'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'sphinx.ext.autosummary',
     'sphinx.ext.coverage',
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',

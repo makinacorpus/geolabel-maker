@@ -8,4 +8,4 @@
 
 
 from .raster import Raster, to_raster
-from .functions import generate_tiles, make_vrt, merge_rasters
+from .functions import generate_tiles, generate_vrt, merge_rasters

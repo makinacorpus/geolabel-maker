@@ -133,7 +133,7 @@ dataset = Dataset.open("data")
 # Create labels from geometries and raster files
 dataset.generate_labels()
 # Make virtual raster files to combine images and labels
-dataset.make_vrt()
+dataset.generate_vrt()
 # Generate tiles from images and labels
 dataset.generate_tiles(zoom="14-20")
 

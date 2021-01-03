@@ -32,7 +32,7 @@ import geopandas as gpd
 import json
 
 # Geolabel Maker
-from geolabel_maker.rasters import to_raster, generate_tiles, make_vrt
+from geolabel_maker.rasters import to_raster, generate_tiles, generate_vrt
 from geolabel_maker.vectors import Category
 from geolabel_maker.functional import retrieve_masks, find_polygons, generate_label
 
@@ -168,7 +168,7 @@ class Dataset:
             generate_label(image, self.categories, dir_labels=self.dir_labels)
         return self.dir_labels
 
-    def make_vrt(self, make_images=True, make_labels=True):
+    def generate_vrt(self, make_images=True, make_labels=True):
         r"""Write virtual images from images and/or labels.
 
         .. note::
@@ -185,7 +185,7 @@ class Dataset:
         Examples:
             >>> dataset = Dataset.open("data/")
             >>> dataset.generate_labels()
-            >>> dataset.make_vrt(make_images=True, make_labels=True)
+            >>> dataset.generate_vrt(make_images=True, make_labels=True)
         """
         images_vrt = None
         labels_vrt = None
@@ -193,11 +193,11 @@ class Dataset:
         # Make virtual images
         if make_images:
             outfile = Path(self.root) / "images.vrt"
-            images_vrt = make_vrt(str(outfile), self.images)
+            images_vrt = generate_vrt(str(outfile), self.images)
         # Make virtual labels
         if make_labels:
             outfile = Path(self.root) / "labels.vrt"
-            labels_vrt = make_vrt(str(outfile), self.labels)
+            labels_vrt = generate_vrt(str(outfile), self.labels)
 
         # Return the path to the created files
         if not labels_vrt:
@@ -228,12 +228,12 @@ class Dataset:
         # Generate tiles from the images
         if make_images:
             print(f"Generating image tiles...")
-            images_vrt = self.make_vrt(make_images=True, make_labels=False)
+            images_vrt = self.generate_vrt(make_images=True, make_labels=False)
             generate_tiles(images_vrt, self.dir_tiles_images, **kwargs)
         # Generate tiles from the labels
         if make_labels:
             print(f"Generating label tiles...")
-            labels_vrt = self.make_vrt(make_images=False, make_labels=True)
+            labels_vrt = self.generate_vrt(make_images=False, make_labels=True)
             generate_tiles(labels_vrt, self.dir_tiles_labels, **kwargs)
 
     # TODO: keep additional data from categories (example: a street name)

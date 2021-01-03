@@ -24,7 +24,7 @@ like the creation of virtual images or merging tiles.
     # Generate virtual raster(s)
     tile1 = Raster.open("tile1.tif")
     tile2 = Raster.open("tile2.tif")
-    make_vrt("tiles.vrt", [tile1, tile2])
+    generate_vrt("tiles.vrt", [tile1, tile2])
     
     # Merge raster(s)
     tile1 = Raster.open("tile1.tif")
@@ -62,7 +62,7 @@ def generate_tiles(raster, dir_tiles, **kwargs):
     gdal2tiles.generate_tiles(file_raster, dir_tiles, **kwargs)
 
 
-def make_vrt(outfile, rasters):
+def generate_vrt(outfile, rasters):
     """Builds a virtual raster from a list of rasters.
 
     Args:
@@ -75,7 +75,7 @@ def make_vrt(outfile, rasters):
     Examples:
         >>> tile1 = Raster.open("tile1.tif")
         >>> tile2 = Raster.open("tile2.tif")
-        >>> make_vrt("tiles.vrt", [tile1, tile2])
+        >>> generate_vrt("tiles.vrt", [tile1, tile2])
     """
     raster_files = [to_raster(raster).data.name for raster in rasters]
     ds = gdal.BuildVRT(outfile, raster_files)
