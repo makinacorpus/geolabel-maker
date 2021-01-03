@@ -14,3 +14,4 @@ rasterio==1.1.3
 rtree==0.9.3
 scikit-image==0.16.2
 shapely==1.6.4
+sentinelsat==0.14

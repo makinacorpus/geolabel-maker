@@ -50,7 +50,7 @@ def rgb2color(rgb_img, color):
     and the rest is left in black. Note that black pixels in the input image 
     are not modified i.e. are kept black in the output image.
 
-    Args
+    Args:
         rgb_img (numpy.ndarray): Image to convert in a single color, of size :math:`(3, X, Y)`.
         color (tuple): RGB color, in the format :math:`(R, G, B)`.
 

@@ -37,7 +37,7 @@ def generate_label(raster, categories, dir_labels=""):
             if it is empty, labels are registered within the origin raster directory.
             Default is empty.
 
-    Returns
+    Returns:
         str: name of the created label image
     """
     img_list = []

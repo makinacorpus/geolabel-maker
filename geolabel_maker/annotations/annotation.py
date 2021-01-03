@@ -19,7 +19,7 @@ from pathlib import Path
 from geolabel_maker.data import Data
 
 
-class Annotation(Data, ABC):
+class Annotation(Data):
     r"""
     Abstract class defining the structure of an annotation dataset.
 

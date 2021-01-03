@@ -51,7 +51,7 @@ def make_labels(root):
         quit()
 
 
-def make_tiles(root, make_images=False, make_labels=True, zoom="13-20"):
+def make_tiles(root, make_images=True, make_labels=True, zoom="13-20"):
     logging.info("MAKE TILES")
     # Load the dataset
     dataset = open_dataset(root)

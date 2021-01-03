@@ -17,7 +17,7 @@ from .annotation import Annotation
 
 
 class COCO(Annotation):
-    """Defines an annotation for `Common Object in Context`. 
+    r"""Defines an annotation for `Common Object in Context`. 
     It follows the format used by Microsoft for ``COCO`` annotation.
 
     * :attr:`info` (dict, optional): Description of the annotation (metadata).
@@ -46,7 +46,7 @@ class COCO(Annotation):
 
         .. note::
             The provided dataset must contains a set of georeferenced images and categories (vectorized geometries).
-            See :class:``geolabel_maker.dataset.Dataset``for further details.
+            See :class:``geolabel_maker.dataset.Dataset`` for further details.
 
         Args:
             dataset (Dataset): The dataset containing the images and categories.

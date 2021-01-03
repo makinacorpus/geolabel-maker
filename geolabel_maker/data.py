@@ -8,10 +8,10 @@
 
 
 r"""
-Defines an abstract architecture for all subsets of data i.e. ``Annotation``, ``Raster``, ``Vector``.
+Defines an abstract architecture for all subsets of data i.e. ``Annotation``, ``Raster``, ``Category``.
 
-.. todo::
-    This module will be extended to support `MLFlow <https://mlflow.org/>` workflow.
+.. note::
+    This module will be extended to support `MLFlow <https://mlflow.org/>`__ workflow.
 """
 
 # Basic imports
@@ -20,9 +20,9 @@ from abc import ABC
 
 class Data(ABC):
     r"""
-    A ``Data`` object is an abstract skeleton used to wrap ``Raster``, ``Vector`` and ``Annotation``.
+    A ``Data`` object is an abstract skeleton used to wrap ``Raster``, ``Category`` and ``Annotation``.
     This class is also used to defines the pipeline and tools 
-    used to process ML models with `MLFlow <https://mlflow.org/>` workflow.
+    used to process ML models with `MLFlow <https://mlflow.org/>`__ workflow.
 
     """
 

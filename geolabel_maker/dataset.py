@@ -30,7 +30,6 @@ from collections import defaultdict
 from PIL import Image
 import geopandas as gpd
 import json
-import matplotlib.pyplot as plt
 
 # Geolabel Maker
 from geolabel_maker.rasters import to_raster, generate_tiles, make_vrt
@@ -247,14 +246,15 @@ class Dataset:
             **kwargs (optional): See ``geolabel_maker.functional.find_polygons`` method arguments.
 
         Returns:
-            tuple: Tuple of ``Category``. The categories contains a set of geometries 
-                (e.g. all buildings from the images at ``zoom`` level).
+            tuple: Categories containing geometries (e.g. all buildings from the images at ``zoom`` level).
 
         Examples:
             >>> dataset = Dataset.open("data/")
             >>> dataset.generate_labels()
             >>> dataset.generate_tiles(zoom="14-16")
             >>> categories = dataset.extract_categories(zoom=15)
+            >>> categories
+                (Category(name='vegetation', data=34, color=(0, 150, 0), Category(name='buildings', data=267, color=(255, 255, 255)))
         """
         color2id = {tuple(category.color): i for i, category in enumerate(self.categories)}
         categories_dict = defaultdict(list)
@@ -295,17 +295,3 @@ class Dataset:
             categories.append(category)
 
         return tuple(categories)
-
-    def show_images(self, columns=2, save=False, outfile="images.jpg"):
-        figure = plt.figure(figsize=(12, 6))
-
-        for i, image in enumerate(self.images):
-            image = image.numpy().transpose(1, 2, 0)           
-            plt.subplot(int(len(self.images)/columns + 1), columns, i + 1)
-            plt.imshow(image)
-            plt.axis('off')
-
-        if save:
-            plt.savefig(outfile)
-
-        plt.show()

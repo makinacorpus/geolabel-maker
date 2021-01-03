@@ -41,12 +41,13 @@ setup(
     },
     python_requires='>=3.6',
     install_requires=[
-        'begins',
         'numpy',
         'gdal2tiles',
+        'shapely',
         'geopandas',
         'rasterio',
-        'matplotlib',
+        'PIL',
         'scikit-image',
+        'sentinelsat'
     ],
 )

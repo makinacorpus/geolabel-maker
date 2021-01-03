@@ -1,30 +1,268 @@
-# geolabel-maker
+<h3 align="center">geolabel-maker</h3>
 
-This tool is provided to help you in your **data preparation for geospatial artificial intelligence**.
+<p align="center">
+  <a href="" rel="noopener">
+  <img src="medias/geolabel-maker.gif" alt="Demo"></a>
+</p>
 
-![](medias/geolabel-maker.gif)
+<div align="center">
+
+[![Status](https://img.shields.io/badge/status-active-success.svg)]()
+[![Website](https://img.shields.io/website?url=https%3A%2F%2Fmakina-corpus.com%2Fblog%2Fmetier%2F2020%2Fextraction-dobjets-pour-la-cartographie-par-deep-learning-creation-dune-verite-terrain)](https://makina-corpus.com/blog/metier/2020/extraction-dobjets-pour-la-cartographie-par-deep-learning-creation-dune-verite-terrain)
+[![License](https://img.shields.io/github/license/makinacorpus/geolabel-maker)](/LICENSE)
+
+</div>
+
+<p align="center"> 
+  This tool is provided to help you in your <b>data preparation for geospatial artificial intelligence</b>. Generate your own ground truth from geo-referenced aerial images and vectors in a few lines of code.
+</p>
+
+## Table of Contents
+
+-   [About](#about)
+-   [Installation](#installation)
+-   [Usage](#usage)
+-   [Examples](#examples)
+-   [Documentation](#documentation)
+-   [For developers](#for-developers)
+-   [Contributors](#contributors)
+-   [Acknowledgements](#acknowledgements)
+
+## About
 
 With `geolabel-maker`, you will be able to combine satellite or aerial imagery with
 vector spatial data to create your own ground-truth dataset. This Python package can
-generate your final dataset in the [COCO format](http://cocodataset.org/#home) for deep-learning models.
-
+generate your final dataset in various formats for deep-learning models. See [outputs](#outputs) for more details.
 
 It is designed to link up these 4 needed steps :
- 1. create labels from geometries and raster files;
- 2. make virtual raster files to combine images and labels;
- 3. split image and label virtual files creating tiles;
- 4. create an annotation JSON file in the COCO format for a specific zoom level.
+
+1. Download satellite images and vector geometries;
+2. Create labels from geometries and raster files;
+3. Generate tiles from the satellite images and labels;
+4. Create an annotation file (`JSON`, `TXT`, `CSV`) for object detection, segmentation or classification.
 
 ## Installation
 
-### Requirements
+![Python](https://img.shields.io/static/v1?label=Python&message=3.6&color=blue)
+![GDAL](https://img.shields.io/static/v1?label=GDAL&message=3.1.4&color=blue)
 
- * Python 3.6
- * GDAL
+See [requirements.txt](requirements.txt) for the list of the packages used and their version. See these [common issues](#common-issues) if you struggles to install some packages.
 
-### GDAL
+Install `geolabel-maker` using `pip` in your terminal:
 
-As a particular case, GDAL is not included into the `setup.py` file.
+```
+pip install geolabel-maker
+```
+
+## Usage
+
+![workflow](medias/usage.png)
+
+### Inputs
+
+> A sample dataset is available in the `data/` folder. See the [Examples](#examples) paragraph for more information.  
+
+To create your labels and annotations, you need:
+
+```
+data
+├── categories
+│   ├── buildings.json
+│   └── vegetation.json
+├── images
+│   ├── 1843_5174_08_CC46.tif
+│   └── 1844_5173_08_CC46.tif
+└── categories.json
+```
+
+- `images/` : The folder containing the images to be labeled.
+- `categories/` : The folder containing the different vectors per category (e.g. `buildings.json` is a set of polygons corresponding to some buildings)
+- `categories.json` : The file mapping the different categories (e.g. buildings, vegetation etc.) to their location, ids and RGB color.
+
+Example of the `categories.json` file:
+
+```json
+{
+    "category_1": {
+        "id": 0,
+        "file": "categories/vegetation.json",
+        "color": [0, 150, 0]
+    },
+    "category_2": {
+        "id": 1,
+        "file": "categories/buildings.json",
+        "color": [255, 255, 255]
+    }
+}
+```
+
+#### Supported formats:
+
+We use packages based on GDAL drivers.
+
+-   for images, see [raster formats](https://gdal.org/drivers/raster/index.html) :
+    -   `GeoTIFF`,
+    -   `JPEG2000`,
+    -   `ASCII Grid`,
+    -   etc.
+-   for geometries, see [supported drivers](https://github.com/Toblerity/Fiona/blob/master/fiona/drvsupport.py) of the `fiona` package :
+    -   `ESRI Shapefile`,
+    -   `GeoJSON`,
+    -   `GPKG`,
+    -   etc.
+
+
+### Outputs
+
+#### Classification
+
+> Currently in progress  
+Note that you can still use COCO dataset for this purpose
+
+#### Object detection
+
+> Currently in progress  
+Note that you can still use COCO dataset for this purpose
+
+#### Segmentation
+
+The [COCO](https://cocodataset.org/) format is the most popular annotation for segmentation and object-detection purposes.
+This format is supported by `geolabel_maker`.
+
+
+### Using the command-line interface
+
+A command-line interface is proposed with 5 available
+actions (`download`, `make_labels`, `make_rasters`, `make_tiles`, `make_annotations`).
+
+**1. Create labels from geometries and raster files**
+
+```
+geolabel_maker make_labels  --root  Path to the folder containing images and categories sub-folders
+```
+
+**2. Make virtual raster files to combine images and labels**
+
+```
+geolabel_maker make_rasters --root  Path to the folder containing images and categories sub-folders
+```
+
+**3. Generate tiles from the images and labels**
+
+```
+geolabel_maker make_tiles --root  Path to the folder containing images and categories sub-folders
+                          --zoom  (optional) Zoom interval e.g. 14-20
+```
+
+**4. Create an annotation file in the format of your choice**
+
+```
+geolabel_maker make_annotations --root  Path to the folder containing images and categories sub-folders
+                                --zoom  Zoom level used e.g. 17
+                                --type  Type of annotation e.g. coco
+                                --file  (optional) Output file e.g. coco.json
+```
+
+### Importing the package in Python code
+
+```python
+from geolabel_maker import Dataset
+from geolabel_maker.annotations import COCO
+
+# Open the dataset from the root
+dataset = Dataset.open("data")
+# Create labels from geometries and raster files
+dataset.generate_labels()
+# Make virtual raster files to combine images and labels
+dataset.make_vrt()
+# Generate tiles from images and labels
+dataset.generate_tiles(zoom="14-20")
+
+# Create a COCO annotations
+annotation = COCO.from_dataset(dataset, zoom=17)
+# Save the annotations
+annotation.save("coco.json")
+
+# Open a saved annotations file
+annotation = COCO.open("coco.json")
+annotation_data = annotation.to_dict()
+```
+
+## Examples
+
+The `data/` folder contains geometries (in `data/categories/`) from Lyon, published as open data in the website [https://data.grandlyon.com](https://data.grandlyon.com).
+It contains also an example of a `JSON` file describing categories used to create labels.
+
+This folder doesn't contain images because this type of file is too big to be supported in Github.
+To follow our example, just download these two files and put them in the folder `data/images/`:
+
+-   [1843_5173_08_CC46.tif](https://download.data.grandlyon.com/files/grandlyon/imagerie/ortho2018/ortho/GeoTiff_YcBcR/1km_8cm_CC46/1843_5173_08_CC46.tif)
+-   [1844_5173_08_CC46.tif](https://download.data.grandlyon.com/files/grandlyon/imagerie/ortho2018/ortho/GeoTiff_YcBcR/1km_8cm_CC46/1844_5173_08_CC46.tif)
+
+### Notebooks
+
+Some Jupyter notebooks (in French) are available :
+
+-   [Use_geolabel_maker.ipynb](notebooks/Use_geolabel_maker.ipynb) explains the process to build your ground truth.
+-   [Check_coco_annotations.ipynb](notebooks/Check_coco_annotations.ipynb) allows to explore your final annotations file.
+
+
+## Documentation
+
+You can read other tutorials (in French) on [Makina Corpus website](https://makina-corpus.com/blog/metier/2020/extraction-dobjets-pour-la-cartographie-par-deep-learning-creation-dune-verite-terrain), or read `geolabel_maker` documentation (in English) on [readthedocs](https://geolabel-maker.readthedocs.io/en/latest/).
+
+## For developers
+
+#### Install from source
+
+```
+git clone https://github.com/makinacorpus/geolabel-maker
+cd geolabel-maker
+pip install -e .
+```
+
+#### Pre-commit and linting
+
+-   [Install pre-commit](https://pre-commit.com/#install) and run `pre-commit install`
+    to check linting before committing.
+
+-   When you want, you can force a pre-commit on all the files :
+
+```
+pre-commit run --all-files
+```
+
+#### Build documentation
+
+The documentation is build with `sphinx`. Install it with:
+
+```
+pip install sphinx
+pip install sphinx_rtd_theme
+```
+
+Build the docs with:
+```
+cd docs
+make html
+```
+
+Before pushing the code, make sure the docs were build successfully without warnings.
+
+
+## Common Issues
+
+This section list the known issues with some packages (GDAL, shapely, etc.) and gives some fixes.
+
+<!-- GDAL is not installed ! -->
+
+<details>
+
+<summary><b>GDAL is not installed</b></summary>
+
+> As a particular case, GDAL is not included in `setup.py`.
+
+#### Ubuntu
 
 For `Ubuntu` distributions, the following operations are needed to install this program:
 
@@ -34,180 +272,69 @@ sudo apt-get install python3-gdal
 ```
 
 The GDAL version can be verified by:
+
 ```
 gdal-config --version
 ```
+
 After that, a simple `pip install gdal` (or `conda install gdal`) may be sufficient, however considering our own experience it is not the case on Ubuntu. One has to retrieve a GDAL for Python that corresponds to the GDAL of system:
+
 ```
 pip install --global-option=build_ext --global-option="-I/usr/include/gdal" GDAL==`gdal-config --version`
 python3 -c "import osgeo;print(osgeo.__version__)"
 ```
-For other OS, please visit the `GDAL` installation documentation.
 
+#### Windows
 
-### Installation with pip
-```
-pip install geolabel-maker
-```
-
-## Usage
-
-### Inputs
-
-> An sample dataset is available in the `data/` folder. See the [Examples](#examples) paragraph to more information.
-
-To create your labels and annotations in the COCO format, you need:
-
- * `IMG` : path to the folder containing the images to be labeled
- * `CATEGORIES` : a JSON file with an unique id for each, the description of expected categories
-with path to vector label file, and color as RGB triplet.
- * `TILES` : a folder where the tiles (256x256 pixels images) will be recorded
-
-Example of the categories file:
-
-```json
-{
-    "category_1": {
-        "id": 1,
-        "file": "path to your category_1 vector file",
-        "color": [150, 0, 0]
-    },
-    "category_2": {
-        "id": 2,
-        "file": "path to your category_2 vector file",
-        "color": [255, 255, 255]
-    }
-}
-```
-
-##### Supported formats:
-
-We use packages based on GDAL drivers.
-
- * for images, see [raster formats](https://gdal.org/drivers/raster/index.html) :
-   * GeoTIFF,
-   * JPEG2000,
-   * ASCII Grid,
-   * etc
- * for geometries, see [supported drivers](https://github.com/Toblerity/Fiona/blob/master/fiona/drvsupport.py) of the `fiona` package :
-   * ESRI Shapefile,
-   * GeoJSON,
-   * GPKG,
-   * etc
-
-### Using the command-line interface
-
-A command-line interface is proposed with 5 available
-actions (`make_labels`, `make_rasters`, `make_tiles`, `make_annotations`
- and `make_all`).
-
-#### Step-by-step commands
-
- **1. Create labels from geometries and raster files**
+For `Windows`, the library can be manually downloaded from the [unofficial library releases](https://www.lfd.uci.edu/~gohlke/pythonlibs/#gdal), which is the most efficient way to install it. You will need to download the version corresponding to your OS platform, then install it:
 
 ```
-geolabels make_labels IMG CATEGORIES
+pip install <your_gdal_wheel>
 ```
 
- **2. Make virtual raster files to combine images and labels**
+#### Other
 
-```
-geolabels make_rasters IMG
-```
+For other OS, please visit the [GDAL](https://github.com/OSGeo/gdal) installation documentation.
 
- **3. Split image and label virtual files creating tiles**
+</details>
 
-```
-geolabels make_tiles IMG_VRT LABEL_VRT TILES
-```
+<!-- END GDAL is not installed ! -->
 
- **4. Create an annotation JSON file in the COCO format for a specific zoom level**
+<!-- Shapely speedups crash for Windows -->
 
-```
-geolabels make_annotations TILES CATEGORIES
-```
+<details>
 
-Option:
-- *--zoom*, the zoom level
+<summary><b>Shapely speedups crash for Windows</b></summary>
 
-#### Global command
+> You may have an error from shapely on windows
 
-To run the full process to get a ground truth in the COCO format, use the command:
-
-```
-geolabels make_all IMG TILES CATEGORIES
-```
-
-Option:
-- *--zoom*, the zoom level
-
-### Importing the package in Python code
+If you face any issues from shapely or geometries, try to disable `shapely.speedups`:
 
 ```python
-from geolabel_maker import geolabels
+from shapely import speedups
 
-# Create labels from geometries and raster files
-geolabels.make_labels(img, categories)
-# Make virtual raster files to combine images and labels
-images_vrt, labels_vrt = geolabels.make_rasters(img)
-# Split image and label virtual files creating tiles
-geolabels.make_tiles(images_vrt, labels_vrt, tiles)
-# Create an annotation JSON file in the COCO format
-geolabels.make_annotations(tiles, categories)
-
-# OR
-# Run the full process
-geolabels.make_all(img, tiles, categories)
+speedups.disable()
 ```
 
-## Examples
+Or set `DISABLE_SPEEDUPS = True` in the `geolabel_maker/__init__.py` file. 
 
-The **`data/`** folder contains geometries (`vectors/`) from Lyon, published as open data in the website [https://data.grandlyon.com](https://data.grandlyon.com).
-It contains also an example of a JSON file describing categories used to create labels.
+</details>
 
-This folder doesn't contain images because this type of file is too big to be supported in Github. 
-To follow our example, just download these two files and put them in the folder `data/rasters/`:
-- [1843_5173_08_CC46.tif](https://download.data.grandlyon.com/files/grandlyon/imagerie/ortho2018/ortho/GeoTiff_YcBcR/1km_8cm_CC46/1843_5173_08_CC46.tif)
-- [1844_5173_08_CC46.tif](https://download.data.grandlyon.com/files/grandlyon/imagerie/ortho2018/ortho/GeoTiff_YcBcR/1km_8cm_CC46/1844_5173_08_CC46.tif)
+<!-- END Shapely speedups crash for Windows -->
 
-### Notebooks
+## Contributors
 
-Some Jupyter notebooks (in French) are available :
-- [Use_geolabel_maker.ipynb](notebooks/Use_geolabel_maker.ipynb) explains the process to build your ground truth.
-- [Check_coco_annotations.ipynb](notebooks/Check_coco_annotations.ipynb) allows to explore your final annotations file.
-
-## For developers
-
-#### Install from source
-
-```
-git clone URL
-cd geolabel-maker
-pip install -e .
-```
-
-#### Pre-commit and linting
-
-* [Install pre-commit](https://pre-commit.com/#install) and run `pre-commit install`
-to check linting before committing.
-
-* When you want, you can force a pre-commit on all the files :
-
-```
-pre-commit run --all-files
-```
+![Contributors](https://contrib.rocks/image?repo=makinacorpus/geolabel-maker)
 
 ## Acknowledgements
 
-We gratefully acknowledge the contributions of the people who 
-helped get this project off of the ground, including people who 
-beta tested the software, gave feedback, improved dependencies of 
+We gratefully acknowledge the contributions of the people who
+helped get this project off of the ground, including people who
+beta tested the software, gave feedback, improved dependencies of
 code in service of this release, or otherwise supported the project.
 
-Particularly thank you [Lucie Camanez](https://github.com/TrueCactus) 
+Particularly thank you [Lucie Camanez](https://github.com/TrueCactus)
 to have initiate this project in its internship.
 
-We also acknowledge [Adam Kelly](https://www.immersivelimit.com/) 
+We also acknowledge [Adam Kelly](https://www.immersivelimit.com/)
 whose work has helped us in the development of this tool.
-
-

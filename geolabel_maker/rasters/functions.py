@@ -69,7 +69,7 @@ def make_vrt(outfile, rasters):
         dir_rasters (str): The images directory path.
         out_name (str): The name of the output virtual raster. Default value is ``out.vrt``.
 
-    Returns
+    Returns:
         str: Path to the VRT file.
 
     Examples:
