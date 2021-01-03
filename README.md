@@ -56,47 +56,25 @@ pip install geolabel-maker
 
 ## Usage
 
-![workflow](medias/usage.png)
+![data](medias/data.png)
 
-### Inputs
+Before to generate your dataset, you will need to provide geo-referenced satellite `images` (i.e. rasters) and `categories` (i.e. vectors). See this [example on how to download data]() for further details.
 
-> A sample dataset is available in the `data/` folder. See the [Examples](#examples) paragraph for more information.  
+![dataset](medias/dataset.png)
 
-To create your labels and annotations, you need:
+Once you have geo-referenced rasters and vectors, you are ready to build your own dataset. List the different categories (e.g. buildings, vegetation) in `categories.json` that will be used as masks. You will need to create tiles for the images and labels (i.e. rasterized vectors) to be able to generate your annotations file. See this [example on how to generate a dataset]() for further details.
 
-```
-data
-├── categories
-│   ├── buildings.json
-│   └── vegetation.json
-├── images
-│   ├── 1843_5174_08_CC46.tif
-│   └── 1844_5173_08_CC46.tif
-└── categories.json
-```
+![annotations](medias/annotations.png)
 
-- `images/` : The folder containing the images to be labeled.
-- `categories/` : The folder containing the different vectors per category (e.g. `buildings.json` is a set of polygons corresponding to some buildings)
-- `categories.json` : The file mapping the different categories (e.g. buildings, vegetation etc.) to their location, ids and RGB color.
+The final step is to generate you annotations file. This python package lets you create three kinds of annotations: 
+- [Classification](), to map images with one category;
+- [Object Detection](), to extract object by their bbox in the images (and their corresponding masks);
+- [Segmentation](), to extract object by their segmentation in the images (and their corresponding masks).
 
-Example of the `categories.json` file:
+See this [example on how to generate annotations]() for further details.
 
-```json
-{
-    "category_1": {
-        "id": 0,
-        "file": "categories/vegetation.json",
-        "color": [0, 150, 0]
-    },
-    "category_2": {
-        "id": 1,
-        "file": "categories/buildings.json",
-        "color": [255, 255, 255]
-    }
-}
-```
 
-#### Supported formats:
+### Supported formats
 
 We use packages based on GDAL drivers.
 
@@ -105,30 +83,11 @@ We use packages based on GDAL drivers.
     -   `JPEG2000`,
     -   `ASCII Grid`,
     -   etc.
--   for geometries, see [supported drivers](https://github.com/Toblerity/Fiona/blob/master/fiona/drvsupport.py) of the `fiona` package :
+-   for vectors, see [supported drivers](https://github.com/Toblerity/Fiona/blob/master/fiona/drvsupport.py) of the `fiona` package :
     -   `ESRI Shapefile`,
     -   `GeoJSON`,
     -   `GPKG`,
     -   etc.
-
-
-### Outputs
-
-#### Classification
-
-> Currently in progress  
-Note that you can still use COCO dataset for this purpose
-
-#### Object detection
-
-> Currently in progress  
-Note that you can still use COCO dataset for this purpose
-
-#### Segmentation
-
-The [COCO](https://cocodataset.org/) format is the most popular annotation for segmentation and object-detection purposes.
-This format is supported by `geolabel_maker`.
-
 
 ### Using the command-line interface
 
@@ -240,15 +199,6 @@ The documentation is build with `sphinx`. Install it with:
 pip install sphinx
 pip install sphinx_rtd_theme
 ```
-
-Build the docs with:
-```
-cd docs
-make html
-```
-
-Before pushing the code, make sure the docs were build successfully without warnings.
-
 
 ## Common Issues
 
