@@ -51,7 +51,7 @@ def generate_label(raster, categories, dir_labels=""):
             list(category.data.geometry),
             crop=False
         )
-        # Format to (Bands, Height, Width)
+        # Format to (Bands, Width, Height)
         out_image = np.rollaxis(out_image, 0, 3)
         # Convert image in black & color
         bw_image = utils.rgb2color(out_image, category.color)
@@ -101,7 +101,7 @@ def retrieve_masks(label_image, categories):
     """Create sub masks from a label image and their colors.
 
     Args:
-        image (PIL.Image): Mask RGB image of shape :math:`(3, Width, Height)`.
+        image (PIL.Image): Mask RGB image of shape :math:`(3, X, Y)`.
         colors (list): List of RGB colors used to map the different categories.
 
     Returns:
@@ -150,7 +150,7 @@ def find_polygons(mask_image, preserve_topology=False):
             usually generated with the function ``get_masks()``.
         preserve_topology (bool): If ``True``, preserve the topology of the polygon.
 
-    Returns
+    Returns:
         list: List of ``shapely.geometry.Polygon`` vectorized from the input raster ``mask_image``.
 
     Examples:

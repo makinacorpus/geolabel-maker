@@ -20,7 +20,7 @@ from geolabel_maker.data import Data
 
 
 class Annotation(Data):
-    r"""
+    r""":badge:`abstract,badge-secondary badge-pill`
     Abstract class defining the structure of an annotation dataset.
 
     """

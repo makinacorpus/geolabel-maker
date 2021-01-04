@@ -19,7 +19,7 @@ from abc import ABC
 
 
 class Data(ABC):
-    r"""
+    r""":badge:`abstract,badge-secondary badge-pill`
     A ``Data`` object is an abstract skeleton used to wrap ``Raster``, ``Category`` and ``Annotation``.
     This class is also used to defines the pipeline and tools 
     used to process ML models with `MLFlow <https://mlflow.org/>`__ workflow.

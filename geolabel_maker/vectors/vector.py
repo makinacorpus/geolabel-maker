@@ -43,6 +43,12 @@ def to_vector(element, *args, **kwargs):
 
 
 class Vector(Data):
+    r""":badge:`deprecated,badge-danger badge-pill`
+    Used to define the geometries.
+    
+    * :attr:`data` (geopandas.GeoDataFrame): Table of geometries.
+    
+    """
 
     def __init__(self, data):
         super().__init__()

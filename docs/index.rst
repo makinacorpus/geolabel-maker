@@ -20,6 +20,7 @@ Welcome to geolabel-maker's documentation!
     :caption: Examples
 
     examples/data
+    examples/download
     examples/dataset
     examples/annotations
 

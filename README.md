@@ -1,4 +1,4 @@
-<h3 align="center">geolabel-maker</h3>
+<h1 align="center">geolabel-maker</h1>
 
 <p align="center">
   <a href="" rel="noopener">
@@ -8,8 +8,12 @@
 <div align="center">
 
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
-[![Website](https://img.shields.io/website?url=https%3A%2F%2Fmakina-corpus.com%2Fblog%2Fmetier%2F2020%2Fextraction-dobjets-pour-la-cartographie-par-deep-learning-creation-dune-verite-terrain)](https://makina-corpus.com/blog/metier/2020/extraction-dobjets-pour-la-cartographie-par-deep-learning-creation-dune-verite-terrain)
+[![PyPi](https://img.shields.io/pypi/pyversions/geolabel-maker)](https://pypi.org/project/geolabel-maker/)
+[![PyPi](https://img.shields.io/pypi/v/geolabel-maker)](https://pypi.org/project/geolabel-maker/)
 [![License](https://img.shields.io/github/license/makinacorpus/geolabel-maker)](/LICENSE)
+[![Docs](https://img.shields.io/readthedocs/geolabel-maker)]()
+[![Website](https://img.shields.io/static/v1?label=blog&message=up&color=brightgreen)](https://makina-corpus.com/blog/metier/2020/extraction-dobjets-pour-la-cartographie-par-deep-learning-creation-dune-verite-terrain)
+
 
 </div>
 
@@ -91,8 +95,8 @@ We use packages based on GDAL drivers.
 
 ### Using the command-line interface
 
-A command-line interface is proposed with 5 available
-actions (`download`, `make_labels`, `make_rasters`, `make_tiles`, `make_annotations`).
+A command-line interface is proposed with 4 available
+actions (`download`, `make_labels`, `make_tiles`, `make_annotations`).
 
 **1. Create labels from geometries and raster files**
 
@@ -100,20 +104,14 @@ actions (`download`, `make_labels`, `make_rasters`, `make_tiles`, `make_annotati
 geolabel_maker make_labels  --root  Path to the folder containing images and categories sub-folders
 ```
 
-**2. Make virtual raster files to combine images and labels**
-
-```
-geolabel_maker make_rasters --root  Path to the folder containing images and categories sub-folders
-```
-
-**3. Generate tiles from the images and labels**
+**2. Generate tiles from the images and labels**
 
 ```
 geolabel_maker make_tiles --root  Path to the folder containing images and categories sub-folders
                           --zoom  (optional) Zoom interval e.g. 14-20
 ```
 
-**4. Create an annotation file in the format of your choice**
+**3. Create an annotation file in the format of your choice**
 
 ```
 geolabel_maker make_annotations --root  Path to the folder containing images and categories sub-folders
@@ -132,8 +130,6 @@ from geolabel_maker.annotations import COCO
 dataset = Dataset.open("data")
 # Create labels from geometries and raster files
 dataset.generate_labels()
-# Make virtual raster files to combine images and labels
-dataset.generate_vrt()
 # Generate tiles from images and labels
 dataset.generate_tiles(zoom="14-20")
 
@@ -141,10 +137,6 @@ dataset.generate_tiles(zoom="14-20")
 annotation = COCO.from_dataset(dataset, zoom=17)
 # Save the annotations
 annotation.save("coco.json")
-
-# Open a saved annotations file
-annotation = COCO.open("coco.json")
-annotation_data = annotation.to_dict()
 ```
 
 ## Examples
@@ -274,7 +266,7 @@ Or set `DISABLE_SPEEDUPS = True` in the `geolabel_maker/__init__.py` file.
 
 ## Contributors
 
-![Contributors](https://contrib.rocks/image?repo=makinacorpus/geolabel-maker)
+[![Contributors](https://contrib.rocks/image?repo=makinacorpus/geolabel-maker)](#contributors)
 
 ## Acknowledgements
 

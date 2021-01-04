@@ -23,6 +23,19 @@ from geolabel_maker.data import Data
 
 
 class Category(Data):
+    r"""
+    A category is a set of vectors (or geometries) corresponding to the same element (e.g. buildings).
+    A category must have a name (e.g. ``"buildings"``) and a RGB color (e.g. ``(255, 255, 255)``),
+    which will be used to draw the vectors on raster images.
+    This class is used to extract polygons / geometries from satellite images, and then create the labels.
+    
+    * :attr:`name` (str): The name of the category corresponding to the elements.
+    
+    * :attr:`data` (geopandas.GeoDataFrame): A table of geometries.
+    
+    * :attr:`color` (tuple): RGB tuple of pixel values (from 0 to 255).
+    
+    """
 
     def __init__(self, name, data, color=None):
         super().__init__()
@@ -43,7 +56,7 @@ class Category(Data):
         raise NotImplementedError
 
     def crop(self, bbox):
-        """Get the geometries which are in a bounding box.
+        r"""Get the geometries which are in a bounding box.
 
         Args:
             bbox (tuple): Bounding box used to crop the geometries.

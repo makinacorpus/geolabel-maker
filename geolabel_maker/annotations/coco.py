@@ -17,7 +17,7 @@ from .annotation import Annotation
 
 
 class COCO(Annotation):
-    r"""Defines an annotation for `Common Object in Context`. 
+    r"""Defines an annotation for `Common Object in Context <http://cocodataset.org/>`__. 
     It follows the format used by Microsoft for ``COCO`` annotation.
 
     * :attr:`info` (dict, optional): Description of the annotation (metadata).
