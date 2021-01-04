@@ -48,10 +48,6 @@ class Dataset:
 
     * :attr:`categories` (list): List of categories (either of type ``Category`` of path to the categories).
 
-    .. note::
-        To avoid memory overload, the dataset does not contains the ``Raster`` and ``Category`` data
-        directly but their paths.
-
     """
 
     def __init__(self, images, categories, root="data"):

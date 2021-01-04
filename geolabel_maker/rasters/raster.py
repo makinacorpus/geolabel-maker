@@ -95,9 +95,7 @@ class Raster(Data):
         # we write the image by sub-windows (usually 256x256 windows)
         array = self.data.read()
         with rasterio.open(outname, 'w', **self.data.profile) as dst:
-            for ji, window in self.data.block_windows(1):
-                array_window = array[:, window.row_off:window.row_off + window.height, window.col_off:window.col_off + window.width]
-                dst.write(array_window.astype("uint8"), window=window)
+            dst.write(array.astype("uint8"))
 
     def numpy(self):
         return self.data.read()

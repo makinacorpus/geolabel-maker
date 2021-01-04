@@ -190,6 +190,12 @@ The documentation is build with `sphinx`. Install it with:
 ```
 pip install sphinx
 pip install sphinx_rtd_theme
+pip install sphinx_panels
+```
+
+Convert the notebooks and add them to the documentation:
+```
+jupyter nbconvert <notebook_file> --to-rst
 ```
 
 ## Common Issues

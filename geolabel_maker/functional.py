@@ -44,20 +44,22 @@ def generate_label(raster, categories, dir_labels=""):
     out_transform = None
     for category in categories:
         # Match the category to the raster extends
-        category = category.crop_raster(raster)
-        # Create a raster from the geometries
-        out_image, out_transform = rasterio.mask.mask(
-            raster.data,
-            list(category.data.geometry),
-            crop=False
-        )
-        # Format to (Bands, Width, Height)
-        out_image = np.rollaxis(out_image, 0, 3)
-        # Convert image in black & color
-        bw_image = utils.rgb2color(out_image, category.color)
-        # Create a PIL image
-        img = Image.fromarray(bw_image.astype(rasterio.uint8))
-        img_list.append(img)
+        category_cropped = category.crop_raster(raster)
+        # If the category contains vectors in the cropped area
+        if not category_cropped.data.empty:
+            # Create a raster from the geometries
+            out_image, out_transform = rasterio.mask.mask(
+                raster.data,
+                list(category_cropped.data.geometry),
+                crop=False
+            )
+            # Format to (Bands, Width, Height)
+            out_image = np.rollaxis(out_image, 0, 3)
+            # Convert image in black & color
+            bw_image = utils.rgb2color(out_image, category.color)
+            # Create a PIL image
+            img = Image.fromarray(bw_image.astype(rasterio.uint8))
+            img_list.append(img)
 
     # Merge images
     label_image = img_list[0]

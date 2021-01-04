@@ -10,18 +10,21 @@
 from sentinelsat import SentinelAPI, read_geojson, geojson_to_wkt
 from pathlib import Path
 import zipfile
-import os
 
 
-def unzip_all(dirname):
-    # get the list of files
-    for file in os.listdir(dirname):
-        # if it is a zipfile, extract it
-        if zipfile.is_zipfile(file):
-            # treat the file as a zip
-            with zipfile.ZipFile(file) as item:
-                # extract it in the same directory
-                item.extractall()
+def extract_to_dir(filename, outdir='.'):
+    if zipfile.is_zipfile(filename):
+        zipfile.ZipFile(filename, 'r').extractall(outdir)
+    # Return the path where the file was extracted
+    return str(Path(outdir) / Path(filename).stem)
+
+
+def extract_all(indir, outdir='.'):
+    # Extract all files in a directory
+    for file in Path(indir).iterdir():
+        extract_to_dir(str(file), outdir=outdir)
+        # Delete the zip file to keep only the content
+        file.unlink()
 
 
 def download(username,
@@ -46,6 +49,6 @@ def download(username,
     # Download all results from the search
     api.download_all(products, outdir)
     # Unzip the images
-    unzip_all(outdir)
+    extract_all(outdir, outdir)
 
-    return True
+    return outdir
