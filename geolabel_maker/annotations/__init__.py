@@ -7,5 +7,4 @@
 # Copyright (c) 2020, Makina Corpus
 
 
-from .annotation import Annotation
 from .coco import COCO

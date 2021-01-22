@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="" rel="noopener">
-  <img src="medias/geolabel-maker.gif" alt="Demo"></a>
+  <img src="docs/images/geolabel_maker.gif" alt="Demo"></a>
 </p>
 
 <div align="center">
@@ -60,15 +60,15 @@ pip install geolabel-maker
 
 ## Usage
 
-![data](medias/data.png)
+![data](docs/images/data.png)
 
 Before to generate your dataset, you will need to provide geo-referenced satellite `images` (i.e. rasters) and `categories` (i.e. vectors). See this [example on how to download data]() for further details.
 
-![dataset](medias/dataset.png)
+![dataset](docs/images/dataset.png)
 
 Once you have geo-referenced rasters and vectors, you are ready to build your own dataset. List the different categories (e.g. buildings, vegetation) in `categories.json` that will be used as masks. You will need to create tiles for the images and labels (i.e. rasterized vectors) to be able to generate your annotations file. See this [example on how to generate a dataset]() for further details.
 
-![annotations](medias/annotations.png)
+![annotations](docs/images/annotations.png)
 
 The final step is to generate you annotations file. This python package lets you create three kinds of annotations: 
 - [Classification](), to map images with one category;

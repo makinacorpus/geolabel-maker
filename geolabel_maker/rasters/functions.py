@@ -34,32 +34,36 @@ like the creation of virtual images or merging tiles.
 """
 
 # Basic imports
+from pathlib import Path
 from osgeo import gdal
+import gdal2tiles
 import rasterio
 import rasterio.merge
 from shutil import copyfile
-import gdal2tiles
-from pathlib import Path
 
 # Geolabel Maker
 from .raster import to_raster
 
 
-def generate_tiles(raster, dir_tiles, **kwargs):
+def generate_tiles(raster_file, outdir="tiles", **kwargs):
     r"""Create tiles from a raster file (using GDAL)
 
+    .. note::
+        If the output directory ``outdir`` does not exist,
+        it will be created.
+
     Args:
-        raster (Raster): The raster used to generate tiles.
-        dir_tiles (str): The path to the directory where the tiles will be saved
+        raster (Raster): Raster used to generate tiles. String and path to the file are accepted.
+        outdir (str, optional): Path to the directory where the tiles will be saved.
 
     Examples:
         >>> raster = Raster.open("raster.tif")
-        >>> generate_tiles(raster, "tiles")
+        >>> generate_tiles(raster, outdir="tiles")
     """
-    Path(dir_tiles).mkdir(parents=True, exist_ok=True)
+    Path(outdir).mkdir(parents=True, exist_ok=True)
     # Generate tiles with `gdal2tiles`
-    file_raster = to_raster(raster).data.name
-    gdal2tiles.generate_tiles(file_raster, dir_tiles, **kwargs)
+    raster_file = to_raster(raster_file).data.name
+    gdal2tiles.generate_tiles(raster_file, outdir, **kwargs)
 
 
 def generate_vrt(outfile, rasters):

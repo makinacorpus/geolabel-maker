@@ -26,10 +26,9 @@ Generate your own ground truth from geo-referenced aerial images and vectors in 
     :maxdepth: 2
     :caption: Tutorials
 
-    examples/data
-    examples/download
-    examples/dataset
-    examples/annotations
+    tutorials/data
+    tutorials/dataset
+    tutorials/annotations
 
 
 .. toctree::
@@ -46,6 +45,9 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
+
+Contributors
+============
 
 .. image :: https://contrib.rocks/image?repo=makinacorpus/geolabel-maker
 

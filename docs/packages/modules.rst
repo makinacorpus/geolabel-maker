@@ -7,29 +7,13 @@ Geolabel Maker
 .. autosummary::
    :nosignatures:
 
-   ~data.Data
    ~dataset.Dataset
-   ~functional.generate_label
-   ~functional.retrieve_masks
-   ~functional.find_polygons
 
-
-geolabel_maker.data
-===================
-
-.. automodule:: geolabel_maker.data
-    :members:
 
 geolabel_maker.dataset
 ======================
 
 .. automodule:: geolabel_maker.dataset
-    :members:
-
-geolabel_maker.functional
-=========================
-
-.. automodule:: geolabel_maker.functional
     :members:
 
 
@@ -42,9 +26,9 @@ Rasters
 .. autosummary::
    :nosignatures:
 
+   ~download.SentinelAPI
    ~raster.to_raster
    ~raster.Raster 
-   ~functions.generate_tiles
    ~functions.generate_vrt
    ~functions.merge_rasters
    ~utils.rgb2gray
@@ -71,6 +55,13 @@ geolabel_maker.rasters.utils
     :members:
 
 
+geolabel_maker.rasters.download
+===============================
+
+.. automodule:: geolabel_maker.rasters.download
+    :members:
+
+
 =======
 Vectors
 =======
@@ -80,22 +71,30 @@ Vectors
 .. autosummary::
    :nosignatures:
 
-   ~vector.to_vector
-   ~vector.Vector 
+   ~category.read_categories
    ~category.Category
-
-
-geolabel_maker.vectors.vector
-===============================
-
-.. automodule:: geolabel_maker.vectors.vector
-    :members:
+   ~color.Color
+   ~download.OverpassAPI
 
 
 geolabel_maker.vectors.category
 ===============================
 
 .. automodule:: geolabel_maker.vectors.category
+    :members:
+
+
+geolabel_maker.vectors.color
+============================
+
+.. automodule:: geolabel_maker.vectors.color
+    :members:
+
+
+geolabel_maker.vectors.download
+===============================
+
+.. automodule:: geolabel_maker.vectors.download
     :members:
 
 
@@ -108,15 +107,11 @@ Annotations
 .. autosummary::
    :nosignatures:
 
-   ~annotation.Annotation
    ~coco.COCO 
+   ~functional.retrieve_masks
+   ~functional.find_polygons
+   ~functional.extract_categories
 
-
-geolabel_maker.annotations.annotation
-=====================================
-
-.. automodule:: geolabel_maker.annotations.annotation
-    :members:
 
 geolabel_maker.annotations.coco
 ===============================
@@ -128,4 +123,11 @@ geolabel_maker.annotations.classes
 ==================================
 
 .. automodule:: geolabel_maker.annotations.classes
+    :members:
+
+
+geolabel_maker.annotations.functional
+=====================================
+
+.. automodule:: geolabel_maker.annotations.functional
     :members:

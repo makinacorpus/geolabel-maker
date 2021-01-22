@@ -7,11 +7,7 @@
 # Copyright (c) 2021, Makina Corpus
 
 
-# Geolabel Maker
-from .annotation import Annotation
-
-
-class YOLO(Annotation):
+class YOLO:
 
     def __init__(self, data):
         super().__init__(data)

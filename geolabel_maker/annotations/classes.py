@@ -13,11 +13,8 @@ from datetime import datetime
 from PIL import Image
 import numpy as np
 
-# Geolabel Maker
-from .annotation import Annotation
 
-
-class Classes(Annotation):
+class Classification:
 
     def __init__(self, data):
         super().__init__(data)
@@ -25,5 +22,5 @@ class Classes(Annotation):
     @classmethod
     def from_dataset(cls, dataset, *args, **kwargs):
         # TODO: for each image, get the geometries per categories.
-        # TODO: The associated category is the biggest area.
+        # TODO: Associate the visible categories for each image
         raise NotImplementedError

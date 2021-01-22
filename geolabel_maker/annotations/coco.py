@@ -7,16 +7,14 @@
 
 
 # Basic imports
+from geolabel_maker.annotations.functional import extract_categories
 from pathlib import Path
 from datetime import datetime
 from PIL import Image
 import numpy as np
 
-# Geolabel Maker
-from .annotation import Annotation
 
-
-class COCO(Annotation):
+class COCO:
     r"""Defines an annotation for `Common Object in Context <http://cocodataset.org/>`__. 
     It follows the format used by Microsoft for ``COCO`` annotation.
 
@@ -41,12 +39,13 @@ class COCO(Annotation):
         }
 
     @classmethod
-    def from_dataset(cls, dataset, zoom, is_crowd=False):
+    def build(cls, dir_images, dir_labels, categories, 
+              pattern="*.*", root=None, is_crowd=False):
         r"""Generate a ``COCO`` annotation from a ``Dataset``.
 
-        .. note::
+        .. seealso::
             The provided dataset must contains a set of georeferenced images and categories (vectorized geometries).
-            See :class:``geolabel_maker.dataset.Dataset`` for further details.
+            See ``Dataset`` for further details.
 
         Args:
             dataset (Dataset): The dataset containing the images and categories.
@@ -57,77 +56,71 @@ class COCO(Annotation):
             COCO
         """
         # Map the categories and their ids
-        category2id = {category.name: i for i, category in enumerate(dataset.categories)}
+        category2id = {category.name: i for i, category in enumerate(categories)}
         
         def get_annotations():
             # Retrieve the annotations (i.e. geometry / categories)
-            annotations = []
-            categories = dataset.extract_categories(zoom=zoom)
+            coco_annotations = []
             annotation_id = 0
-            for category in categories:
-                category_id = category2id[category.name]
-                for _, row in category.data.iterrows():
-                    # Get row elements
-                    polygon = row.geometry
-                    image_id = row.image_id
-                    image_name = row.image_name
-                    # Get annotation elements
-                    segmentation = np.array(polygon.exterior.coords).ravel().tolist()
-                    x, y, max_x, max_y = polygon.bounds
-                    width = max_x - x
-                    height = max_y - y
-                    bbox = (x, y, width, height)
-                    area = polygon.area
-                    # Make annotation format
-                    annotations.append({
-                        "segmentation": [segmentation],
-                        "iscrowd": int(is_crowd),
-                        "image_id": image_id,
-                        "image_name": image_name,
-                        "category_id": category_id,
-                        "id": annotation_id,
-                        "bbox": bbox,
-                        "area": area,
-                    })
-                    annotation_id += 1
-            return annotations
+            for image_id, image_path in enumerate(dir_labels.rglob(pattern)):
+                for category in extract_categories(image_path, categories):
+                    category_id = category2id[category.name]
+                    for _, row in category.data.iterrows():
+                        polygon = row.geometry
+                        # Get annotation elements
+                        segmentation = np.array(polygon.exterior.coords).ravel().tolist()
+                        x, y, max_x, max_y = polygon.bounds
+                        width = max_x - x
+                        height = max_y - y
+                        bbox = (x, y, width, height)
+                        area = polygon.area
+                        # Make annotation format
+                        coco_annotations.append({
+                            "segmentation": [segmentation],
+                            "iscrowd": int(is_crowd),
+                            "image_id": image_id,
+                            "image_name": image_path,
+                            "category_id": category_id,
+                            "id": annotation_id,
+                            "bbox": bbox,
+                            "area": area,
+                        })
+                        annotation_id += 1
+            return coco_annotations
 
         def get_categories():
             # Create an empty categories' dictionary
-            categories = []
-            for category in dataset.categories:
+            coco_categories = []
+            for category in categories:
                 category_id = category2id[category.name]
-                categories.append({
+                coco_categories.append({
                     "id": category_id,
                     "name": category.name,
                     "supercategory": category.name
                 })
-            return categories
+            return coco_categories
 
         def get_images():
             # Retrieve image paths / metadata
-            dir_path = Path(dataset.dir_tiles_labels) / str(zoom)
-            images = []
-            for image_id, image_path in enumerate(dir_path.rglob("*.png")):
+            coco_images = []
+            for image_id, image_path in enumerate(dir_images.rglob(pattern)):
                 # get image info
                 img = Image.open(image_path)
                 width, height = img.size
-                filename = str(image_path.relative_to(dataset.root))
+                filename = str(image_path)
                 # create image description
-                images.append({
+                coco_images.append({
                     "id": image_id,
                     "width": width,
                     "height": height,
                     "file_name": filename
                 })
-            return images
+            return coco_images
 
         def get_info():
             return {
                 "description": "Auto-generated by Geolabel-Maker",
                 "date_created": datetime.now().strftime("%Y/%m/%d"),
-                "root": dataset.root,
-                "zoom": zoom,
             }
 
         # Create the annotation as a dict
@@ -146,5 +139,5 @@ class COCO(Annotation):
             "annotations": self.annotations
         }
 
-    def inner_repr(self):
-        return f"images={len(self.images)}, categories={len(self.categories)}, annotations={len(self.annotations)}"
+    def __repr__(self):
+        return f"COCO(images={len(self.images)}, categories={len(self.categories)}, annotations={len(self.annotations)})"

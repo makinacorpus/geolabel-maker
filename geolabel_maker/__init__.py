@@ -14,16 +14,9 @@ from shapely import speedups
 from .dataset import Dataset
 
 
-DISABLE_SPEEDUPS = False
+DISABLE_SPEEDUPS = True
 
 if DISABLE_SPEEDUPS:
     speedups.disable()
 else:
     speedups.enable()
-
-
-__all__ = [
-    "DISABLE_SPEEDUPS",
-    "Dataset",
-    "__version__"
-]

@@ -9,11 +9,10 @@
 
 # Basic imports
 import unittest
-from shapely import speedups
 import rasterio
+import shutil
 
-from geolabel_maker import Dataset
-from geolabel_maker.utils import rm_tree
+from geolabel_maker import Dataset, speedups
 
 
 # For windows
@@ -22,38 +21,42 @@ speedups.disable()
 
 class DatasetTests(unittest.TestCase):
 
-    def test_open(self):
+    def test_0_open(self):
         dataset = Dataset.open("data")
         assert len(dataset.images) == 9
         assert len(dataset.categories) == 2
 
-    def test_generate_labels(self):
+    def test_1_generate_labels(self):
         dataset = Dataset.open("data")
-        rm_tree(dataset.dir_labels)
+        dir_labels = "data/labels"
+        try:
+            shutil.rmtree(dir_labels)
+        except Exception as error:
+            print("ERROR: Could not remove previous directory", error)
         dataset.generate_labels()
         assert len(dataset.labels) == 9
 
-    def test_generate_vrt(self):
+    def test_2_generate_vrt(self):
         dataset = Dataset.open("data")
-        rm_tree(dataset.dir_labels)
+        dir_labels = "data/labels"
+        try:
+            shutil.rmtree(dir_labels)
+        except Exception as error:
+            print("ERROR: Could not remove previous directory", error)
         dataset.generate_vrt()
         images_vrt = rasterio.open("data/images.vrt")
         assert isinstance(images_vrt, rasterio.io.DatasetReader)
         labels_vrt = rasterio.open("data/labels.vrt")
         assert isinstance(labels_vrt, rasterio.io.DatasetReader)
 
-    def test_generate_tiles(self):
+    def test_3_generate_tiles(self):
         dataset = Dataset.open("data")
-        rm_tree(dataset.dir_tiles)
+        dir_tiles = "data/tiles"
+        try:
+            shutil.rmtree(dir_tiles)
+        except Exception as error:
+            print("ERROR: Could not remove previous directory", error)
         dataset.generate_tiles(zoom="17-20")
-
-    def test_extract_categories(self):
-        dataset = Dataset.open("data")
-        categories = dataset.extract_categories(zoom=20)
-        assert len(categories) == 2
-        names = [category.name for category in categories]
-        assert "vegetation" in names
-        assert "buildings" in names
 
 
 if __name__ == '__main__':

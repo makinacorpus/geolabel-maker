@@ -29,6 +29,8 @@ Alternatively, you can clone the package from github, with `git <https://git-scm
 .. code-block::
 
     git clone https://github.com/makinacorpus/geolabel-maker
+    cd geolabel-maker
+    python setup.py install
 
 
 Dependencies

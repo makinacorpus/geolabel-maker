@@ -140,9 +140,11 @@ frontend/
 .*/
 *.pkl*
 *.csv
-data/tiles/
-data/images/
-data/labels/
+tiles/
+images/
+labels/
+sentinel/
+openstreetmap/
 notebooks/test/
 notebooks/
 *.vrt

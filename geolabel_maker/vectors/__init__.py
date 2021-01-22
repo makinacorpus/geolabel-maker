@@ -6,5 +6,5 @@
 # Copyright (c) 2020, Makina Corpus
 
 
-from .vector import Vector, to_vector
-from .category import Category
+from .category import Category, read_categories
+from .color import Color

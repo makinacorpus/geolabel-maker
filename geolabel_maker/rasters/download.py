@@ -7,48 +7,108 @@
 # Copyright (c) 2021, Makina Corpus
 
 
-from sentinelsat import SentinelAPI, read_geojson, geojson_to_wkt
+from sentinelsat import SentinelAPI
+from shutil import copyfile
 from pathlib import Path
 import zipfile
+import datetime
+
+# Geolabel Maker
+from geolabel_maker.logger import logger
 
 
-def extract_to_dir(filename, outdir='.'):
-    if zipfile.is_zipfile(filename):
-        zipfile.ZipFile(filename, 'r').extractall(outdir)
-    # Return the path where the file was extracted
-    return str(Path(outdir) / Path(filename).stem)
+class SentinelHubAPI:
 
+    def __init__(self, username, password):
+        self.url = "https://scihub.copernicus.eu/dhus"
+        self.username = username
+        self.password = password
 
-def extract_all(indir, outdir='.'):
-    # Extract all files in a directory
-    for file in Path(indir).iterdir():
-        extract_to_dir(str(file), outdir=outdir)
-        # Delete the zip file to keep only the content
-        file.unlink()
+    def download(self, bbox, date_min=None, date_max=None, outdir="sentinel", resolution=10, bandname="TCI", **kwargs):
+        """Download Sentinel image from a bounding box.
 
+        Args:
+            bbox (tuple): A bounding box in the format :math:`(lat_{min}, lon_{min}, lat_{max}, lon_{max})`.
+            date (str, datetime or tuple, optional): The date (range) to download images. Defaults to ``None``.
+            outdir (str, optional): Output directory where the retrieved images will be saved. Defaults to ``"sentinel"``.
+            resolution (int, optional): The level of resolution. See Sentinel documentation for more details. 
+                Options available are: ``10``, ``20``, ``50``. Defaults to ``10``.
+            bandname (str, optional): The name of the band to pick. See Sentinel documentation for more details. 
+                Defaults to ``"TCI"``.
 
-def download(username,
-             email,
-             bbox,
-             date_min,
-             date_max,
-             platformname="Sentinel-2",
-             cloudcoverpercentage=(0, 30),
-             outdir="sentinel"):
-    # Connect to the API
-    api = SentinelAPI(username, email, 'https://scihub.copernicus.eu/dhus')
-    footprint = f"{bbox}"
-    products = api.query(footprint,
-                         date=(date_min, date_max),
-                         platformname=platformname,
-                         cloudcoverpercentage=cloudcoverpercentage)
-    products_gdf = api.to_geodataframe(products)
-    print(f"There are {len(products_gdf)} products found.")
-    # Create the output directory if it does not exist
-    Path(outdir).mkdir(parents=True, exist_ok=True)
-    # Download all results from the search
-    api.download_all(products, outdir)
-    # Unzip the images
-    extract_all(outdir, outdir)
+        Returns:
+            str: Path to the output directory.
+        """
+        # Connect to the main API
+        logger.info(f"Connecting to SentinelHub API...")
+        api = SentinelAPI(self.username, self.password, self.url)
+        logger.info("Successfully connected.")
+        
+        # Retrieve the area of interest in WKT format
+        lat_min, lon_min, lat_max, lon_max = bbox
+        footprint = f"POLYGON(({lon_max} {lat_min},{lon_min} {lat_min},{lon_min} {lat_max},{lon_max} {lat_max},{lon_max} {lat_min}))"
+        
+        # Make date range
+        date_min = date_min or datetime.now().strftime("%d%m%Y")
+        date_max = date_max or datetime.now().strftime("%d%m%Y")
 
-    return outdir
+        # Make a request
+        query_string = f"footprint={footprint}, date={date_min, date_max}, " + ", ".join([f"{key}={value}" for key, value in kwargs.items()])
+        logger.info(f"Retrieving products for the query: {query_string}.")
+        products = api.query(
+            footprint,
+            date=(date_min, date_max),
+            **kwargs
+        )
+        logger.info("Products successfully retrieved.")
+        products_gdf = api.to_geodataframe(products)
+        logger.info(f"There are {len(products_gdf)} products found.")
+
+        # Create the output directory if it does not exist
+        outdir_cache = Path(outdir).parent / f".{Path(outdir).name}"
+        Path(outdir_cache).mkdir(parents=True, exist_ok=True)
+        Path(outdir).mkdir(parents=True, exist_ok=True)
+        logger.info(f"Downloading the products to cache directory {outdir_cache}.")
+
+        # Download all results from the search in a cache folder
+        for product_id in products_gdf.index:
+            api.download(product_id, outdir_cache)
+
+        # Unzip the image folders
+        logger.info(f"Extracting the products to directory {outdir_cache}.")
+        self.extract_all(outdir_cache, outdir_cache)
+
+        # Move the images at `resolution`
+        logger.info(f"Transferring the images at resolution={resolution}, bandname={bandname} to directory {outdir}.")
+        for product_name in products_gdf.title:
+            product_path = Path(outdir_cache) / product_name
+            image_file = self.find_image(product_path, resolution=resolution, bandname=bandname)
+            # Move/copy the image to the main directory
+            out_image = Path(outdir) / Path(image_file).name
+            copyfile(str(image_file), str(out_image))
+
+        return outdir
+
+    @staticmethod
+    def extract_all(indir, outdir=None):
+        outdir = outdir or indir
+        # Extract all files in a directory
+        for file in Path(indir).iterdir():
+            filename = str(file)
+            if zipfile.is_zipfile(filename):
+                zipfile.ZipFile(filename, 'r').extractall(outdir)
+            # Delete the zip file to keep only the content
+            file.unlink()
+
+    @staticmethod
+    def find_image(product_path, resolution=10, bandname="TCI"):
+
+        product_dir = Path(product_path).parent
+        product_name = Path(product_path).name
+        granule_dir = product_dir / f"{product_name}.SAFE" / "GRANULE"
+
+        for res_dir in granule_dir.iterdir():
+            image_dir = res_dir / "IMG_DATA" / f"R{resolution}m"
+            for image_file in image_dir.iterdir():
+                if image_file.stem.endswith(f"{bandname.upper()}_{resolution}m"):
+                    return image_file

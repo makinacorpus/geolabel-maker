@@ -1,12 +1,20 @@
 {
-  "vegetation": {
-    "id": 1,
-    "file": "categories/vegetation.json",
-    "color": [0, 150, 0]
-  },
-  "buildings": {
-    "id": 2,
-    "file": "categories/buildings.json",
-    "color": [255, 255, 255]
-  }
+    "vegetation": {
+        "id": 1,
+        "file": "data/categories/vegetation.json",
+        "color": [
+            0,
+            150,
+            0
+        ]
+    },
+    "buildings": {
+        "id": 2,
+        "file": "data/categories/buildings.json",
+        "color": [
+            255,
+            255,
+            255
+        ]
+    }
 }
