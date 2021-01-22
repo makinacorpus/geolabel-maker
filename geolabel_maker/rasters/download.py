@@ -27,30 +27,48 @@ class SentinelHubAPI:
     def download(self, bbox, date_min=None, date_max=None, outdir="sentinel", resolution=10, bandname="TCI", **kwargs):
         """Download Sentinel image from a bounding box.
 
+        .. note::
+            This method will download, extract and keep only relevant images from Sentinel Hub.
+
+        .. seealso::
+            Read `SentinelHub <https://docs.sentinel-hub.com/api/latest/>`__ API documentation for further details.
+
         Args:
             bbox (tuple): A bounding box in the format :math:`(lat_{min}, lon_{min}, lat_{max}, lon_{max})`.
             date (str, datetime or tuple, optional): The date (range) to download images. Defaults to ``None``.
             outdir (str, optional): Output directory where the retrieved images will be saved. Defaults to ``"sentinel"``.
-            resolution (int, optional): The level of resolution. See Sentinel documentation for more details. 
-                Options available are: ``10``, ``20``, ``50``. Defaults to ``10``.
+            resolution (int, optional): The level of resolution. Options available are: ``10``, ``20``, ``60``.
+                Defaults to ``10``.
             bandname (str, optional): The name of the band to pick. See Sentinel documentation for more details. 
                 Defaults to ``"TCI"``.
+            kwargs: Other arguments from `SentinelHub <https://docs.sentinel-hub.com/api/latest/>`__ API.
 
         Returns:
-            str: Path to the output directory.
+            list: List of downloaded files.
+
+        Examples:
+            >>> # Connect to the API
+            >>> username = "your_username"
+            >>> password = "your_password"
+            >>> api = SentinelHubAPI(username, password)
+            >>> # Download images within a bounding box
+            >>> bbox = (50, 7, 51, 8)
+            >>> date_min = "20200920"
+            >>> date_max = "20200925"
+            >>> files = api.download(bbox, date_min=date_min, date_max=date_max)
         """
         # Connect to the main API
         logger.info(f"Connecting to SentinelHub API...")
         api = SentinelAPI(self.username, self.password, self.url)
         logger.info("Successfully connected.")
-        
+
         # Retrieve the area of interest in WKT format
         lat_min, lon_min, lat_max, lon_max = bbox
         footprint = f"POLYGON(({lon_max} {lat_min},{lon_min} {lat_min},{lon_min} {lat_max},{lon_max} {lat_max},{lon_max} {lat_min}))"
-        
+
         # Make date range
-        date_min = date_min or datetime.now().strftime("%d%m%Y")
-        date_max = date_max or datetime.now().strftime("%d%m%Y")
+        date_min = date_min or datetime.now().strftime("%Y%m%d")
+        date_max = date_max or datetime.now().strftime("%Y%m%d")
 
         # Make a request
         query_string = f"footprint={footprint}, date={date_min, date_max}, " + ", ".join([f"{key}={value}" for key, value in kwargs.items()])
@@ -79,6 +97,7 @@ class SentinelHubAPI:
         self.extract_all(outdir_cache, outdir_cache)
 
         # Move the images at `resolution`
+        files = []
         logger.info(f"Transferring the images at resolution={resolution}, bandname={bandname} to directory {outdir}.")
         for product_name in products_gdf.title:
             product_path = Path(outdir_cache) / product_name
@@ -86,8 +105,9 @@ class SentinelHubAPI:
             # Move/copy the image to the main directory
             out_image = Path(outdir) / Path(image_file).name
             copyfile(str(image_file), str(out_image))
+            files.append(out_image)
 
-        return outdir
+        return files
 
     @staticmethod
     def extract_all(indir, outdir=None):

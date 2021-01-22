@@ -114,9 +114,9 @@ class Dataset:
         Examples:
             >>> dataset = Dataset.open("data/", overwrite=True)
         """
-        logger.debug(f"Opening the dataset at '{root}'...")
+        logger.info(f"Opening the dataset at '{root}'...")
         # Load images that are not a label
-        logger.debug(f"Loading images at '{Path(root) / 'images'}'.")
+        logger.info(f"Loading images at '{Path(root) / 'images'}'.")
         dir_images = Path(root) / "images"
         images = []
         for image_path in dir_images.iterdir():
@@ -124,7 +124,7 @@ class Dataset:
                 images.append(Raster.open(str(image_path)))
 
         # Load labels
-        logger.debug(f"Loading labels at '{Path(root) / 'labels'}'.")
+        logger.info(f"Loading labels at '{Path(root) / 'labels'}'.")
         dir_labels = Path(root) / "labels"
         labels = []
         if dir_labels.is_dir():
@@ -133,11 +133,11 @@ class Dataset:
                     labels.append(Raster.open(str(label_path)))
 
         # Read the categories
-        logger.debug(f"Loading categories from file '{Path(root) / 'categories.json'}'.")
+        logger.info(f"Loading categories from file '{Path(root) / 'categories.json'}'.")
         categories_path = Path(root) / "categories.json"
         categories = read_categories(categories_path, overwrite=overwrite)
 
-        logger.debug(f"Dataset at '{root}' successfully loaded.")
+        logger.info(f"Dataset at '{root}' successfully loaded.")
         return Dataset(images, categories, labels=labels, root=root)
 
     def _init_rasters(self, rasters):

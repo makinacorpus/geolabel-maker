@@ -12,9 +12,9 @@
         "id": 2,
         "file": "../data/categories/buildings.json",
         "color": [
-            255,
-            255,
-            255
+            206,
+            141,
+            126
         ]
     }
 }

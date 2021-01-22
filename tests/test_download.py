@@ -18,7 +18,6 @@ from geolabel_maker.rasters.download import SentinelHubAPI
 class DownloadTests(unittest.TestCase):
 
     def test_0_download(self):
-        api = SentinelHubAPI("arthurdjn", "GB3im&Eucsn")
         bbox = (50, 7, 51, 8)
         api.download(bbox)
 
