@@ -46,8 +46,9 @@ setup(
         'shapely',
         'geopandas',
         'rasterio',
-        'PIL',
+        'pillow',
         'scikit-image',
+        'requests',
         'sentinelsat'
     ],
 )
