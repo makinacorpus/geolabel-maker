@@ -8,3 +8,5 @@
 
 
 from .coco import COCO
+from .classification import Classification
+from .object_detection import ObjectDetection

@@ -8,9 +8,6 @@
 
 
 # Basic imports
-import sys
-from argparse import ArgumentParser
-import json
 import begin
 
 # Geolabel Maker

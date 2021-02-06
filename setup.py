@@ -4,10 +4,12 @@
 import os
 from setuptools import setup, find_packages
 
+
 HERE = os.path.abspath(os.path.dirname(__file__))
 
+
 setup(
-    name='geolabel_maker',
+    name="geolabel_maker",
     keywords=[
         "geospatial artificial intelligence",
         "deep learning",
@@ -21,10 +23,10 @@ setup(
     author_email="contact@makina-corpus.com",
     maintainer="Makina Corpus",
     description="Data preparation for geospatial artificial intelligence",
-    long_description=open('README.md').read(),
-    long_description_content_type='text/markdown',
+    long_description=open("README.md").read(),
+    long_description_content_type="text/markdown",
     include_package_data=True,
-    url='https://github.com/makinacorpus/geolabel-maker/',
+    url="https://github.com/makinacorpus/geolabel-maker/",
     classifiers=[
         "Programming Language :: Python",
         "Development Status :: 3 - Alpha",
@@ -39,16 +41,17 @@ setup(
             "geolabels = geolabel_maker.geolabels:main.start",
         ]
     },
-    python_requires='>=3.6',
+    python_requires=">=3.6",
     install_requires=[
-        'numpy',
-        'gdal2tiles',
-        'shapely',
-        'geopandas',
-        'rasterio',
-        'pillow',
-        'scikit-image',
-        'requests',
-        'sentinelsat'
+        "numpy",
+        "gdal2tiles",
+        "shapely",
+        "geopandas",
+        "rasterio",
+        "pillow",
+        "scikit-image",
+        "requests",
+        "sentinelsat",
+        "osmtogeojson"
     ],
 )

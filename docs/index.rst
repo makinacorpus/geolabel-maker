@@ -26,8 +26,10 @@ Generate your own ground truth from geo-referenced aerial images and vectors in 
     :maxdepth: 2
     :caption: Tutorials
 
-    tutorials/data
-    tutorials/dataset
+    tutorials/rasters
+    tutorials/vectors   
+    tutorials/download
+    tutorials/dataset    
     tutorials/annotations
 
 

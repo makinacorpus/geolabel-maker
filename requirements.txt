@@ -21,6 +21,7 @@ matplotlib==3.3.4
 munch==2.5.0
 networkx==2.5
 numpy==1.20.0
+osmtogeojson==0.0.2
 pandas==1.2.1
 Pillow==8.1.0
 pyparsing==2.4.7

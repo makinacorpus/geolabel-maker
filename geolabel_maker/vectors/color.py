@@ -38,8 +38,6 @@ class Color:
 
     """
 
-    __slots__ = ["red", "green", "blue"]
-
     def __init__(self, red, green, blue):
         # Make sure the given values follow RGB format
         if (not isinstance(red, int)) or (not isinstance(green, int)) or (not isinstance(blue, int)):

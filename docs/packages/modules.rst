@@ -26,15 +26,15 @@ Rasters
 .. autosummary::
    :nosignatures:
 
-   ~download.SentinelAPI
    ~raster.to_raster
-   ~raster.Raster 
+   ~raster.Raster
+   ~raster.RasterCollection
+   ~download.SentinelHubAPI
    ~functions.generate_vrt
-   ~functions.merge_rasters
    ~utils.rgb2gray
    ~utils.gray2bw
    ~utils.rgb2color
-
+   
 
 geolabel_maker.rasters.raster
 =============================
@@ -48,17 +48,16 @@ geolabel_maker.rasters.functions
 .. automodule:: geolabel_maker.rasters.functions
     :members:
 
-geolabel_maker.rasters.utils
-============================
-
-.. automodule:: geolabel_maker.rasters.utils
-    :members:
-
-
 geolabel_maker.rasters.download
 ===============================
 
 .. automodule:: geolabel_maker.rasters.download
+    :members:
+
+geolabel_maker.rasters.utils
+============================
+
+.. automodule:: geolabel_maker.rasters.utils
     :members:
 
 
@@ -71,8 +70,8 @@ Vectors
 .. autosummary::
    :nosignatures:
 
-   ~category.read_categories
    ~category.Category
+   ~category.CategoryCollection
    ~color.Color
    ~download.OverpassAPI
 
@@ -107,7 +106,9 @@ Annotations
 .. autosummary::
    :nosignatures:
 
-   ~coco.COCO 
+   ~coco.COCO
+   ~classification.Classification 
+   ~object_detection.ObjectDetection 
    ~functional.retrieve_masks
    ~functional.find_polygons
    ~functional.extract_categories
@@ -119,10 +120,17 @@ geolabel_maker.annotations.coco
 .. automodule:: geolabel_maker.annotations.coco
     :members:
 
-geolabel_maker.annotations.classes
-==================================
+geolabel_maker.annotations.classification
+=========================================
 
-.. automodule:: geolabel_maker.annotations.classes
+.. automodule:: geolabel_maker.annotations.classification
+    :members:
+
+
+geolabel_maker.annotations.object_detection
+===========================================
+
+.. automodule:: geolabel_maker.annotations.object_detection
     :members:
 
 

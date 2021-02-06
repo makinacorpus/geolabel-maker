@@ -6,5 +6,6 @@
 # Copyright (c) 2020, Makina Corpus
 
 
-from .category import Category, read_categories
+from .category import Category, CategoryCollection, to_category
 from .color import Color
+from .download import OverpassAPI

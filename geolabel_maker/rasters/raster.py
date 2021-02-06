@@ -25,6 +25,16 @@ from pathlib import Path
 import rasterio
 import gdal2tiles
 
+# Geolabel Maker
+from .download import SentinelHubAPI
+
+
+__all__ = [
+    "to_raster",
+    "Raster",
+    "RasterCollection"
+]
+
 
 def to_raster(element, *args, **kwargs):
     r"""Convert an object to a ``Raster``.
@@ -41,9 +51,7 @@ def to_raster(element, *args, **kwargs):
         >>> raster = to_raster(Path("tile.tif"))
         >>> raster = to_raster(rasterio.open("tile.tif"))
     """
-    if isinstance(element, str):
-        return Raster.open(element, *args, **kwargs)
-    elif isinstance(element, Path):
+    if isinstance(element, (str, Path)):
         return Raster.open(str(element), *args, **kwargs)
     elif isinstance(element, rasterio.io.DatasetReader):
         return Raster(element, *args, **kwargs)
@@ -53,37 +61,63 @@ def to_raster(element, *args, **kwargs):
 
 
 class Raster:
-    """Defines a georeferenced image. This class encapsulates ``rasterio`` dataset,
+    r"""Defines a georeferenced image. This class encapsulates ``rasterio`` dataset,
     and defines custom auto-download and processing methods, to work with `geolabel_maker`.
 
     * :attr:`data` (rasterio.io.DatasetReader): The ``rasterio`` data corresponding to a georeferenced image.
 
     """
 
-    __slots__ = ["data"]
-
-    def __init__(self, data):
+    def __init__(self, data, filename=None):
         if not isinstance(data, rasterio.io.DatasetReader):
             raise TypeError(f"Unknown type for the raster data.",
                             f"Got {type(data)} but expected `rasterio.io.DatasetReader`.",
                             f"Try opening the raster data with `Raster.open('path/to/raster.tif')` class method.")
-        super().__init__()
         self.data = data
+        self.filename = filename
 
     @classmethod
     def open(cls, filename):
         data = rasterio.open(filename)
-        return Raster(data)
+        return Raster(data, filename=str(filename))
 
     @classmethod
-    def download(cls, *args, **kwargs):
-        raise NotImplementedError
+    def download(cls, username, password, *args, **kwargs):
+        """Download a collection of rasters from the `SentinelHub` API.
+
+        Args:
+            username (str): SentinelHub username.
+            password (str): SentinelHub password.
+
+        Returns:
+            RasterCollection
+
+        Examples:
+            >>> username = "my_username"
+            >>> password = "my_password"
+            >>> rasters = Raster.download(username, password)
+        """
+        api = SentinelHubAPI(username, password)
+        files = api.download(*args, **kwargs)
+        return RasterCollection(files)
 
     @classmethod
     def from_postgis(cls, *args, **kwargs):
+        """Load a raster image from a `PostgreSQL` database.
+
+        """
         raise NotImplementedError
 
     def numpy(self):
+        """Convert the raster image to a numpy array, of shape :math:`(C, X, Y)`
+
+        Returns:
+            numpy.ndarray
+            
+        Examples:
+            >>> raster = Raster.open("tile.tif")
+            >>> array = raster.to_numpy()
+        """
         return self.data.read()
 
     def generate_tiles(self, outdir="tiles", **kwargs):
@@ -135,10 +169,86 @@ class Raster:
             out_profile['transform'] = transform
             out_profile['width'] = window.width
             out_profile['height'] = window.height
-            out_path = Path(outdir) / f"tile_{window.col_off}-{window.row_off}.tif"
+            out_path = Path(outdir) / f"{Path(self.filename).stem}-tile_{window.col_off}x{window.row_off}.tif"
             with rasterio.open(out_path, 'w', **out_profile) as dst:
                 dst.write(self.data.read(window=window))
         return outdir
 
     def __repr__(self):
         return f"Raster(name='{self.data.name}', bbox={tuple(self.data.bounds)}, crs={self.data.crs})"
+
+
+class RasterCollection:
+    r"""
+    Defines a collection of ``Raster``.
+    This class behaves similarly as a ``list``, excepts it is made only of ``Raster``.
+
+    * :attr:`items` (list): List of rasters.
+
+    """
+
+    def __init__(self, *rasters):
+        if not isinstance(rasters, (list, tuple, RasterCollection)):
+            rasters = [rasters]
+        elif isinstance(rasters, (list, tuple)) and len(rasters) == 1:
+            rasters = rasters[0]
+        if not rasters:
+            rasters = []
+        self.items = [to_raster(raster) for raster in rasters]
+
+    def append(self, raster):
+        r"""Add a ``Raster`` to the collection.
+
+        Args:
+            raster (Raster): The raster to add.
+
+        Examples:
+            >>> collection = RasterCollection()
+            >>> raster = Raster.open("tile.tif")
+            >>> collection.append(raster)
+            >>> collection
+                RasterCollection(
+                  (0): Raster(filename='tile.tif')
+                )
+        """
+        raster = to_raster(raster)
+        self.items.append(raster)
+
+    def extend(self, rasters):
+        r"""Add multiple ``Raster`` to the collection.
+
+        Args:
+            rasters (list): List of raster to add.
+
+        Examples:
+            >>> collection = RasterCollection()
+            >>> rasters = [Raster.open("tile1.tif"), Raster.open("tile2.tif")]
+            >>> collection.extend(rasters)
+            >>> collection
+                RasterCollection(
+                  (0): Raster(filename='tile1.tif')
+                  (1): Raster(filename='tile2.tif')
+                )
+        """
+        rasters = [to_raster(raster) for raster in rasters]
+        self.items.extend(rasters)
+
+    def __setitem__(self, index, raster):
+        raster = to_raster(raster)
+        self.items[index] = raster
+
+    def __getitem__(self, index):
+        return self.items[index]
+
+    def __iter__(self):
+        yield from self.items
+
+    def __len__(self):
+        return len(self.items)
+
+    def __repr__(self):
+        rep = f"RasterCollection("
+        for i, raster in enumerate(self):
+            rep += f"\n  ({i}): {raster}"
+        rep += "\n)"
+        return rep

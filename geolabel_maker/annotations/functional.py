@@ -13,7 +13,6 @@ from skimage import measure
 import geopandas as gpd
 from shapely.geometry import Polygon
 from PIL import Image
-from pathlib import Path
 
 # Geolabel Maker
 from geolabel_maker.vectors import Category
@@ -173,62 +172,3 @@ def extract_categories(label_file, categories, **kwargs):
         categories_extracted.append(category)
 
     return categories_extracted
-
-
-# // def extract_categories(dir_labels, categories, pattern="*.*", **kwargs):
-# //     r"""Retrieve the polygons for all tile labels.
-# //     This method must be used once the tiles are generated (see ``generate_tiles`` method).
-
-# //     Args:
-# //         zoom (int, optional): Zoom level where the polygons will be extracted. Defaults to 16.
-# //         **kwargs (optional): See ``geolabel_maker.functional.find_polygons`` method arguments.
-
-# //     Returns:
-# //         tuple: Categories containing geometries (e.g. all buildings from the images at ``zoom`` level).
-
-# //     Examples:
-# //         >>> dataset = Dataset.open("data/")
-# //         >>> dataset.generate_labels()
-# //         >>> dataset.generate_tiles(zoom="14-16")
-# //         >>> categories = extract_categories(dataset.dir_labels, dataset.categories)
-# //         >>> categories
-# //             (Category(name='vegetation', data=34, color=(0, 150, 0), Category(name='buildings', data=267, color=(255, 255, 255)))
-# //     """
-# //     color2id = {tuple(category.color): i for i, category in enumerate(categories)}
-# //     categories_dict = defaultdict(list)
-
-# //     # Load all label (tile) images
-# //     dir_path = Path(dir_labels)
-# //     # Make sure the tiles exist
-# //     if not dir_path.is_dir():
-# //         raise RuntimeError(f"The labels were not found in '{dir_path}'. "
-# //                            f"Please try to generate them with `generate_tiles()` method. ")
-
-# //     for tile_index, tile_file in enumerate(dir_path.rglob(pattern)):
-# //         # Read label image
-# //         tile_label = Image.open(tile_file)
-# //         tile_label = tile_label.convert("RGB")
-# //         # Find all masks / categories
-# //         masks = retrieve_masks(tile_label, categories)
-# //         for color, mask in masks.items():
-# //             # Find all polygons within a category
-# //             polygons = find_polygons(mask, **kwargs)
-# //             for polygon in polygons:
-# //                 category_id = int(color2id[color])
-# //                 categories_dict[category_id].append({
-# //                     "image_id": int(tile_index),
-# //                     "image_name": str(tile_file),
-# //                     "geometry": polygon,
-# //                 })
-
-# //     # Group by categories
-# //     categories_sorted = []
-# //     # Sort the generated categories to match the `dataset.categories` order
-# //     for category_id, category_data in sorted(categories_dict.items()):
-# //         name = categories[category_id].name
-# //         color = categories[category_id].color
-# //         data = gpd.GeoDataFrame(category_data)
-# //         category = Category(name, data, color)
-# //         categories_sorted.append(category)
-
-# //     return categories_sorted

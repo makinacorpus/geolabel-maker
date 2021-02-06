@@ -19,11 +19,20 @@ This module handles log with the ``logging`` package.
 import logging
 
 
-logging.basicConfig(
-    filename="geolabel_maker.log",
-    filemode="a",
-    format="%(asctime)s :: %(name)-20s :: [%(levelname)-7s] :: %(message)s",
-    level=logging.INFO
-)
+# GLobal variables
+FORMATTER = logging.Formatter("%(asctime)s :: %(name)-20s :: [%(levelname)-7s] :: %(message)s")
 
-logger = logging.getLogger("geolabel_maker")
+
+def setup_logger(name, logfile, level=logging.INFO):
+
+    handler = logging.FileHandler(logfile)        
+    handler.setFormatter(FORMATTER)
+
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(handler)
+
+    return logger
+
+
+logger = setup_logger("geolabel_maker", "geolabel_maker.log")

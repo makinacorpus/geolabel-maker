@@ -21,14 +21,17 @@ from raster images.
     
     # Generate the labels
     dataset.generate_labels()
+    
     # Split the images / labels into mosaics
     dataset.generate_mosaics()
+    
     # Generate subsets of tiles from images / labels
     dataset.generate_tiles()
 """
 
 # Basic imports
-from geolabel_maker.vectors.category import read_categories
+import logging
+import json
 from pathlib import Path
 from PIL import Image, ImageChops
 import numpy as np
@@ -36,10 +39,11 @@ import rasterio
 import rasterio.mask
 
 # Geolabel Maker
-from geolabel_maker.rasters import Raster, to_raster, generate_tiles, generate_vrt
+from geolabel_maker.rasters import Raster, RasterCollection, generate_tiles, generate_vrt
 from geolabel_maker.rasters import utils
-from geolabel_maker.vectors import Category
-from geolabel_maker.logger import logger
+from geolabel_maker.vectors import Category, CategoryCollection
+from geolabel_maker.utils import retrieve_path
+from geolabel_maker.logger import setup_logger
 
 
 # Global variables
@@ -47,7 +51,7 @@ Image.MAX_IMAGE_PIXELS = 156_250_000
 
 
 class Dataset:
-    """
+    r"""
     A ``Dataset`` is a combination of ``Raster`` and ``Category`` data.
 
     * :attr:`images` (list): List of images (either of type ``Raster`` of path to the aerial image).
@@ -56,39 +60,99 @@ class Dataset:
 
     * :attr:`categories` (list): List of categories (either of type ``Category`` of path to the categories).
 
+    * :attr:`filename` (str): Name of the configuration file associated to the dataset.
+
     * :attr:`root` (str): Path to the root folder, containing logs, cache and generated labels.
 
     """
 
-    __slots__ = ["root", "images", "categories", "labels"]
+    def __init__(self, images, categories, labels=None, filename=None, root=None):
 
-    def __init__(self, images, categories, labels=None, root="data"):
-        # Create the `root` directory if it does not exist
-        root_path = Path(root)
-        root_path.mkdir(parents=True, exist_ok=True)
-        self.root = str(root_path)
-        # Load the data / images / categories / labels
-        self.categories = self._init_categories(categories)
-        self.images = self._init_rasters(images)
-        self.labels = self._init_rasters(labels)
+        # Find root / filename if partially provided
+        if not filename and not root:
+            filename = "config.json"
+            root = "."
+        elif not filename:
+            filename = Path(root) / "config.json"
+        elif not root:
+            root = Path(filename).parent
+        self.root = str(root)
+        self.filename = str(filename)
+
+        self._images = RasterCollection(images)
+        self._categories = CategoryCollection(categories)
+        self._labels = RasterCollection(labels)
+        # Save the configuration file
+        self.save()
+
+    @property
+    def images(self):
+        return self._images
+
+    @images.setter
+    def images(self, rasters):
+        self._images = RasterCollection(rasters)
+
+    @property
+    def categories(self):
+        return self._categories
+
+    @categories.setter
+    def categories(self, categories):
+        self._categories = CategoryCollection(categories)
+
+    @property
+    def labels(self):
+        return self._labels
+
+    @labels.setter
+    def labels(self, rasters):
+        self._labels = RasterCollection(rasters)
 
     @classmethod
-    def open(cls, root, overwrite=True):
-        r"""Open the dataset from a ``root`` folder. 
-        The root folder contains all data needed for cache and computations.
-        To open the dataset, this folder must have a ``images`` directory where all georeferenced aerial images are located,
-        a ``categories`` directory containing geometries in the same area, 
-        and finally a ``categories.json`` file used to index the geometries and their name / color.
-        The ``categories.json`` file is a JSON like:
+    def open(cls, config):
+        r"""Open a ``Dataset`` from a configuration file. The file must be in ``json`` format.
+        This file should be associated to a set of images and categories.
+        Provide the ``images``, ``categories`` and ``labels`` you want to load from directories with:
 
-        .. code-block:: python
+        .. code-block:: json
 
             {
-                "vegetation": {
-                    "file": "categories/vegetation.json",
-                },
-                # etc...
+                "dir_images":  "images",
+                "dir_categories":  "categories",
+                "dir_labels":  "labels"
             }
+
+        .. warning:: 
+            If the path is relative, it should be relative to the configuration file
+            and not to the ``Dataset`` object.
+
+        Alternatively, you can specify manually the path to each elements with:
+
+        .. code-block:: json
+
+            {
+                "images":  [{
+                    "filename": "path/to/raster.tif"
+                }], 
+                "categories":  [{
+                    "filename": "path/to/buildings.json",
+                    "name": "buildings",
+                    "color": "white"
+                }],
+                "labels":  [{
+                    "filename": "path/to/raster.tif"
+                }]
+            }
+
+        .. note::
+            You can mix both format. 
+            Priority will be given to list of elements.
+
+        You can also load data from a ``root`` folder. 
+        The root folder contains all data needed for cache and computations.
+        To open the dataset, this folder must have a ``images`` directory where all georeferenced aerial images are located
+        and a ``categories`` directory containing geometries in the same area.
 
         The ``data/`` directory should follow the tree structure:
 
@@ -99,69 +163,220 @@ class Dataset:
             │   ├── buildings.json
             │   ├── ...
             │   └── vegetation.json
-            ├── images
-            │   ├── 1843_5174_08_CC46.tif
-            │   ├── ...
-            │   └── 1844_5173_08_CC46.tif   
-            └── categories.json
+            └── images
+                ├── 1843_5174_08_CC46.tif
+                ├── ...
+                └── 1844_5173_08_CC46.tif   
 
         Args:
-            root (str): Path to the root directory.
+            filename (str): Path to the configuration file e.g. ``config.json``.
 
         Returns:
             Dataset
 
         Examples:
-            >>> dataset = Dataset.open("data/", overwrite=True)
+            >>> # Load from directories
+            >>> config = {
+            ...     "dir_images":  "images",
+            ...     "dir_categories":  "categories",
+            ...     "dir_labels":  "labels"
+            ... }
+            >>> dataset = Dataset.open(config)
+            >>> # Specify some paths
+            >>> config = {
+            ...    "images":  [{
+            ...        "filename": "path/to/raster.tif"
+            ...    }], 
+            ...    "categories":  [{
+            ...        "filename": "path/to/buildings.json",
+            ...        "name": "buildings",
+            ...        "color": "white"
+            ...    }],
+            ...    "labels":  [{
+            ...        "filename": "path/to/raster.tif"
+            ...    }]
+            ... }
+            >>> dataset = Dataset.open(config)
+            >>> # Load directly from a configuration file
+            >>> dataset = Dataset.open("config.json")
+            >>> # Load from a root folder
+            >>> dataset = Dataset.open("data")
         """
-        logger.info(f"Opening the dataset at '{root}'...")
-        # Load images that are not a label
-        logger.info(f"Loading images at '{Path(root) / 'images'}'.")
-        dir_images = Path(root) / "images"
-        images = []
-        for image_path in dir_images.iterdir():
-            if not "label" in image_path.stem:
-                images.append(Raster.open(str(image_path)))
+        if isinstance(config, (str, Path)):
+            # Load from a root directory
+            if Path(config).is_dir():
+                root = config
+                filename = Path(root) / "config.json"
+                # Create a default configuration file if it does not exist.
+                if not filename.exists():
+                    with open(filename, "w") as f:
+                        json.dump({
+                            "dir_images": "images",
+                            "dir_categories": "categories",
+                            "dir_labels": "labels"
+                        }, f, indent=4)
+            # Load from the path to a configuration file
+            else:
+                filename = config
+                root = str(Path(filename).parent)
 
-        # Load labels
-        logger.info(f"Loading labels at '{Path(root) / 'labels'}'.")
-        dir_labels = Path(root) / "labels"
-        labels = []
-        if dir_labels.is_dir():
-            for label_path in dir_labels.iterdir():
-                if "label" in label_path.stem:
-                    labels.append(Raster.open(str(label_path)))
+            # Load the configuration file
+            with open(filename, "r", encoding="utf-8") as f:
+                config = json.load(f)
 
-        # Read the categories
-        logger.info(f"Loading categories from file '{Path(root) / 'categories.json'}'.")
-        categories_path = Path(root) / "categories.json"
-        categories = read_categories(categories_path, overwrite=overwrite)
+        # Load directly from a config dictionary
+        elif isinstance(config, dict):
+            filename = "config.json"
+            root = "."
+        else:
+            raise ValueError(f"Could not open a `Dataset` from unknown type {type(config)}")
 
-        logger.info(f"Dataset at '{root}' successfully loaded.")
-        return Dataset(images, categories, labels=labels, root=root)
+        images = config.get("images", None)
+        categories = config.get("categories", None)
+        labels = config.get("labels", None)
+        dir_images = retrieve_path(config.get("dir_images", None), root=root)
+        dir_categories = retrieve_path(config.get("dir_categories", None), root=root)
+        dir_labels = retrieve_path(config.get("dir_labels", None), root=root)
 
-    def _init_rasters(self, rasters):
-        if rasters is None:
-            return []
-        elif isinstance(rasters, Raster) or isinstance(rasters, str) or isinstance(rasters, Path):
-            return [to_raster(rasters)]
-        elif isinstance(rasters, list) or isinstance(rasters, tuple):
-            return [to_raster(raster) for raster in rasters]
+        def load_rasters(data=None, indir=None):
+            r"""Load raster (images / labels) from the configuration file.
+            Priority will be given to list of paths.
 
-        raise ValueError(f"Unknown element: Cannot convert the element {type(rasters)} to a `Raster` collection.")
+            Args:
+                data (list, optional): List of dictionary ``{"file": "path/to/raster"}``,
+                    from the configuration. Defaults to None.
+                indir (str, optional): Path of the directory containing the rasters. 
+                    If the path is relative, it should be relative to the configuration file
+                    and not to the ``Dataset`` object. Defaults to None.
 
-    def _init_categories(self, categories):
-        if isinstance(categories, Category):
-            return [categories]
-        elif isinstance(categories, list) or isinstance(categories, tuple):
+            Returns:
+                list: List of loaded rasters.
+            """
+            rasters = []
+            # Load rasters if provided from a list of dict.
+            if data:
+                for raster_info in data:
+                    raster_path = retrieve_path(raster_info["filename"], root=root)
+                    rasters.append(Raster.open(raster_path))
+            # Load all rasters in a directory.
+            elif indir and Path(indir).exists():
+                for raster_path in Path(indir).iterdir():
+                    rasters.append(Raster.open(raster_path))
+            return rasters
+
+        def load_categories(data=None, indir=None):
+            r"""Load categories from the configuration file.
+            Priority will be given to list of paths.
+
+            Args:
+                data (list, optional): List of dictionary ``{"file": "path/to/category", "name": "name_of_geometry", "color": "blue"}``,
+                    from the configuration. Defaults to None.
+                indir (str, optional): Path of the directory containing the categories. 
+                    If the path is relative, it should be relative to the configuration file
+                    and not to the ``Dataset`` object. Defaults to None.
+
+            Returns:
+                list: List of loaded categories.
+            """
+            categories = []
+            # Load categories if provided from a list of dict.
+            if data:
+                for category_info in data:
+                    color = category_info.get("color", None)
+                    name = category_info.get("name", None)
+                    category_path = retrieve_path(category_info["filename"], root=root)
+                    categories.append(Category.open(category_path, name=name, color=color))
+            # Load all categories in a directory.
+            elif indir and Path(indir).exists():
+                for category_path in Path(indir).iterdir():
+                    categories.append(Category.open(category_path))
             return categories
-        elif isinstance(categories, str) or isinstance(categories, Path):
-            return read_categories(categories)
 
-        raise ValueError(f"Unknown element: Cannot convert the category {type(categories)} to a `Category` collection.")
+        # Load the different objects either from a directory or list of paths.
+        images = load_rasters(data=images, indir=dir_images)
+        labels = load_rasters(data=labels, indir=dir_labels)
+        categories = load_categories(data=categories, indir=dir_categories)
+
+        return Dataset(images, categories, labels=labels, filename=filename, root=root)
+
+    def to_dict(self):
+        r"""Convert the dataset to a dictionary.
+        The dictionary is similar to a configuration file, 
+        excepts it does not contains directory information.
+
+        Examples:
+            >>> dataset = Dataset.open("data")
+            >>> config = dataset.to_dict()
+        """
+
+        def jsonify_categories(values):
+            categories = []
+            for id, category in enumerate(values):
+                filename = category.filename
+                if not Path(filename).is_absolute():
+                    filename = Path(filename).relative_to(self.root)
+                categories.append({
+                    "id": id,
+                    "name": category.name,
+                    "color": category.color,
+                    "filename": str(filename)
+                })
+
+            return categories
+
+        def jsonify_rasters(values):
+            rasters = []
+            for id, raster in enumerate(values):
+                filename = raster.filename
+                if not Path(filename).is_absolute():
+                    filename = Path(filename).relative_to(self.root)
+                rasters.append({
+                    "id": id,
+                    "filename": str(filename)
+                })
+
+            return rasters
+
+        config = {}
+        # Add keys only if they are not empty.
+        if self.images:
+            config["images"] = jsonify_rasters(self.images)
+        if self.categories:
+            config["categories"] = jsonify_categories(self.categories)
+        if self.labels:
+            config["labels"] = jsonify_rasters(self.labels)
+        return config
+
+    def save(self):
+        r"""Save the information in a configuration file.
+        If a previous configuration file already exists, it will only overwrite the elements that have changed.
+
+        Examples:
+            >>> dataset = Dataset.open("data")
+            >>> dataset.labels
+                []
+            >>> dataset.generate_labels()
+            >>> dataset.save()
+            >>> # Now, the configuration file contains the list of generated labels.
+            >>> dataset = Dataset.open("data")
+            >>> dataset.labels
+                [Raster(...), Raster(...), ...]
+        """
+        config = self.to_dict()
+        # If the configuration file already exists, load it and update it.
+        if Path(self.filename).exists():
+            with open(self.filename, "r") as f:
+                prev_config = json.load(f)
+            # Update the images / categories / labels
+            prev_config.update(config)
+            config = prev_config
+
+        # Save and update the configuration file.
+        with open(self.filename, "w") as f:
+            json.dump(config, f, indent=4)
 
     def generate_label(self, image_idx, outdir=None):
-        """Extract the categories visible in one image's extent. 
+        r"""Extract the categories visible in one image's extent. 
         This method will saved the extracted geometries as a raster image.
 
         Args:
@@ -234,7 +449,7 @@ class Dataset:
         return out_path
 
     def generate_labels(self, outdir=None):
-        """Generate labels from a set of ``images`` and ``categories``. 
+        r"""Generate labels from a set of ``images`` and ``categories``. 
         The label associated to an image in respect of the categories 
         is a ``.tif`` image containing all geometries 
         within the geographic extents from the origin image.
@@ -262,8 +477,9 @@ class Dataset:
         # Generate and load the labels
         for image_idx, _ in enumerate(self.images):
             label_path = self.generate_label(image_idx, outdir=outdir)
-            self.labels.append(to_raster(label_path))
-        return outdir
+            self.labels.append(Raster.open(label_path))
+
+        return str(outdir)
 
     def generate_vrt(self, make_images=True, make_labels=True):
         r"""Write virtual images from images and/or labels.
@@ -301,8 +517,9 @@ class Dataset:
             return labels_vrt
         return images_vrt, labels_vrt
 
-    def generate_mosaics(self, make_images=True, make_labels=True, outdir=None, **kwargs):
-        """Generate sets of mosaics from the images and labels. 
+    # TODO: write from a VRT image. Currently not supported in rasterio.
+    def generate_mosaics(self, outdir=None, make_images=True, make_labels=True, **kwargs):
+        r"""Generate sets of mosaics from the images and labels. 
         A mosaic is a division of the main raster into 'windows'.
         This method does not create slippy tiles.
 
@@ -330,25 +547,27 @@ class Dataset:
             >>> dataset.generate_labels()
             >>> dataset.generate_mosaic(make_images=True, make_labels=True)
         """
-        outdir = outdir or Path(self.root) / "mosaics"
+        dir_mosaics = outdir or Path(self.root) / "mosaics"
         # Generate mosaic from the images
         if make_images:
             print(f"Generating image mosaic...")
-            images_vrt = self.generate_vrt(make_images=True, make_labels=False)
-            outdir = Path(outdir) / "images"
+            outdir = Path(dir_mosaics) / "images"
             outdir.mkdir(parents=True, exist_ok=True)
-            raster_vrt = Raster.open(images_vrt)
-            raster_vrt.generate_mosaic(outdir=outdir, **kwargs)
+            # TODO: Generate from a VRT
+            for image in self.images:
+                image.generate_mosaic(outdir=outdir, **kwargs)
         # Generate mosaic from the labels
         if make_labels:
             print(f"Generating label mosaic...")
-            labels_vrt = self.generate_vrt(make_images=False, make_labels=True)
-            outdir = Path(outdir) / "labels"
+            outdir = Path(dir_mosaics) / "labels"
             outdir.mkdir(parents=True, exist_ok=True)
-            raster_vrt = Raster.open(labels_vrt)
-            raster_vrt.generate_mosaic(outdir=outdir, **kwargs)
+            # TODO: Generate from a VRT
+            for label in self.labels:
+                label.generate_mosaic(outdir=outdir, **kwargs)
 
-    def generate_tiles(self, make_images=True, make_labels=True, outdir=None, **kwargs):
+        return str(dir_mosaics)
+
+    def generate_tiles(self, outdir=None, make_images=True, make_labels=True, **kwargs):
         r"""Generate tiles from the images and optionally the generated labels.
 
         .. note::
@@ -374,30 +593,33 @@ class Dataset:
             >>> dataset.generate_labels()
             >>> dataset.generate_tiles(make_images=True, make_labels=True, zoom="14-16")
         """
-        outdir = outdir or Path(self.root) / "tiles"
+        dir_tiles = outdir or Path(self.root) / "tiles"
         # Generate tiles from the images
         if make_images:
-            print(f"Generating image tiles...")
+            print(f"Generating image tiles at {str(Path(dir_tiles) / 'images')}")
             images_vrt = self.generate_vrt(make_images=True, make_labels=False)
-            outdir_images = Path(outdir) / "images"
+            outdir_images = Path(dir_tiles) / "images"
             outdir_images.mkdir(parents=True, exist_ok=True)
             generate_tiles(images_vrt, outdir_images, **kwargs)
         # Generate tiles from the labels
         if make_labels:
-            print(f"Generating label tiles...")
+            print(f"Generating label tiles at {str(Path(dir_tiles) / 'labels')}")
             labels_vrt = self.generate_vrt(make_images=False, make_labels=True)
-            outdir_labels = Path(outdir) / "labels"
+            outdir_labels = Path(dir_tiles) / "labels"
             outdir_labels.mkdir(parents=True, exist_ok=True)
             generate_tiles(labels_vrt, outdir_labels, **kwargs)
 
+        return str(dir_tiles)
+
     def __repr__(self):
-        rep = f"Dataset(\n"
-        rep += "  images(\n"
-        for i, image in enumerate(self.images):
-            rep += f"    ({i}): {image}\n"
-        rep += "  )\n"
-        rep += "  categories(\n"
-        for i, category in enumerate(self.categories):
-            rep += f"    ({i}): {category}\n"
-        rep += "  )\n)"
+        rep = f"Dataset("
+        for key, value in self.__dict__.items():
+            # Add images / categories / labels if provided
+            if value and key[0] == "_":
+                rep += f"\n  ({key[1:]}): "
+                rep += "\n  ".join(value.__repr__().split("\n"))
+            # Add root / directories / options if provided
+            elif value:
+                rep += f"\n  ({key}): '{value}'"
+        rep += f"\n)"
         return rep

@@ -37,79 +37,39 @@ import json
 # Geolabel Maker
 from geolabel_maker.rasters import to_raster
 from .color import Color
+from .download import OverpassAPI
+from geolabel_maker.logger import logger
 
 
 __all__ = [
-    "read_categories",
-    "Category"
+    "Category",
+    "CategoryCollection",
+    "to_category"
 ]
 
 
-def read_categories(categories_path, overwrite=False):
-    """Read a 'categories' file. This file is used to map geometries to categories attributes,
-    such as ``color``, ``name``.
-    This file must follow the structure:
-
-    .. code-block:: python
-
-        {
-            "vegetation": {                         # The name of your category
-                "file": "path/to/vegetation.json",  # Path to the geometries (vector file)
-                "color": [0, 150, 0]                # (Optional) Color of the category
-            },
-            "buildings": {                          # The name of your category
-                "file": "path/to/vegetation.json",  # Path to the geometries (vector file)
-                "color": "white"                    # (Optional) Color of the category
-            },
-            # etc...
-        }
+def to_category(element, *args, **kwargs):
+    r"""Convert an object to a ``Category``.
 
     Args:
-        categories_path (str): Path to the categories file to load.
-        overwrite (bool, optional): If ``True``, will overwrite the loaded file with generated missing colors (if any).
+        element (any): Element to convert. 
+            It can be a ``str``, ``Path``, ``geopandas.GeoDataFrame`` etc...
 
     Returns:
-        tuple: A tuple of all the loaded ``Category`` objects.
+        Category
 
     Examples:
-        >>> categories = read_categories("data/categories.json")
+        >>> category = to_category("buildings.json")
+        >>> category = to_category(Path("buildings.json"))
+        >>> category = to_category(gpd.read_file("buildings.json"))
     """
-    if not Path(categories_path).is_file():
-        raise ReadError(f"The file '{categories_path}' was not found. "
-                        "Please create one following the 'categories.json' template.")
-
-    # Load the JSON categories
-    with open(categories_path, "r", encoding="utf-8") as f:
-        categories_dict = json.load(f)
-
-    # Create instances of `Category`
-    categories = []
-    for name, category_info in categories_dict.items():
-        color = category_info.get("color")
-        filename = category_info.get("file")
-        categories.append(Category.open(filename, name=name, color=color))
-
-    # Check for unique RGB colors. If there are duplicate,
-    # it will overwrite the associated category's color with a random one
-    colors = [category.color for category in categories]
-    for i, color in enumerate(colors):
-        other_colors = set(colors[:i] + colors[i + 1:])
-        while color in other_colors:
-            color = tuple(Color.random())
-        categories[i].color = color
-        # Update the `categories_dict` data, in case the user wants to save the modifications
-        category_name = categories[i].name
-        categories_dict[category_name]["color"] = color
-
-    # Save the `categories` JSON file, with the generated colors
-    if overwrite:
-        try:
-            with open(categories_path, "w") as f:
-                json.dump(categories_dict, f, indent=4)
-        except Exception as error:
-            pass
-
-    return tuple(categories)
+    if isinstance(element, (str, Path)):
+        return Category.open(str(element), *args, **kwargs)
+    elif isinstance(element, gpd.GeoDataFrame):
+        return Category(element, *args, **kwargs)
+    elif isinstance(element, Category):
+        return element
+    raise ValueError(f"Unknown element: Cannot load {type(element)} as `Category`.")
 
 
 class Category:
@@ -126,13 +86,12 @@ class Category:
     * :attr:`color` (tuple): RGB tuple of pixel values (from 0 to 255).
 
     """
-    
-    __slots__ = ["name", "data", "color"]
 
-    def __init__(self, name, data, color=None):
+    def __init__(self, name, data, color=None, filename=None):
         super().__init__()
         self.name = name
         self.data = data
+        self.filename = filename
         # Convert color to RGB
         if not color:
             color = Color.random()
@@ -159,14 +118,16 @@ class Category:
         """
         data = gpd.read_file(str(filename))
         name = name or Path(filename).stem
-        return Category(name, data, color=color)
+        return Category(name, data, color=color, filename=str(filename))
 
     @classmethod
     def from_postgis(self, name, sql, conn, color=None, **kwargs):
         r"""Load a ``Category`` from a `PostGIS` database.
         This method wraps the ``read_postgis`` function from ``geopandas``.
-        For more details, please visit ``geopandas`` 
-        `documentation <https://geopandas.readthedocs.io/en/latest/reference/geopandas.read_postgis.html#geopandas.read_postgis>`__.
+
+        .. seealso::
+            For more details, please visit ``geopandas`` 
+            `documentation <https://geopandas.readthedocs.io/en/latest/reference/geopandas.read_postgis.html#geopandas.read_postgis>`__.
 
         Args:
             name (str, optional): Name of the category.
@@ -189,8 +150,25 @@ class Category:
         data = gpd.read_postgis(sql, conn, **kwargs)
         return Category(name, data, color=color)
 
-    def save(self, outname):
-        raise NotImplementedError
+    @classmethod
+    def download(cls, bbox, *args, **kwargs):
+        """Download a ``Category`` from the `Open Street Map` API.
+
+        .. seealso::
+            See ``OverpassAPI`` for further details.
+
+        Args:
+            bbox (tuple): The bounding box of the region of interest.
+
+        Returns:
+            Category
+
+        Examples:
+            >>> category = Category.download(bbox=(40, 50, 41, 51))
+        """
+        api = OverpassAPI()
+        outfile = api.download(bbox, *args, **kwargs)
+        return Category.open(outfile)
 
     def crop(self, bbox):
         r"""Get the geometries which are in a bounding box.
@@ -257,3 +235,101 @@ class Category:
 
     def __repr__(self):
         return f"Category(name='{self.name}', data=GeoDataFrame(..., length={len(self.data)}), color={self.color})"
+
+
+class CategoryCollection:
+    r"""
+    Defines a collection of ``Category``.
+    This class behaves similarly as a ``list``, excepts it is made only of ``Category``.
+
+    .. note::
+        The ``Category`` within the ``CategoryCollection`` have unique colors.
+
+    .. warning::
+        If you initialize a ``CategoryCollection`` from categories with shared colors,
+        the duplicate colors will be replaced with random ones.
+
+    * :attr:`items` (list): List of categories.
+
+    """
+
+    def __init__(self, *categories):
+        if not isinstance(categories, (list, tuple, CategoryCollection)):
+            categories = [categories]
+        elif isinstance(categories, (list, tuple)) and len(categories) == 1:
+            categories = categories[0]
+        if not categories:
+            categories = []
+        self.items = [to_category(category) for category in categories]
+        self._make_unique_colors()
+
+    def _make_unique_colors(self):
+        """Make sure the categories have unique colors."""
+        colors = [category.color for category in self.items]
+        for i, color in enumerate(colors):
+            other_colors = set(colors[:i] + colors[i + 1:])
+            max_steps = 200  # Prevent infinite loops
+            while color in other_colors and max_steps > 0:
+                color = tuple(Color.random())
+                max_steps -= 1
+            self.items[i].color = color
+
+    def append(self, category):
+        r"""Add a ``Category`` to the collection.
+
+        Args:
+            category (Category): The category to add.
+
+        Examples:
+            >>> collection = CategoryCollection()
+            >>> category = Category.open("buildings.json")
+            >>> collection.append(category)
+            >>> collection
+                CategoryCollection(
+                  (0): Category(name='buildings', filename='buildings.json', color=(234, 85, 40))
+                )
+        """
+        category = to_category(category)
+        self.items.append(category)
+        self._make_unique_colors()
+
+    def extend(self, categories):
+        r"""Add a set of ``Category`` to the collection.
+
+        Args:
+            categories (list): List of categories to add.
+
+        Examples:
+            >>> collection = CategoryCollection()
+            >>> categories = [Category.open("buildings.json"), Category.open("vegetation.json")]
+            >>> collection.extend(categories)
+            >>> collection
+                CategoryCollection(
+                  (0): Category(name='buildings', filename='buildings.json', color=(234, 85, 40))
+                  (1): Category(name='vegetation', filename='vegetation.json', color=(35, 3, 220))
+                )
+        """
+        categories = [to_category(category) for category in categories]
+        self.items.extend(categories)
+        self._make_unique_colors()
+
+    def __setitem__(self, index, category):
+        category = to_category(category)
+        self.items[index] = category
+        self._make_unique_colors()
+
+    def __getitem__(self, index):
+        return self.items[index]
+
+    def __iter__(self):
+        yield from self.items
+
+    def __len__(self):
+        return len(self.items)
+
+    def __repr__(self):
+        rep = f"CategoryCollection("
+        for i, category in enumerate(self):
+            rep += f"\n  ({i}): {category}"
+        rep += "\n)"
+        return rep

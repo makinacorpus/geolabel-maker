@@ -1,0 +1,103 @@
+{
+    "dir_images": "images",
+    "dir_categories": "categories",
+    "dir_labels": "labels",
+    "images": [
+        {
+            "id": 0,
+            "filename": "images\\tile_256-4864.tif"
+        },
+        {
+            "id": 1,
+            "filename": "images\\tile_256-5120.tif"
+        },
+        {
+            "id": 2,
+            "filename": "images\\tile_256-5376.tif"
+        },
+        {
+            "id": 3,
+            "filename": "images\\tile_512-4864.tif"
+        },
+        {
+            "id": 4,
+            "filename": "images\\tile_512-5120.tif"
+        },
+        {
+            "id": 5,
+            "filename": "images\\tile_512-5376.tif"
+        },
+        {
+            "id": 6,
+            "filename": "images\\tile_768-4864.tif"
+        },
+        {
+            "id": 7,
+            "filename": "images\\tile_768-5120.tif"
+        },
+        {
+            "id": 8,
+            "filename": "images\\tile_768-5376.tif"
+        }
+    ],
+    "categories": [
+        {
+            "id": 0,
+            "name": "buildings",
+            "color": [
+                206,
+                141,
+                126
+            ],
+            "filename": "categories\\buildings.json"
+        },
+        {
+            "id": 1,
+            "name": "vegetation",
+            "color": [
+                17,
+                227,
+                242
+            ],
+            "filename": "categories\\vegetation.json"
+        }
+    ],
+    "labels": [
+        {
+            "id": 0,
+            "filename": "labels\\tile_256-4864-label.tif"
+        },
+        {
+            "id": 1,
+            "filename": "labels\\tile_256-5120-label.tif"
+        },
+        {
+            "id": 2,
+            "filename": "labels\\tile_256-5376-label.tif"
+        },
+        {
+            "id": 3,
+            "filename": "labels\\tile_512-4864-label.tif"
+        },
+        {
+            "id": 4,
+            "filename": "labels\\tile_512-5120-label.tif"
+        },
+        {
+            "id": 5,
+            "filename": "labels\\tile_512-5376-label.tif"
+        },
+        {
+            "id": 6,
+            "filename": "labels\\tile_768-4864-label.tif"
+        },
+        {
+            "id": 7,
+            "filename": "labels\\tile_768-5120-label.tif"
+        },
+        {
+            "id": 8,
+            "filename": "labels\\tile_768-5376-label.tif"
+        }
+    ]
+}

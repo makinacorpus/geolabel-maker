@@ -37,9 +37,6 @@ like the creation of virtual images or merging tiles.
 from pathlib import Path
 from osgeo import gdal
 import gdal2tiles
-import rasterio
-import rasterio.merge
-from shutil import copyfile
 
 # Geolabel Maker
 from .raster import to_raster
@@ -59,10 +56,11 @@ def generate_tiles(raster_file, outdir="tiles", **kwargs):
     Examples:
         >>> raster = Raster.open("raster.tif")
         >>> generate_tiles(raster, outdir="tiles")
+        >>> generate_tiles("raster.tif", outdir="tiles")
     """
     Path(outdir).mkdir(parents=True, exist_ok=True)
     # Generate tiles with `gdal2tiles`
-    raster_file = to_raster(raster_file).data.name
+    raster_file = to_raster(raster_file).filename
     gdal2tiles.generate_tiles(raster_file, outdir, **kwargs)
 
 
@@ -81,58 +79,7 @@ def generate_vrt(outfile, rasters):
         >>> tile2 = Raster.open("tile2.tif")
         >>> generate_vrt("tiles.vrt", [tile1, tile2])
     """
-    raster_files = [to_raster(raster).data.name for raster in rasters]
+    raster_files = [to_raster(raster).filename for raster in rasters]
     ds = gdal.BuildVRT(outfile, raster_files)
     ds.FlushCache()
     return outfile
-
-
-def merge_rasters(outfile, rasters):
-    """Merge raster files from a specific directory to a single geotiff.
-
-    Args:
-        rasters (str): The images directory path.
-        output_file (str): The name of the final raster. Default value is ``"merged.tif"``.
-
-    Returns:
-        str: The name of the final raster.
-
-    Examples:
-        >>> tile1 = Raster.open("tile1.tif")
-        >>> tile2 = Raster.open("tile2.tif")
-        >>> merge_rasters("tiles.tif", [tile1, tile2])
-    """
-    out_path = None
-    if len(rasters) > 0:
-        img_path = rasters[0].parent
-        out_path = img_path / outfile
-
-        if len(rasters) > 1:
-            # open raster files
-            rasters_data = []
-            for raster in rasters:
-                raster_data = raster.data
-                rasters_data.append(raster_data)
-
-            # merge raster images
-            mosaic, out_transform = rasterio.merge.merge(rasters_data)
-
-            # create metadata for the merged raster
-            out_profile = raster_data.profile.copy()
-            out_profile.update(
-                {
-                    "driver": "GTiff",
-                    "height": mosaic.shape[1],
-                    "width": mosaic.shape[2],
-                    "transform": out_transform,
-                }
-            )
-
-            # write the merged raster
-            with rasterio.open(out_path, "w", **out_profile) as dest:
-                dest.write(mosaic)
-
-        elif len(rasters) == 1:
-            copyfile(rasters[0], out_path)
-
-    return out_path

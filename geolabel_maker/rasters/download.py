@@ -7,25 +7,52 @@
 # Copyright (c) 2021, Makina Corpus
 
 
+r"""
+This module handles the download process with `SentinelHub` API.
+
+.. code-block:: python
+
+    from geolabel_maker.rasters.download import SentinelHubAPI
+    
+    username, password = "username", "password"
+    bbox = (30, 40, 31, 41)
+    
+    api = SentinelHubAPI(username, password)
+    files = api.download(bbox, outdir="images")
+"""
+
+
 from sentinelsat import SentinelAPI
 from shutil import copyfile
 from pathlib import Path
 import zipfile
-import datetime
+from datetime import datetime
 
 # Geolabel Maker
 from geolabel_maker.logger import logger
 
 
 class SentinelHubAPI:
+    r"""
+    Defines automatic downloads using the `SentinelHub <https://docs.sentinel-hub.com/api/latest/>`__ API.
+
+    * :attr:`url` (str): URL used to connect to the API.
+
+    * :attr:`username` (str): SciHub username.
+
+    * :attr:`password` (str): SciHub password.
+
+    """
 
     def __init__(self, username, password):
         self.url = "https://scihub.copernicus.eu/dhus"
         self.username = username
         self.password = password
 
-    def download(self, bbox, date_min=None, date_max=None, outdir="sentinel", resolution=10, bandname="TCI", **kwargs):
-        """Download Sentinel image from a bounding box.
+    def download(self, bbox, date=None, platformname="Sentinel-2", 
+                 processinglevel='Level-2A', cloudcoverpercentage=(0, 10), 
+                 resolution=10, bandname="TCI", outdir="sentinel", **kwargs):
+        r"""Download Sentinel image from a bounding box.
 
         .. note::
             This method will download, extract and keep only relevant images from Sentinel Hub.
@@ -36,11 +63,14 @@ class SentinelHubAPI:
         Args:
             bbox (tuple): A bounding box in the format :math:`(lat_{min}, lon_{min}, lat_{max}, lon_{max})`.
             date (str, datetime or tuple, optional): The date (range) to download images. Defaults to ``None``.
-            outdir (str, optional): Output directory where the retrieved images will be saved. Defaults to ``"sentinel"``.
+            platformname (str, optional): Name of the satellite constellation. Default to ``"Sentinel-2"``.
+            processinglevel (str, optional): Level of processing, product quality. Default to ``"Level-2A"``.
+            cloudcoverpercentage (str, optional): Range of cloud percentage. Default to ``(0, 10)``.
             resolution (int, optional): The level of resolution. Options available are: ``10``, ``20``, ``60``.
                 Defaults to ``10``.
             bandname (str, optional): The name of the band to pick. See Sentinel documentation for more details. 
                 Defaults to ``"TCI"``.
+            outdir (str, optional): Output directory where the retrieved images will be saved. Defaults to ``"sentinel"``.
             kwargs: Other arguments from `SentinelHub <https://docs.sentinel-hub.com/api/latest/>`__ API.
 
         Returns:
@@ -53,9 +83,8 @@ class SentinelHubAPI:
             >>> api = SentinelHubAPI(username, password)
             >>> # Download images within a bounding box
             >>> bbox = (50, 7, 51, 8)
-            >>> date_min = "20200920"
-            >>> date_max = "20200925"
-            >>> files = api.download(bbox, date_min=date_min, date_max=date_max)
+            >>> date = ("20200920", "20200925")
+            >>> files = api.download(bbox, date=date)
         """
         # Connect to the main API
         logger.info(f"Connecting to SentinelHub API...")
@@ -67,15 +96,24 @@ class SentinelHubAPI:
         footprint = f"POLYGON(({lon_max} {lat_min},{lon_min} {lat_min},{lon_min} {lat_max},{lon_max} {lat_max},{lon_max} {lat_min}))"
 
         # Make date range
-        date_min = date_min or datetime.now().strftime("%Y%m%d")
-        date_max = date_max or datetime.now().strftime("%Y%m%d")
+        if date is None:
+            datemin = datetime.now().strftime("%Y%m%d")
+            datemax = datetime.now().strftime("%Y%m%d")
+        elif isinstance(date, (tuple, list)):
+            datemin, datemax = date
+        else:
+            datemin = date
+            datemax = date
 
         # Make a request
-        query_string = f"footprint={footprint}, date={date_min, date_max}, " + ", ".join([f"{key}={value}" for key, value in kwargs.items()])
+        query_string = f"footprint={footprint}, date={datemin, datemax}, " + ", ".join([f"{key}={value}" for key, value in kwargs.items()])
         logger.info(f"Retrieving products for the query: {query_string}.")
         products = api.query(
             footprint,
-            date=(date_min, date_max),
+            date=(datemin, datemax),
+            platformname=platformname,
+            processinglevel=processinglevel,
+            cloudcoverpercentage=cloudcoverpercentage,
             **kwargs
         )
         logger.info("Products successfully retrieved.")
