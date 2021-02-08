@@ -9,4 +9,3 @@
 
 from .raster import Raster, RasterCollection, to_raster
 from .functions import generate_tiles, generate_vrt
-from .download import SentinelHubAPI

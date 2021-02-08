@@ -43,15 +43,16 @@ setup(
     },
     python_requires=">=3.6",
     install_requires=[
-        "numpy",
         "gdal2tiles",
-        "shapely",
         "geopandas",
-        "rasterio",
-        "pillow",
+        "numpy",
         "scikit-image",
-        "requests",
         "sentinelsat",
-        "osmtogeojson"
+        "osmtogeojson",
+        "opencv-python"
+        "pillow",
+        "rasterio",
+        "requests", 
+        "shapely",
     ],
 )

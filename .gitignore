@@ -138,6 +138,7 @@ frontend-flask/
 frontend/
 
 # Data
+data/
 .*/
 *.pkl*
 *.csv
@@ -145,11 +146,16 @@ tiles/
 images/
 labels/
 sentinel/
+mosaics/
+tiles/
 openstreetmap/
 notebooks/test/
 notebooks/
 *.vrt
 *annotations*.json
+config.json
+*secret*
+*credentials*
 
 # Tests
 *test*.ipynb

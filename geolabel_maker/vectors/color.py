@@ -116,6 +116,9 @@ class Color:
     def to_rgb(self):
         return (self.red, self.green, self.blue)
 
+    def to_hex(self):
+        return f"#{self.red:02x}{self.green:02x}{self.blue:02x}"
+
     def __iter__(self):
         yield from self.to_rgb()
 

@@ -28,7 +28,7 @@ Generate your own ground truth from geo-referenced aerial images and vectors in 
 
     tutorials/rasters
     tutorials/vectors   
-    tutorials/download
+    tutorials/Download_Data
     tutorials/dataset    
     tutorials/annotations
 

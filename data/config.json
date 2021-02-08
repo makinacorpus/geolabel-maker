@@ -1,75 +1,39 @@
 {
     "dir_images": "images",
-    "dir_categories": "categories",
-    "dir_labels": "labels",
-    "dir_mosaics": "mosaics",
-    "dir_tiles": "tiles",
-    "images": [
-        {
-            "id": 0,
-            "filename": "images\\1843_5173_08_CC46.tif"
-        },
-        {
-            "id": 1,
-            "filename": "images\\1844_5173_08_CC46.tif"
-        }
+	"dir_categories": "categories",
+    "bbox": [
+        50.99,
+        7,
+        51,
+        7.01
     ],
-    "categories": [
-        {
-            "id": 0,
-            "name": "buildings",
-            "color": [
-                255,
-                255,
-                255
-            ],
-            "filename": "categories\\buildings.json"
-        },
-        {
-            "id": 1,
-            "name": "vegetation",
-            "color": [
-                0,
-                255,
-                0
-            ],
-            "filename": "categories\\vegetation.json"
-        }
-    ],
-    "labels": [
-        {
-            "id": 0,
-            "filename": "labels\\1843_5173_08_CC46-label.tif"
-        },
-        {
-            "id": 1,
-            "filename": "labels\\1844_5173_08_CC46-label.tif"
-        }
-    ],
-    "download": {
-        "bbox": [
-            40,
-            50,
-            41,
-            51
+    "sentinelhub": {
+        "username": "username",
+        "password": "password",
+        "date": [
+            "20200920",
+            "20200925"
         ],
-        "sentinelhub": {
-            "username": "username",
-            "password": "password",
-            "datemin": "20200920",
-            "datemax": "20200925",
-            "platformname": "Sentinel-2",
-            "processinglevel": "Level-2A",
-            "cloudcoverpercentage": [
-                0,
-                30
-            ],
-            "resolution": 10,
-            "bandname": "TCI"
-        },
-        "overpass": {
-            "selector": "building",
-            "timeout": 700
-        }
+        "platformname": "Sentinel-2",
+        "processinglevel": "Level-2A",
+        "cloudcoverpercentage": [
+            0,
+            30
+        ],
+        "resolution": 10,
+        "bandname": "TCI"
+    },
+    "overpass": {
+        "timeout": 700,
+		"geometries": [{
+			"selector": "building",
+			"name": "building",
+			"color": "white"
+		}, 
+		{
+			"selector": "boundary=protected_area",
+			"name": "protected_area",
+			"color": "green"
+		}]
     }
 }

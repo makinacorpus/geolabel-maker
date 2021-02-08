@@ -28,16 +28,14 @@ The class ``Category`` wraps the ``GeoDataFrame`` class from ``geopandas`` and a
 """
 
 # Basic imports
-from shutil import ReadError
 from pathlib import Path
 import geopandas as gpd
 from shapely.geometry import box
-import json
 
 # Geolabel Maker
 from geolabel_maker.rasters import to_raster
 from .color import Color
-from .download import OverpassAPI
+from .overpass import OverpassAPI
 from geolabel_maker.logger import logger
 
 
@@ -121,7 +119,15 @@ class Category:
         return Category(name, data, color=color, filename=str(filename))
 
     @classmethod
-    def from_postgis(self, name, sql, conn, color=None, **kwargs):
+    def download(cls, bbox, **kwargs):
+        api = OverpassAPI()
+        color = kwargs.pop("color", None)
+        name = kwargs.pop("name", None)
+        filename = api.download(bbox, **kwargs)
+        return Category.open(filename, name=name, color=color)
+
+    @classmethod
+    def from_postgis(cls, name, sql, conn, color=None, **kwargs):
         r"""Load a ``Category`` from a `PostGIS` database.
         This method wraps the ``read_postgis`` function from ``geopandas``.
 
@@ -150,25 +156,8 @@ class Category:
         data = gpd.read_postgis(sql, conn, **kwargs)
         return Category(name, data, color=color)
 
-    @classmethod
-    def download(cls, bbox, *args, **kwargs):
-        """Download a ``Category`` from the `Open Street Map` API.
-
-        .. seealso::
-            See ``OverpassAPI`` for further details.
-
-        Args:
-            bbox (tuple): The bounding box of the region of interest.
-
-        Returns:
-            Category
-
-        Examples:
-            >>> category = Category.download(bbox=(40, 50, 41, 51))
-        """
-        api = OverpassAPI()
-        outfile = api.download(bbox, *args, **kwargs)
-        return Category.open(outfile)
+    def save(self, filename):
+        raise NotImplementedError
 
     def crop(self, bbox):
         r"""Get the geometries which are in a bounding box.
@@ -328,7 +317,7 @@ class CategoryCollection:
         return len(self.items)
 
     def __repr__(self):
-        rep = f"CategoryCollection("
+        rep = f"{self.__class__.__name__}("
         for i, category in enumerate(self):
             rep += f"\n  ({i}): {category}"
         rep += "\n)"

@@ -7,12 +7,27 @@
 # Copyright (c) 2020, Makina Corpus
 
 
+"""
+This module defines functions used to process couple (image, label).
+They are mainly used for `COCO` annotations, as it requires to extract masks and create segmentation maps.
+
+.. code-block:: python
+
+    from geolabel_maker.vectors import Category
+    from geolabel_maker.annotations.functional import *
+    
+    categories = [Category.open("buildings.json", color="white"), 
+                  Category.open("vegetation.json", color="green")]
+    extracted_categories = extract_categories("data/tiles/labels/18/2937/29373.png", categories)
+"""
+
+
 # Basic imports
-from collections import defaultdict
-from skimage import measure
 import geopandas as gpd
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, MultiPolygon
 from PIL import Image
+import numpy as np
+import cv2
 
 # Geolabel Maker
 from geolabel_maker.vectors import Category
@@ -25,11 +40,12 @@ __all__ = [
 ]
 
 
-def retrieve_masks(label_image, categories):
+#! deprecated
+def retrieve_masks(label_image, colors):
     """Create sub masks from a label image and their colors.
 
     Args:
-        image (PIL.Image): Mask RGB image of shape :math:`(3, X, Y)`.
+        image (PIL.Image): Mask as a RGB image of shape :math:`(X, Y, 3)`.
         colors (list): List of RGB colors used to map the different categories.
 
     Returns:
@@ -44,39 +60,23 @@ def retrieve_masks(label_image, categories):
         >>> type(masks[(255, 255, 255)])
             PIL.Image
     """
-    # Get all colors / categories of geometries
-    colors = [tuple(category.color) for category in categories]
-
-    width, height = label_image.size
+    label_array = np.array(label_image)
     # Initialize a dictionary of sub-masks indexed by RGB colors
     masks = {}
-    for x in range(width):
-        for y in range(height):
-            # get the RGB values of the pixel
-            pixel = label_image.getpixel((x, y))
-            # if the pixel has a color used in a category
-            if pixel in colors:
-                # check to see if we've created a sub-mask...
-                mask = masks.get(pixel)
-                if mask is None:
-                    # Create a sub-mask (one bit per pixel)
-                    # and add to the dictionary
-                    # NOTE: mode="1" i.e. 1-bit pixels, black and white, stored with one pixel per byte
-                    masks[pixel] = Image.new("1", (width, height))
-                # set the pixel value to 1 (default is 0),
-                # accounting for padding
-                masks[pixel].putpixel((x, y), 1)
-
+    for color in colors:
+        color_array = np.array(color)
+        mask_array = np.all(label_array == color_array, axis=-1)
+        masks[color] = Image.fromarray(mask_array)
     return masks
 
 
-def find_polygons(mask_image, preserve_topology=False):
+def find_polygons(mask_array, preserve_topology=False, simplify_level=1.0):
     """Retrieve the polygons from a black and white raster image.
 
     Args:
-        mask_image (PIL.Image): Black and white mask image of shape :math:`(3, X, Y)`, 
+        mask_image (PIL.Image): Black and white mask image of shape :math:`(X, Y, 3)`, 
             usually generated with the function ``retrieve_masks()``.
-        preserve_topology (bool): If ``True``, preserve the topology of the polygon.
+        preserve_topology (bool): If ``True``, preserve the topology of the polygon. Default to ``False``.
 
     Returns:
         list: List of ``shapely.geometry.Polygon`` vectorized from the input raster ``mask_image``.
@@ -93,30 +93,24 @@ def find_polygons(mask_image, preserve_topology=False):
         >>> type(polygons[0])
             shapely.geometry.Polygon
     """
-    # NOTE: we add 1 pixel of padding in each direction
-    # because the contours module doesn't handle cases
-    # where pixels bleed to the edge of the image    # Find contours (boundary lines) around each sub-mask.
-    width, height = mask_image.size
-    padded_mask = Image.new(mask_image.mode, (width + 2, height + 2))
-    padded_mask.paste(mask_image, (1, 1))
-
-    # NOTE: There could be multiple contours if the object
-    # is partially occluded. (e.g. an elephant behind a tree)
-    contours = measure.find_contours(padded_mask, level=0.5, positive_orientation="low")
     polygons = []
+    contours, hierarchy = cv2.findContours(mask_array, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     for contour in contours:
-        # Flip from (row, col) representation to (x, y)
-        # and subtract the padding pixel
-        contour[:, [0, 1]] = contour[:, [1, 0]]
-        # Remove the padding
-        contour = contour - 1
-        # Make a polygon and simplify it
-        polygon = Polygon(contour)
-        polygon = polygon.simplify(1.0, preserve_topology=preserve_topology)
-        # Add the simplified polygon
-        if not polygon.is_empty:
-            polygons.append(polygon)
-
+        segmentation = contour.flatten()
+        # A LinearRing must have at least 3 coordinate tuples (i.e. 3 * 2 values)
+        if len(segmentation) >= 6:
+            x = segmentation[::2]
+            y = segmentation[1::2]
+            polygon = Polygon(np.column_stack((x, y)))
+            polygon = polygon.simplify(simplify_level, preserve_topology=preserve_topology)
+            # Only add polygons that are not empty
+            if not polygon.is_empty:
+                # Add multiple Polygon if the simplification resulted in a MultiPolygon
+                if isinstance(polygon, MultiPolygon):
+                    polygons.extend(polygon)
+                # Add a single Polygon
+                else:
+                    polygons.append(polygon)
     return polygons
 
 
@@ -137,38 +131,24 @@ def extract_categories(label_file, categories, **kwargs):
         tuple: Categories containing geometries (e.g. all buildings from the images at ``zoom`` level).
 
     Examples:
-        >>> categories = read_categories("categories.json")
+        >>> categories = [Category.open("buildings.json", color="white"), Category.open("vegetation.json", color="green")]
         >>> categories = extract_categories("tiles/labels/13/345/374.png", categories)
         >>> categories
             (Category(name='vegetation', data=34, color=(0, 150, 0), 
             Category(name='buildings', data=267, color=(255, 255, 255)))
-            
+
     Examples:
         >>> dataset = Dataset.open("data")
     """
-    color2id = {tuple(category.color): i for i, category in enumerate(categories)}
+    image_array = cv2.imread(str(label_file))
+    color2name = {tuple(category.color): category.name for category in categories}
+    colors = color2name.keys()
     categories_extracted = []
-
-    # Read label image
-    tile_label = Image.open(label_file)
-    tile_label = tile_label.convert("RGB")
-
-    # Find all masks / categories
-    masks = retrieve_masks(tile_label, categories)
-    for color, mask in masks.items():
-        category_data = defaultdict(list)
-
-        # Find all polygons within a category
-        polygons = find_polygons(mask, **kwargs)
-        category_id = int(color2id[color])
-        for polygon in polygons:
-            category_data["geometry"].append(polygon)
-
-        # Build the `Category` object
-        name = categories[category_id].name
-        color = categories[category_id].color
-        data = gpd.GeoDataFrame(category_data)
-        category = Category(name, data, color)
-        categories_extracted.append(category)
-
+    for color in colors:
+        # Extract a mask of color `color` exactly
+        mask_array = cv2.inRange(image_array, color, color)
+        polygons = find_polygons(mask_array, **kwargs)
+        data = gpd.GeoDataFrame({"geometry": polygons})
+        name = color2name[color]
+        categories_extracted.append(Category(name, data, color=color))
     return categories_extracted

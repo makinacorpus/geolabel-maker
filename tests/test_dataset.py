@@ -32,7 +32,7 @@ class DatasetTests(unittest.TestCase):
         try:
             shutil.rmtree(dir_labels)
         except Exception as error:
-            print("ERROR: Could not remove previous directory", error)
+            print(f"ERROR: Could not remove previous directory '{dir_labels}': {error}")
         dataset.generate_labels()
         assert len(dataset.labels) == 9
 
@@ -42,7 +42,7 @@ class DatasetTests(unittest.TestCase):
         try:
             shutil.rmtree(dir_labels)
         except Exception as error:
-            print("ERROR: Could not remove previous directory", error)
+            print(f"ERROR: Could not remove previous directory '{dir_labels}': {error}")
         dataset.generate_vrt()
         images_vrt = rasterio.open("data/images.vrt")
         assert isinstance(images_vrt, rasterio.io.DatasetReader)
@@ -55,9 +55,17 @@ class DatasetTests(unittest.TestCase):
         try:
             shutil.rmtree(dir_tiles)
         except Exception as error:
-            print("ERROR: Could not remove previous directory", error)
+            print(f"ERROR: Could not remove previous directory '{dir_tiles}': {error}")
         dataset.generate_tiles(zoom="17-20")
 
+    def test_4_generate_mosaics(self):
+        dataset = Dataset.open("data")
+        dir_mosaics = "data/mosaics"
+        try:
+            shutil.rmtree(dir_mosaics)
+        except Exception as error:
+            print(f"ERROR: Could not remove previous directory '{dir_mosaics}': {error}")
+        dataset.generate_mosaics()
 
 if __name__ == '__main__':
     unittest.main()

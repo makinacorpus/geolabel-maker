@@ -29,7 +29,7 @@ Rasters
    ~raster.to_raster
    ~raster.Raster
    ~raster.RasterCollection
-   ~download.SentinelHubAPI
+   ~sentinelhub.SentinelHubAPI
    ~functions.generate_vrt
    ~utils.rgb2gray
    ~utils.gray2bw
@@ -48,10 +48,10 @@ geolabel_maker.rasters.functions
 .. automodule:: geolabel_maker.rasters.functions
     :members:
 
-geolabel_maker.rasters.download
-===============================
+geolabel_maker.rasters.sentinelhub
+==================================
 
-.. automodule:: geolabel_maker.rasters.download
+.. automodule:: geolabel_maker.rasters.sentinelhub
     :members:
 
 geolabel_maker.rasters.utils
@@ -73,7 +73,7 @@ Vectors
    ~category.Category
    ~category.CategoryCollection
    ~color.Color
-   ~download.OverpassAPI
+   ~overpass.OverpassAPI
 
 
 geolabel_maker.vectors.category
@@ -90,10 +90,10 @@ geolabel_maker.vectors.color
     :members:
 
 
-geolabel_maker.vectors.download
+geolabel_maker.vectors.overpass
 ===============================
 
-.. automodule:: geolabel_maker.vectors.download
+.. automodule:: geolabel_maker.vectors.overpass
     :members:
 
 

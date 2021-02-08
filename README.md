@@ -195,7 +195,7 @@ pip install sphinx_panels
 
 Convert the notebooks and add them to the documentation:
 ```
-jupyter nbconvert <notebook_file> --to-rst
+jupyter nbconvert <notebook_file> --to rst
 ```
 
 ## Common Issues

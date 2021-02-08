@@ -1,5 +1,5 @@
 # Encoding: UTF-8
-# File: download.py
+# File: sentinelhub.py
 # Creation: Sunday January 3rd 2021
 # Supervisor: Daphné Lercier (dlercier)
 # Author: Arthur Dujardin (arthurdjn)
@@ -18,7 +18,7 @@ This module handles the download process with `SentinelHub` API.
     bbox = (30, 40, 31, 41)
     
     api = SentinelHubAPI(username, password)
-    files = api.download(bbox, outdir="images")
+    files = api.download(bbox, out_dir="images")
 """
 
 
@@ -51,7 +51,7 @@ class SentinelHubAPI:
 
     def download(self, bbox, date=None, platformname="Sentinel-2", 
                  processinglevel='Level-2A', cloudcoverpercentage=(0, 10), 
-                 resolution=10, bandname="TCI", outdir="sentinel", **kwargs):
+                 resolution=10, bandname="TCI", out_dir="sentinel", **kwargs):
         r"""Download Sentinel image from a bounding box.
 
         .. note::
@@ -70,7 +70,7 @@ class SentinelHubAPI:
                 Defaults to ``10``.
             bandname (str, optional): The name of the band to pick. See Sentinel documentation for more details. 
                 Defaults to ``"TCI"``.
-            outdir (str, optional): Output directory where the retrieved images will be saved. Defaults to ``"sentinel"``.
+            out_dir (str, optional): Output directory where the retrieved images will be saved. Defaults to ``"sentinel"``.
             kwargs: Other arguments from `SentinelHub <https://docs.sentinel-hub.com/api/latest/>`__ API.
 
         Returns:
@@ -119,42 +119,44 @@ class SentinelHubAPI:
         logger.info("Products successfully retrieved.")
         products_gdf = api.to_geodataframe(products)
         logger.info(f"There are {len(products_gdf)} products found.")
+        if products_gdf.empty:
+            return None
 
         # Create the output directory if it does not exist
-        outdir_cache = Path(outdir).parent / f".{Path(outdir).name}"
-        Path(outdir_cache).mkdir(parents=True, exist_ok=True)
-        Path(outdir).mkdir(parents=True, exist_ok=True)
-        logger.info(f"Downloading the products to cache directory {outdir_cache}.")
+        out_dir_cache = Path(out_dir).parent / f".{Path(out_dir).name}"
+        Path(out_dir_cache).mkdir(parents=True, exist_ok=True)
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        logger.info(f"Downloading the products to cache directory {out_dir_cache}.")
 
         # Download all results from the search in a cache folder
         for product_id in products_gdf.index:
-            api.download(product_id, outdir_cache)
+            api.download(product_id, out_dir_cache)
 
         # Unzip the image folders
-        logger.info(f"Extracting the products to directory {outdir_cache}.")
-        self.extract_all(outdir_cache, outdir_cache)
+        logger.info(f"Extracting the products to directory {out_dir_cache}.")
+        self.extract_all(out_dir_cache, out_dir_cache)
 
         # Move the images at `resolution`
         files = []
-        logger.info(f"Transferring the images at resolution={resolution}, bandname={bandname} to directory {outdir}.")
+        logger.info(f"Transferring the images at resolution={resolution}, bandname={bandname} to directory {out_dir}.")
         for product_name in products_gdf.title:
-            product_path = Path(outdir_cache) / product_name
+            product_path = Path(out_dir_cache) / product_name
             image_file = self.find_image(product_path, resolution=resolution, bandname=bandname)
             # Move/copy the image to the main directory
-            out_image = Path(outdir) / Path(image_file).name
+            out_image = Path(out_dir) / Path(image_file).name
             copyfile(str(image_file), str(out_image))
             files.append(out_image)
 
         return files
 
     @staticmethod
-    def extract_all(indir, outdir=None):
-        outdir = outdir or indir
+    def extract_all(indir, out_dir=None):
+        out_dir = out_dir or indir
         # Extract all files in a directory
         for file in Path(indir).iterdir():
             filename = str(file)
             if zipfile.is_zipfile(filename):
-                zipfile.ZipFile(filename, 'r').extractall(outdir)
+                zipfile.ZipFile(filename, 'r').extractall(out_dir)
             # Delete the zip file to keep only the content
             file.unlink()
 

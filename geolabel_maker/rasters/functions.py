@@ -42,29 +42,29 @@ import gdal2tiles
 from .raster import to_raster
 
 
-def generate_tiles(raster_file, outdir="tiles", **kwargs):
+def generate_tiles(raster_file, out_dir="tiles", **kwargs):
     r"""Create tiles from a raster file (using GDAL)
 
     .. note::
-        If the output directory ``outdir`` does not exist,
+        If the output directory ``out_dir`` does not exist,
         it will be created.
 
     Args:
         raster (Raster): Raster used to generate tiles. String and path to the file are accepted.
-        outdir (str, optional): Path to the directory where the tiles will be saved.
+        out_dir (str, optional): Path to the directory where the tiles will be saved.
 
     Examples:
         >>> raster = Raster.open("raster.tif")
-        >>> generate_tiles(raster, outdir="tiles")
-        >>> generate_tiles("raster.tif", outdir="tiles")
+        >>> generate_tiles(raster, out_dir="tiles")
+        >>> generate_tiles("raster.tif", out_dir="tiles")
     """
-    Path(outdir).mkdir(parents=True, exist_ok=True)
+    Path(out_dir).mkdir(parents=True, exist_ok=True)
     # Generate tiles with `gdal2tiles`
     raster_file = to_raster(raster_file).filename
-    gdal2tiles.generate_tiles(raster_file, outdir, **kwargs)
+    gdal2tiles.generate_tiles(raster_file, out_dir, **kwargs)
 
 
-def generate_vrt(outfile, rasters):
+def generate_vrt(out_file, rasters):
     """Builds a virtual raster from a list of rasters.
 
     Args:
@@ -80,6 +80,6 @@ def generate_vrt(outfile, rasters):
         >>> generate_vrt("tiles.vrt", [tile1, tile2])
     """
     raster_files = [to_raster(raster).filename for raster in rasters]
-    ds = gdal.BuildVRT(outfile, raster_files)
+    ds = gdal.BuildVRT(out_file, raster_files)
     ds.FlushCache()
-    return outfile
+    return out_file

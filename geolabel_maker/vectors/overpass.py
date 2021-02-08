@@ -1,5 +1,5 @@
 # Encoding: UTF-8
-# File: download.py
+# File: overpass.py
 # Creation: Sunday January 3rd 2021
 # Supervisor: Daphné Lercier (dlercier)
 # Author: Arthur Dujardin (arthurdjn)
@@ -17,12 +17,14 @@ It is part of the `Open Street Map` API, but for large queries and requests.
     
     bbox = (40, 50, 41, 51)
     api = OverpassAPI()
-    map = api.download(bbox, selector="buildings" outfile="buildings.json")
+    map = api.download(bbox, selector="buildings" out_file="buildings.json")
 """
 
 
 # Basic imports
+import re
 import requests
+from pathlib import Path
 from datetime import datetime
 from osmtogeojson import osmtogeojson
 import geopandas as gpd
@@ -47,7 +49,7 @@ class OverpassAPI:
     def __init__(self):
         self.url = "http://overpass-api.de/api/interpreter"
 
-    def download(self, bbox, selector='"building"', timeout=700, outfile=None):
+    def download(self, bbox, selector='"building"', timeout=700, out_file=None):
         """Download OSM data from the API. 
         A ``selector`` can be used to retrieve specific areas / regions of interests.
 
@@ -56,7 +58,7 @@ class OverpassAPI:
             selector (str, optional): Seclector used to retrieve parts of data. This could be buildings, offices, farms etc.
                 See the OSM documentation for more details of the available options.
                 Defaults to ``'"building"'``.
-            outfile (str, optional): Name of the downloaded file (in ``json`` / ``geojson`` extension).
+            out_file (str, optional): Name of the downloaded file (in ``json`` / ``geojson`` extension).
                 If ``None``, the file will be named as ``map_{timestamp}.geojson``. Default to ``None``.
 
         Returns:
@@ -65,7 +67,7 @@ class OverpassAPI:
         Examples:
             >>> from geolabel_maker.vectors import OverpassAPI
             >>> api = OverpassAPI()
-            >>> api.download((48.0, 2.0, 48.1, 2.1), selector="building", outfile="buildings.json")
+            >>> api.download((48.0, 2.0, 48.1, 2.1), selector="building", out_file="buildings.json")
         """
         lat_min, lon_min, lat_max, lon_max = bbox
         query = f"""
@@ -95,16 +97,16 @@ class OverpassAPI:
         logger.info("Converting the features to GeoJSON.")
         features = osmtogeojson.process_osm_json(json_data)
 
-        if outfile is None:
+        if out_file is None:
             date = int(datetime.now().timestamp())
-            outfile = f"map_{date}.geojson"
-        elif not outfile.lower().endswith(".json") or \
-                not outfile.lower().endswith(".geojson"):
-            outfile += ".json"
+            selector_unicode = re.sub("[^a-zA-Z_-]", "_", selector)
+            out_file = f"{selector_unicode}-{date}.geojson"
+        elif not Path(out_file).suffix in [".json", ".geojson"]:
+            out_file = f"{out_file}.json"
 
         # Save
-        logger.info(f"Saving the data at '{outfile}'.")
+        logger.info(f"Saving the data at '{out_file}'.")
         df = gpd.GeoDataFrame.from_features(features)
-        df.to_file(outfile, driver="GeoJSON")
+        df.to_file(out_file, driver="GeoJSON")
         logger.info("OSM geometries successfully saved.")
-        return outfile
+        return out_file
