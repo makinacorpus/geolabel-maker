@@ -170,8 +170,7 @@ class Raster:
         memfile = MemoryFile()
         data = memfile.open(width=width, height=height, count=count, dtype=dtype, **profile)
         data.write(array)
-        filename = data.name
-        return Raster(data, filename)
+        return Raster(data)
 
     @classmethod
     def from_postgis(cls, *args, **kwargs):
@@ -224,8 +223,8 @@ class Raster:
         out_shape = (out_count, out_height, out_width)
         out_data = self.data.read(out_shape=out_shape, resampling=Resampling.bilinear)
         out_transform = self.data.transform * self.data.transform.scale(
-            (self.data.width / self.data.shape[-1]),
-            (self.data.height / self.data.shape[-2])
+            (self.data.width / out_data.shape[-1]),
+            (self.data.height / out_data.shape[-2])
         )
         out_profile = self.data.profile.copy()
         out_profile.update({
@@ -305,7 +304,7 @@ class Raster:
         return out_dir
 
     def __repr__(self):
-        return f"Raster(name='{self.data.name}', bbox={tuple(self.data.bounds)}, crs={self.data.crs})"
+        return f"Raster(name='{self.filename or 'None'}', bbox={tuple(self.data.bounds)}, crs={self.data.crs})"
 
 
 class RasterCollection:
