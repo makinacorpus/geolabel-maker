@@ -207,19 +207,16 @@ class Category(Data):
         """
         # Create a polygon from the bbox
         Xmin, Ymin, Xmax, Ymax = bbox
-        crop_box = box(Xmin, Ymin, Xmax, Ymax)
 
-        # Read vector file
         # Create a polygon from the raster bounds
-        vector_box = box(*self.data.total_bounds)
+        XCmin, YCmin, XCmax, YCmax = self.data.total_bounds
 
         # Make sure the raster bbox is contained in the vector bbox
-        if vector_box.contains(crop_box):
-            # Select vector data within the raster bounds
-            sub_data = self.data.cx[Xmin:Xmax, Ymin:Ymax]
-        else:
-            raise ValueError(f"The geographic extents are not consistent. "
-                             f"The referenced bbox is {crop_box.bounds} whereas vector bbox is {vector_box.bounds}.")
+        Xmin = max(Xmin, XCmin)
+        Xmax = min(Xmax, XCmax)
+        Ymin = max(Ymin, YCmin)
+        Ymax = min(Ymax, YCmax)
+        sub_data = self.data.cx[Xmin:Xmax, Ymin:Ymax]
 
         return Category(sub_data, self.name, color=self.color)
 

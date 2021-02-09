@@ -399,6 +399,7 @@ class Dataset:
         out_transform = None
         for category in self.categories:
             # Match the category to the raster extends
+            # image_cropped = image.crop_category(category)
             category_cropped = category.crop_raster(image)
             # If the category contains vectors in the cropped area
             if not category_cropped.data.empty:
