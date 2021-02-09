@@ -20,6 +20,7 @@ This module handles georeferenced raster image (usually ``.tif`` image).
 
 
 # Basic imports
+from tqdm import tqdm
 from itertools import product
 from pathlib import Path
 import rasterio
@@ -29,6 +30,7 @@ import gdal2tiles
 
 # Geolabel Maker
 from .sentinelhub import SentinelHubAPI
+from geolabel_maker.data import Data, DataCollection
 
 
 # Global variables
@@ -58,13 +60,12 @@ ZOOM2RES = {
 
 
 __all__ = [
-    "to_raster",
     "Raster",
     "RasterCollection"
 ]
 
 
-def to_raster(element, *args, **kwargs):
+def to_rasterio(element, **kwargs):
     r"""Convert an object to a ``Raster``.
 
     Args:
@@ -75,20 +76,42 @@ def to_raster(element, *args, **kwargs):
         Raster
 
     Examples:
-        >>> raster = to_raster("tile.tif")
-        >>> raster = to_raster(Path("tile.tif"))
-        >>> raster = to_raster(rasterio.open("tile.tif"))
+        >>> raster = to_rasterio("tile.tif")
+        >>> raster = to_rasterio(Path("tile.tif"))
+        >>> raster = to_rasterio(rasterio.open("tile.tif"))
     """
     if isinstance(element, (str, Path)):
-        return Raster.open(str(element), *args, **kwargs)
-    elif isinstance(element, rasterio.io.DatasetReader):
-        return Raster(element, *args, **kwargs)
-    elif isinstance(element, Raster):
+        return rasterio.open(str(element), **kwargs)
+    elif isinstance(element, (rasterio.io.DatasetReader, rasterio.io.DatasetWriter)):
         return element
+    elif isinstance(element, Raster):
+        return element.data
     raise ValueError(f"Unknown element: Cannot convert {type(element)} to `Raster`.")
 
 
-class Raster:
+def _check_raster(element):
+    r"""Check if an object is a ``Raster``.
+
+    Args:
+        element (any): Element to verify. 
+
+    Raises:
+        ValueError: If the element is not a ``Raster``.
+
+    Returns:
+        bool: ``True`` if the element is a ``Raster``.
+
+    Examples:
+        >>> _check_raster("raster.tif")
+            ValueError("Element of class 'str' is not a 'Raster'.")
+        >>>  _check_raster(Raster.open("raster.tif"))
+    """
+    if not isinstance(element, Raster):
+        raise ValueError(f"Element of class '{type(element).__name__}' is not a 'Raster'.")
+    return True
+
+
+class Raster(Data):
     r"""Defines a georeferenced image. This class encapsulates ``rasterio`` dataset,
     and defines custom auto-download and processing methods, to work with `geolabel_maker`.
 
@@ -97,12 +120,8 @@ class Raster:
     """
 
     def __init__(self, data, filename=None):
-        if not isinstance(data, (rasterio.io.DatasetReader, rasterio.io.DatasetWriter)):
-            raise TypeError(f"Unknown type for the raster data.",
-                            f"Got {type(data)} but expected `rasterio.io.DatasetReader`.",
-                            f"Try opening the raster data with `Raster.open('path/to/raster.tif')` class method.")
-        self.data = data
-        self.filename = filename
+        data = to_rasterio(data)
+        super().__init__(data, filename=filename)
 
     @classmethod
     def open(cls, filename):
@@ -144,7 +163,7 @@ class Raster:
         return RasterCollection(files)
 
     @classmethod
-    def from_array(cls, array, width=None, height=None, count=None, dtype=None, **profile):
+    def from_array(cls, array, **profile):
         r"""Create a ``Raster`` from a numpy array. 
         This method requires a profile (see `rasterio documentation <https://rasterio.readthedocs.io/en/latest/topics/profiles.html>`__).
 
@@ -156,19 +175,18 @@ class Raster:
             profile (dict): Additional arguments required.
 
         Returns:
-            Raster  
+            Raster
         """
-        if len(array.shape) == 2:
-            width = width or array.shape[0]
-            height = height or array.shape[1]
-            count = count or 0
-        elif len(array.shape) == 3:
-            width = width or array.shape[0]
-            height = height or array.shape[1]
-            count = count or array.shape[2]
-        dtype = dtype or str(array.dtype)
+        assert len(array.shape) >= 2, f"The provided array is not a matrix. Got a shape of {array.shape}."
+        out_profile = profile or {}
+        out_profile.update({
+            "count": array.shape[-3] if len(array.shape) > 2 else 1,
+            "width": array.shape[-2],
+            "height": array.shape[-1],
+            "dtype": str(array.dtype)
+        })
         memfile = MemoryFile()
-        data = memfile.open(width=width, height=height, count=count, dtype=dtype, **profile)
+        data = memfile.open(**out_profile)
         data.write(array)
         return Raster(data)
 
@@ -177,37 +195,29 @@ class Raster:
         r"""Load a raster image from a `PostgreSQL` database."""
         raise NotImplementedError
 
-    def save(self, filename, window=None, **profile):
+    def save(self, out_file, window=None, **profile):
         """Save the raster to the disk.
 
         Args:
-            filename (str): Name of the file to be saved.
+            out_file (str): Name of the file to be saved.
         """
-        with rasterio.open(filename, "w", **profile) as dst:
+        with rasterio.open(str(out_file), "w", **profile) as dst:
             dst.write(self.data.read(window=window))
 
-    def numpy(self):
-        """Convert the raster image to a numpy array, of shape :math:`(C, X, Y)`
-
-        Returns:
-            numpy.ndarray
-
-        Examples:
-            >>> raster = Raster.open("tile.tif")
-            >>> array = raster.to_numpy()
-        """
-        return self.data.read()
-
-    # TODO: rescale on X and Y with different values (?)
-    def rescale(self, factor):
+    def rescale(self, factor, resampling="bilinear"):
         """Rescale the geo-referenced image. The result is the rescaled data and 
         the associated transformation.
 
+        .. warning::
+            This operation will return a ``Raster`` with no filename.
+
         Args:
             factor (float): Rescale factor.
+            resampling (str, optional): Resempling method.  
+                Options available are from ``rasterio.enums.Resampling``. Default to ``"bilinear"``.
 
         Returns:
-            numpy.ndarray, rasterio.Transform
+            Raster
 
         Examples:
             >>> raster = Raster.open("tile.tif")
@@ -221,7 +231,7 @@ class Raster:
         out_height = int(self.data.height * factor)
         out_width = int(self.data.width * factor)
         out_shape = (out_count, out_height, out_width)
-        out_data = self.data.read(out_shape=out_shape, resampling=Resampling.bilinear)
+        out_data = self.data.read(out_shape=out_shape, resampling=getattr(Resampling, resampling))
         out_transform = self.data.transform * self.data.transform.scale(
             (self.data.width / out_data.shape[-1]),
             (self.data.height / out_data.shape[-2])
@@ -236,8 +246,31 @@ class Raster:
         return self.from_array(out_data, **out_profile)
 
     def zoom(self, zoom):
+        """Rescale the raster on a `zoom` level. 
+        The levels used are from `Open Street Map <https://wiki.openstreetmap.org/wiki/Zoom_levels>`__.
+
+        .. seealso::
+            This operation is a variant of ``geolabel_maker.rasters.Raster.rescale`` method.
+
+        .. warning::
+            This operation will return a ``Raster`` with no filename.
+
+        Args:
+            zoom (int): The zoom level.
+
+        Returns:
+            Raster
+
+        Examples:
+            >>> raster = Raster.open("tile.tif")
+            >>> raster = raster.zoom(18)
+            >>> raster.filename
+                None
+        """
         x_res, y_res = self.data.res
-        factor = x_res / ZOOM2RES[zoom]
+        x_factor = x_res / ZOOM2RES[zoom]
+        y_factor = y_res / ZOOM2RES[zoom]
+        factor = min(x_factor, y_factor)
         return self.rescale(factor)
 
     def generate_tiles(self, out_dir="tiles", **kwargs):
@@ -254,12 +287,9 @@ class Raster:
             >>> raster = Raster.open("raster.tif")
             >>> raster.generate_tiles(out_dir="tiles")
         """
-        Path(out_dir).mkdir(parents=True, exist_ok=True)
-        # Generate tiles with `gdal2tiles`
-        file_raster = self.data.name
-        gdal2tiles.generate_tiles(file_raster, out_dir, **kwargs)
+        gdal2tiles.generate_tiles(self.filename, out_dir, **kwargs)
 
-    def generate_mosaic(self, width=256, height=256, zoom=None, out_dir="mosaic"):
+    def generate_mosaic(self, zoom=None, width=256, height=256, out_dir="mosaic"):
         """Generate a mosaic from the raster. 
         A mosaic is a division of the main raster into 'windows'.
         This method does not create slippy tiles.
@@ -278,36 +308,33 @@ class Raster:
             >>> raster.generate_mosaic(width=256, height=256, out_dir="mosaic")
         """
         Path(out_dir).mkdir(parents=True, exist_ok=True)
-        out_raster = self.data
-        if zoom is not None:
-            out_raster = self.zoom(zoom).data
-        num_cols = out_raster.meta["width"]
-        num_rows = out_raster.meta["height"]
+        out_raster = self.zoom(zoom) if zoom else self
+        num_cols = out_raster.data.meta["width"]
+        num_rows = out_raster.data.meta["height"]
         offsets = product(range(0, num_cols, width), range(0, num_rows, height))
         main_window = rasterio.windows.Window(col_off=0, row_off=0, width=num_cols, height=num_rows)
         for col_off, row_off in offsets:
             window = rasterio.windows.Window(col_off=col_off, row_off=row_off, width=width, height=height).intersection(main_window)
-            out_transform = rasterio.windows.transform(window, out_raster.transform)
+            out_transform = rasterio.windows.transform(window, out_raster.data.transform)
             out_profile = {
                 "driver": "GTiff",
                 "height": window.height,
                 "width": window.width,
                 "transform": out_transform,
-                "crs": out_raster.profile.get("crs", None),
+                "crs": out_raster.data.profile.get("crs", None),
                 "count": 3,
                 "photometric": "RGB",
-                "dtype": out_raster.profile.get("dtype", None)
+                "dtype": out_raster.data.profile.get("dtype", None)
             }
             out_path = Path(out_dir) / f"{Path(self.filename).stem}-tile_{window.col_off}x{window.row_off}.tif"
-            with rasterio.open(out_path, "w", **out_profile) as dst:
-                dst.write(out_raster.read(window=window))
+            out_raster.save(out_path, window=window, **out_profile)
         return out_dir
 
-    def __repr__(self):
-        return f"Raster(name='{self.filename or 'None'}', bbox={tuple(self.data.bounds)}, crs={self.data.crs})"
+    def inner_repr(self):
+        return f"name='{self.filename or 'None'}', bbox={tuple(self.data.bounds)}, crs={self.data.crs}"
 
 
-class RasterCollection:
+class RasterCollection(DataCollection):
     r"""
     Defines a collection of ``Raster``.
     This class behaves similarly as a ``list``, excepts it is made only of ``Raster``.
@@ -317,13 +344,7 @@ class RasterCollection:
     """
 
     def __init__(self, *rasters):
-        if not isinstance(rasters, (list, tuple, RasterCollection)):
-            rasters = [rasters]
-        elif isinstance(rasters, (list, tuple)) and len(rasters) == 1:
-            rasters = rasters[0]
-        if not rasters:
-            rasters = []
-        self.items = [to_raster(raster) for raster in rasters]
+        super().__init__(*rasters)
 
     def append(self, raster):
         r"""Add a ``Raster`` to the collection.
@@ -340,8 +361,8 @@ class RasterCollection:
                   (0): Raster(filename='tile.tif')
                 )
         """
-        raster = to_raster(raster)
-        self.items.append(raster)
+        _check_raster(raster)
+        self._items.append(raster)
 
     def extend(self, rasters):
         r"""Add multiple ``Raster`` to the collection.
@@ -359,25 +380,14 @@ class RasterCollection:
                   (1): Raster(filename='tile2.tif')
                 )
         """
-        rasters = [to_raster(raster) for raster in rasters]
-        self.items.extend(rasters)
+        self._items.extend(rasters)
 
-    def __setitem__(self, index, raster):
-        raster = to_raster(raster)
-        self.items[index] = raster
+    def insert(self, index, raster):
+        """Insert a ``Raster`` at a specific index.
 
-    def __getitem__(self, index):
-        return self.items[index]
-
-    def __iter__(self):
-        yield from self.items
-
-    def __len__(self):
-        return len(self.items)
-
-    def __repr__(self):
-        rep = f"{self.__class__.__name__}("
-        for i, raster in enumerate(self):
-            rep += f"\n  ({i}): {raster}"
-        rep += "\n)"
-        return rep
+        Args:
+            index (int): Index.
+            raster (Raster): Raster to insert.
+        """
+        _check_raster(raster)
+        self._items[index] = raster

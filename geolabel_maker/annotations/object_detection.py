@@ -10,18 +10,13 @@
 # Basic imports
 from tqdm import tqdm
 from pathlib import Path
-from datetime import datetime
-import json
-from PIL import Image, ImageDraw
-from shapely.geometry import Polygon
-import numpy as np
-import random
 
 # Geolabel Maker
-from geolabel_maker.annotations.functional import extract_categories
+from ._utils import extract_paths
+from .functional import extract_categories
 from geolabel_maker.vectors import Color
 from .annotation import Annotation
-from ._utils import extract_paths
+from geolabel_maker.utils import relative_path
 
 
 class ObjectDetection(Annotation):
@@ -30,7 +25,7 @@ class ObjectDetection(Annotation):
         super().__init__(images, categories, annotations, info=info)
 
     @classmethod
-    def build(cls, images=None, categories=None, labels=None, pattern="*.*", is_crowd=False, **kwargs):
+    def build(cls, images=None, categories=None, labels=None, pattern="*.*", root=None, is_crowd=False, **kwargs):
 
         # Map the categories and their ids
         category2id = {category.name: i for i, category in enumerate(categories)}
@@ -43,6 +38,7 @@ class ObjectDetection(Annotation):
             couple_labels = list(zip(images_paths, labels_paths))
             pbar = tqdm(total=len(couple_labels), desc="Build Annotations", leave=True, position=0)
             for image_id, (image_path, label_path) in enumerate(couple_labels):
+                image_path = relative_path(image_path, root=root)
                 for category in extract_categories(label_path, categories, **kwargs):
                     category_id = category2id[category.name]
                     for _, row in category.data.iterrows():
@@ -69,4 +65,4 @@ class ObjectDetection(Annotation):
 
         yolo_annotations = get_annotations()
 
-        return ObjectDetection(yolo_annotations)
+        return ObjectDetection(None, None, yolo_annotations)

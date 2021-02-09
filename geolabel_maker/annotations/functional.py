@@ -134,8 +134,8 @@ def extract_categories(label_file, categories, **kwargs):
         >>> categories = [Category.open("buildings.json", color="white"), Category.open("vegetation.json", color="green")]
         >>> categories = extract_categories("tiles/labels/13/345/374.png", categories)
         >>> categories
-            (Category(name='vegetation', data=34, color=(0, 150, 0), 
-            Category(name='buildings', data=267, color=(255, 255, 255)))
+            (Category(data=GeoDataFrame(34 rows, 1 column), name='vegetation', color=(0, 150, 0), 
+            Category(data=GeoDataFrame(234 rows, 1 column), name='buildings', color=(255, 255, 255)))
 
     Examples:
         >>> dataset = Dataset.open("data")
@@ -150,5 +150,5 @@ def extract_categories(label_file, categories, **kwargs):
         polygons = find_polygons(mask_array, **kwargs)
         data = gpd.GeoDataFrame({"geometry": polygons})
         name = color2name[color]
-        categories_extracted.append(Category(name, data, color=color))
+        categories_extracted.append(Category(data, name, color=color))
     return categories_extracted

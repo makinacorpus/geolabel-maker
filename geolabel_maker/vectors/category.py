@@ -33,68 +33,87 @@ import geopandas as gpd
 from shapely.geometry import box
 
 # Geolabel Maker
-from geolabel_maker.rasters import to_raster
-from .color import Color
-from .overpass import OverpassAPI
+from geolabel_maker.data import Data, DataCollection
+from geolabel_maker.rasters import Raster
+from geolabel_maker.vectors.color import Color
+from geolabel_maker.vectors.overpass import OverpassAPI
 from geolabel_maker.logger import logger
 
 
 __all__ = [
     "Category",
     "CategoryCollection",
-    "to_category"
 ]
 
 
-def to_category(element, *args, **kwargs):
-    r"""Convert an object to a ``Category``.
+def to_geopandas(element, **kwargs):
+    r"""Convert an object to a ``GeoDataFrame``.
 
     Args:
         element (any): Element to convert. 
-            It can be a ``str``, ``Path``, ``geopandas.GeoDataFrame`` etc...
+            It can be a ``str``, ``Path``, ``Category`` etc...
 
     Returns:
-        Category
+        geopandas.GeoDataFrame
 
     Examples:
-        >>> category = to_category("buildings.json")
-        >>> category = to_category(Path("buildings.json"))
-        >>> category = to_category(gpd.read_file("buildings.json"))
+        >>> dataframe = to_geopandas("buildings.json")
+        >>> dataframe = to_geopandas(Path("buildings.json"))
+        >>> dataframe = to_geopandas(gpd.read_file("buildings.json"))
     """
     if isinstance(element, (str, Path)):
-        return Category.open(str(element), *args, **kwargs)
+        return Category.open(str(element), **kwargs)
     elif isinstance(element, gpd.GeoDataFrame):
-        return Category(element, *args, **kwargs)
-    elif isinstance(element, Category):
         return element
-    raise ValueError(f"Unknown element: Cannot load {type(element)} as `Category`.")
+    elif isinstance(element, Category):
+        return element.data
+    raise ValueError(f"Unknown element: Cannot load {type(element)} as `GeoDataFrame`.")
 
 
-class Category:
+def _check_category(element):
+    r"""Check if an object is a ``Category``.
+
+    Args:
+        element (any): Element to verify. 
+
+    Raises:
+        ValueError: If the element is not a ``Category``.
+
+    Returns:
+        bool: ``True`` if the element is a ``Category``.
+
+    Examples:
+        >>> _check_category("buildings.json")
+            ValueError("Element of class 'str' is not a 'Category'.")
+        >>>  _check_category(Category.open("buildings.json"))
+    """
+    if not isinstance(element, Category):
+        raise ValueError(f"Element of class '{type(element).__name__}' is not a 'Category'.")
+    return True
+
+
+class Category(Data):
     r"""
     A category is a set of vectors (or geometries) corresponding to the same geographic element.
     A category must have a name (e.g. ``"buildings"``) and a RGB color (e.g. ``(255, 255, 255)``),
     which will be used to draw the vectors on raster images (called labels).
     This class is used to extract polygons / geometries from satellite images, and then create the labels.
 
-    * :attr:`name` (str): The name of the category corresponding to the elements.
-
     * :attr:`data` (geopandas.GeoDataFrame): A table of geometries.
+
+    * :attr:`name` (str): The name of the category corresponding to the elements.
 
     * :attr:`color` (tuple): RGB tuple of pixel values (from 0 to 255).
 
+    * :attr:`filename` (str): Name of the category's file.
+
     """
 
-    def __init__(self, name, data, color=None, filename=None):
-        super().__init__()
+    def __init__(self, data, name, color=None, filename=None):
+        data = to_geopandas(data)
+        super().__init__(data, filename=filename)
         self.name = name
-        self.data = data
-        self.filename = filename
-        # Convert color to RGB
-        if not color:
-            color = Color.random()
-        else:
-            color = Color.get(color)
+        color = Color.get(color) if color else Color.random()
         self.color = tuple(color)
 
     @classmethod
@@ -116,7 +135,7 @@ class Category:
         """
         data = gpd.read_file(str(filename))
         name = name or Path(filename).stem
-        return Category(name, data, color=color, filename=str(filename))
+        return Category(data, name, color=color, filename=str(filename))
 
     @classmethod
     def download(cls, bbox, **kwargs):
@@ -154,10 +173,10 @@ class Category:
             >>> category = Category.from_postgis("buildings", sql, con, color=(255, 255, 255))  
         """
         data = gpd.read_postgis(sql, conn, **kwargs)
-        return Category(name, data, color=color)
+        return Category(data, name, color=color)
 
-    def save(self, filename):
-        raise NotImplementedError
+    def save(self, out_file):
+        self.data.to_file(out_file, driver="GeoJSON")
 
     def crop(self, bbox):
         r"""Get the geometries which are in a bounding box.
@@ -193,7 +212,7 @@ class Category:
             raise ValueError(f"The geographic extents are not consistent. "
                              f"The referenced bbox is {crop_box.bounds} whereas vector bbox is {vector_box.bounds}.")
 
-        return Category(self.name, sub_data, color=self.color)
+        return Category(sub_data, self.name, color=self.color)
 
     def crop_raster(self, raster):
         """Get the geometries which are in the image's extent.
@@ -212,21 +231,20 @@ class Category:
             >>> category_cropped = category.crop_raster(raster)
         """
         # Read raster file
-        raster_data = to_raster(raster).data
-        coordinate = raster_data.bounds
-        # Create a polygon from the raster bounds
-        raster_box = box(*coordinate)
+        raster_data = Raster(raster).data
+        bounds = tuple(raster_data.bounds)
 
         # Read vector file
         data = self.data.to_crs(raster_data.crs)
-        category = Category(self.name, data, color=self.color)
-        return category.crop(raster_box.bounds)
+        category = Category(data, self.name, color=self.color)
+        return category.crop(bounds)
 
-    def __repr__(self):
-        return f"Category(name='{self.name}', data=GeoDataFrame(..., length={len(self.data)}), color={self.color})"
+    def inner_repr(self):
+        rows, cols = self.data.shape
+        return f"data=GeoDataFrame({rows} rows, {cols} columns), name='{self.name}', color={self.color}"
 
 
-class CategoryCollection:
+class CategoryCollection(DataCollection):
     r"""
     Defines a collection of ``Category``.
     This class behaves similarly as a ``list``, excepts it is made only of ``Category``.
@@ -236,32 +254,25 @@ class CategoryCollection:
 
     .. warning::
         If you initialize a ``CategoryCollection`` from categories with shared colors,
-        the duplicate colors will be replaced with random ones.
+        the duplicated colors will be replaced with random ones.
 
     * :attr:`items` (list): List of categories.
 
     """
 
     def __init__(self, *categories):
-        if not isinstance(categories, (list, tuple, CategoryCollection)):
-            categories = [categories]
-        elif isinstance(categories, (list, tuple)) and len(categories) == 1:
-            categories = categories[0]
-        if not categories:
-            categories = []
-        self.items = [to_category(category) for category in categories]
-        self._make_unique_colors()
+        super().__init__(*categories)
 
     def _make_unique_colors(self):
         """Make sure the categories have unique colors."""
-        colors = [category.color for category in self.items]
+        colors = [category.color for category in self._items]
         for i, color in enumerate(colors):
             other_colors = set(colors[:i] + colors[i + 1:])
             max_steps = 200  # Prevent infinite loops
             while color in other_colors and max_steps > 0:
                 color = tuple(Color.random())
                 max_steps -= 1
-            self.items[i].color = color
+            self._items[i].color = color
 
     def append(self, category):
         r"""Add a ``Category`` to the collection.
@@ -275,11 +286,11 @@ class CategoryCollection:
             >>> collection.append(category)
             >>> collection
                 CategoryCollection(
-                  (0): Category(name='buildings', filename='buildings.json', color=(234, 85, 40))
+                  (0): Category(filename='buildings.json', name='buildings', color=(234, 85, 40))
                 )
         """
-        category = to_category(category)
-        self.items.append(category)
+        _check_category(category)
+        self._items.append(category)
         self._make_unique_colors()
 
     def extend(self, categories):
@@ -294,31 +305,39 @@ class CategoryCollection:
             >>> collection.extend(categories)
             >>> collection
                 CategoryCollection(
-                  (0): Category(name='buildings', filename='buildings.json', color=(234, 85, 40))
-                  (1): Category(name='vegetation', filename='vegetation.json', color=(35, 3, 220))
+                  (0): Category(filename='buildings.json', name='buildings', color=(234, 85, 40))
+                  (1): Category(filename='vegetation.json', name='vegetation',  color=(35, 3, 220))
                 )
         """
-        categories = [to_category(category) for category in categories]
-        self.items.extend(categories)
+        categories = [category for category in categories if _check_category(category)]
+        self._items.extend(categories)
         self._make_unique_colors()
 
-    def __setitem__(self, index, category):
-        category = to_category(category)
-        self.items[index] = category
+    def insert(self, index, category):
+        """Insert a ``Category`` at the desired index.
+
+        Args:
+            index (int): Index.
+            category (Category): Category to insert.
+        """
+        _check_category(category)
+        self._items[index] = category
         self._make_unique_colors()
 
-    def __getitem__(self, index):
-        return self.items[index]
+    def colors(self):
+        """Iterate on all colors.
 
-    def __iter__(self):
-        yield from self.items
+        Yields:
+            tuple: RGB color.
+        """
+        for category in self:
+            yield category.color
 
-    def __len__(self):
-        return len(self.items)
+    def names(self):
+        """Iterate on all names.
 
-    def __repr__(self):
-        rep = f"{self.__class__.__name__}("
-        for i, category in enumerate(self):
-            rep += f"\n  ({i}): {category}"
-        rep += "\n)"
-        return rep
+        Yields:
+            str: Name of the categories.
+        """
+        for category in self:
+            yield category.name

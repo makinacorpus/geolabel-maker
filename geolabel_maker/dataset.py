@@ -54,11 +54,11 @@ class Dataset:
     r"""
     A ``Dataset`` is a combination of ``Raster`` and ``Category`` data.
 
-    * :attr:`images` (list): List of images (either of type ``Raster`` of path to the aerial image).
+    * :attr:`images` (list): Collection of raster images (usually satellite images).
 
-    * :attr:`labels` (list): List of label images (either of type ``Raster`` of path to the label image).
+    * :attr:`labels` (list): Collection of raster labels (usually generated with ``generate_labels()``).
 
-    * :attr:`categories` (list): List of categories (either of type ``Category`` of path to the categories).
+    * :attr:`categories` (list): Collection of vector categories (usually geometries a.k.a ``GeoDataFrame``).
 
     * :attr:`dir_images` (str): Name of the directory containing the satellite images.
 
@@ -139,7 +139,7 @@ class Dataset:
 
         .. warning:: 
             Relative path must be relative to the configuration file,
-            and not from where the file will be opened.
+            and not from the execution of the function.
 
         Alternatively, you can specify manually the path to each elements with:
 
@@ -210,18 +210,14 @@ class Dataset:
             # Load rasters if provided from a list of dict.
             if data:
                 in_dir = in_dir or root
-                pbar = tqdm(total=len(data), desc=desc, leave=True, position=0)
-                for raster_info in data:
+                for raster_info in tqdm(data, desc=desc, leave=True, position=0):
                     raster_path = retrieve_path(raster_info["filename"], root=in_dir)
                     rasters.append(Raster.open(raster_path))
-                    pbar.update(1)
             # Else, load all rasters from a directory.
             elif Path(in_dir).exists():
                 data = list(Path(in_dir).iterdir())
-                pbar = tqdm(total=len(data), desc=desc, leave=True, position=0)
-                for raster_path in data:
+                for raster_path in tqdm(data, desc=desc, leave=True, position=0):
                     rasters.append(Raster.open(raster_path))
-                    pbar.update(1)
             return rasters
 
         def load_categories(data=None, in_dir=None, desc="Loading"):
@@ -229,20 +225,16 @@ class Dataset:
             # Load categories if provided from a list of dict.
             if data:
                 in_dir = in_dir or root
-                pbar = tqdm(total=len(data), desc=desc, leave=True, position=0)
-                for category_info in data:
+                for category_info in tqdm(data, desc=desc, leave=True, position=0):
                     color = category_info.get("color", None)
                     name = category_info.get("name", None)
                     category_path = retrieve_path(category_info["filename"], root=in_dir)
                     categories.append(Category.open(category_path, name=name, color=color))
-                    pbar.update(1)
             # Else, load all categories from a directory.
             elif Path(in_dir).exists():
                 data = list(Path(in_dir).iterdir())
-                pbar = tqdm(total=len(data), desc=desc, leave=True, position=0)
-                for category_path in data:
+                for category_path in tqdm(data, desc=desc, leave=True, position=0):
                     categories.append(Category.open(category_path))
-                    pbar.update(1)
             return categories
 
         # Load the different objects either from a directory or list of paths.
@@ -433,8 +425,9 @@ class Dataset:
 
         # Update the profile before saving the tif
         # See the list of options and effects: https://gdal.org/drivers/raster/gtiff.html#creation-options
-        # NOTE: the profile should be divided into windows 256x256, we keep it for the labels
         # NOTE: the tiles 256x256 are not kept as is decrease the precision of the pixel information
+        # TODO: the profile option 'tiles' should be kept (usually tiles of 256x256) to reduce the output file's size.
+        # TODO: if so, improve the segmentation method to retrieve contours from a tiled image.
         out_profile = image.data.profile
         out_profile = {
             "driver": "GTiff",
@@ -490,7 +483,7 @@ class Dataset:
         # Setting rasters / categories invalidate the associated directory. Update it.
         dir_labels = str(out_dir or self.dir_labels or Path(self.root) / "labels")
         # Generate and load the labels
-        for image_idx, _ in enumerate(tqdm(self.images, total=len(self.images), desc="Generating labels", leave=True, position=0)):
+        for image_idx, _ in enumerate(tqdm(self.images, desc="Generating Labels", leave=True, position=0)):
             label_path = self.generate_label(image_idx, out_dir=dir_labels)
             self.labels.append(Raster.open(label_path))
 
@@ -535,7 +528,7 @@ class Dataset:
         return images_vrt, labels_vrt
 
     # TODO: write from a VRT image. Currently not supported in rasterio.
-    def generate_mosaics(self, out_dir=None, make_images=True, make_labels=True, **kwargs):
+    def generate_mosaics(self, out_dir=None, make_images=True, make_labels=True, zoom=None, **kwargs):
         r"""Generate sets of mosaics from the images and labels. 
         A mosaic is a division of the main raster into 'windows'.
         This method does not create slippy tiles.
@@ -565,20 +558,19 @@ class Dataset:
             >>> dataset.generate_mosaic(make_images=True, make_labels=True)
         """
         dir_mosaics = str(out_dir or self.dir_mosaics or Path(self.root) / "mosaics")
+        zoom_dir = str(zoom) if zoom else "original"
         # Generate mosaic from the images
         if make_images:
-            out_dir = Path(dir_mosaics) / "images"
+            out_dir = Path(dir_mosaics) / "images" / zoom_dir
             out_dir.mkdir(parents=True, exist_ok=True)
-            # TODO: Generate from a VRT
-            for image in tqdm(self.images, total=len(self.images), desc="Generating image mosaics", leave=True, position=0):
-                image.generate_mosaic(out_dir=out_dir, **kwargs)
+            for image in tqdm(self.images, desc="Generating Image Mosaics", leave=True, position=0):
+                image.generate_mosaic(out_dir=out_dir, zoom=zoom, **kwargs)
         # Generate mosaic from the labels
         if make_labels:
-            out_dir = Path(dir_mosaics) / "labels"
+            out_dir = Path(dir_mosaics) / "labels" / zoom_dir
             out_dir.mkdir(parents=True, exist_ok=True)
-            # TODO: Generate from a VRT
-            for label in tqdm(self.labels, total=len(self.labels), desc="Generating label mosaics", leave=True, position=0):
-                label.generate_mosaic(out_dir=out_dir, **kwargs)
+            for label in tqdm(self.labels, desc="Generating Label Mosaics", leave=True, position=0):
+                label.generate_mosaic(out_dir=out_dir, zoom=zoom, **kwargs)
 
         self.dir_mosaics = dir_mosaics
         self.save()
@@ -613,14 +605,14 @@ class Dataset:
         dir_tiles = str(out_dir or self.dir_tiles or Path(self.root) / "tiles")
         # Generate tiles from the images
         if make_images:
-            print(f"Generating image tiles at {str(Path(dir_tiles) / 'images')}")
+            print(f"Generating Image Tiles at {str(Path(dir_tiles) / 'images')}")
             images_vrt = self.generate_vrt(make_images=True, make_labels=False)
             out_dir_images = Path(dir_tiles) / "images"
             out_dir_images.mkdir(parents=True, exist_ok=True)
             generate_tiles(images_vrt, out_dir_images, **kwargs)
         # Generate tiles from the labels
         if make_labels:
-            print(f"Generating label tiles at {str(Path(dir_tiles) / 'labels')}")
+            print(f"Generating Label Tiles at {str(Path(dir_tiles) / 'labels')}")
             labels_vrt = self.generate_vrt(make_images=False, make_labels=True)
             out_dir_labels = Path(dir_tiles) / "labels"
             out_dir_labels.mkdir(parents=True, exist_ok=True)

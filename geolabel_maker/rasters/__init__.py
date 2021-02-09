@@ -7,5 +7,5 @@
 # Copyright (c) 2020, Makina Corpus
 
 
-from .raster import Raster, RasterCollection, to_raster
+from .raster import Raster, RasterCollection
 from .functions import generate_tiles, generate_vrt

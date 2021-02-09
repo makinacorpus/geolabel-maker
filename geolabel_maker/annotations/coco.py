@@ -17,14 +17,15 @@ import numpy as np
 import random
 
 # Geolabel Maker
-from geolabel_maker.annotations.functional import extract_categories
-from geolabel_maker.vectors import Color
 from ._utils import extract_paths
+from .functional import extract_categories
+from geolabel_maker.vectors import Color
+from geolabel_maker.utils import relative_path
 
 
 class COCO:
     r"""Defines an annotation for `Common Object in Context <http://cocodataset.org/>`__. 
-    It follows the format used by Microsoft for ``COCO`` annotation.
+    It follows the format used by Microsoft for `COCO` annotations.
 
     * :attr:`info` (dict, optional): Description of the annotation (metadata).
 
@@ -94,69 +95,62 @@ class COCO:
             coco_annotations = []
             annotation_id = 0
             couple_labels = list(zip(images_paths, labels_paths))
-            pbar = tqdm(total=len(couple_labels), desc="Build Annotations", leave=True, position=0)
-            for image_id, (image_path, label_path) in enumerate(couple_labels):
+            for image_id, (image_path, label_path) in enumerate(tqdm(couple_labels, desc="Build Annotations", leave=True, position=0)):
+                image_path = relative_path(image_path, root=root)
                 for category in extract_categories(label_path, categories, **kwargs):
                     category_id = category2id[category.name]
                     for _, row in category.data.iterrows():
-                        try:
-                            polygon = row.geometry
-                            # Get annotation elements
-                            segmentation = np.array(polygon.exterior.coords).ravel().tolist()
-                            x, y, max_x, max_y = polygon.bounds
-                            width = max_x - x
-                            height = max_y - y
-                            bbox = (x, y, width, height)
-                            area = polygon.area
-                            # Make annotation format
-                            coco_annotations.append({
-                                "segmentation": [segmentation],
-                                "iscrowd": int(is_crowd),
-                                "image_id": image_id,
-                                "image_name": str(image_path),
-                                "category_id": category_id,
-                                "id": annotation_id,
-                                "bbox": bbox,
-                                "area": area,
-                            })
-                            annotation_id += 1
-                        except Exception as error:
-                            print(label_path, error)
-                pbar.update(1)
+                        polygon = row.geometry
+                        # Get annotation elements
+                        segmentation = np.array(polygon.exterior.coords).ravel().tolist()
+                        x, y, max_x, max_y = polygon.bounds
+                        width = max_x - x
+                        height = max_y - y
+                        bbox = (x, y, width, height)
+                        area = polygon.area
+                        # Make annotation format
+                        coco_annotations.append({
+                            "segmentation": [segmentation],
+                            "iscrowd": int(is_crowd),
+                            "image_id": image_id,
+                            "image_name": str(image_path),
+                            "category_id": category_id,
+                            "id": annotation_id,
+                            "bbox": bbox,
+                            "area": area,
+                        })
+                        annotation_id += 1
             return coco_annotations
 
         def get_categories():
             # Create an empty categories' dictionary
             coco_categories = []
-            pbar = tqdm(total=len(categories), desc="Build Categories", leave=True, position=0)
-            for category in categories:
+            for category in tqdm(categories, desc="Build Categories", leave=True, position=0):
                 category_id = category2id[category.name]
+                category_path = relative_path(category.filename, root=root)
                 coco_categories.append({
                     "id": category_id,
                     "name": category.name,
                     "color": category.color,
-                    "file_name": str(category.filename),
+                    "file_name": str(category_path),
                     "supercategory": category.name
                 })
-                pbar.update(1)
             return coco_categories
 
         def get_images():
             # Retrieve image paths / metadata
             coco_images = []
-            pbar = tqdm(total=len(images_paths), desc="Build Images", leave=True, position=0)
-            for image_id, image_path in enumerate(images_paths):
-                # get image info
-                img = Image.open(image_path)
-                width, height = img.size
-                # create image description
+            for image_id, image_path in enumerate(tqdm(images_paths, desc="Build Images", leave=True, position=0)):
+                image_path = relative_path(image_path, root=root)
+                image = Image.open(image_path)
+                width, height = image.size
+                # Create image description
                 coco_images.append({
                     "id": image_id,
                     "width": width,
                     "height": height,
                     "file_name": str(image_path)
                 })
-                pbar.update(1)
             return coco_images
 
         # Create the annotation as a dict

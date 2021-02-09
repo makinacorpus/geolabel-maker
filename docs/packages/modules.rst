@@ -26,7 +26,6 @@ Rasters
 .. autosummary::
    :nosignatures:
 
-   ~raster.to_raster
    ~raster.Raster
    ~raster.RasterCollection
    ~sentinelhub.SentinelHubAPI
