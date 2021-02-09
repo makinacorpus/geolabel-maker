@@ -27,6 +27,9 @@ import rasterio
 from rasterio.io import MemoryFile
 from rasterio.enums import Resampling
 import gdal2tiles
+import json
+from shapely.geometry import box
+import geopandas as gpd
 
 # Geolabel Maker
 from .sentinelhub import SentinelHubAPI
@@ -163,7 +166,7 @@ class Raster(Data):
         return RasterCollection(files)
 
     @classmethod
-    def from_array(cls, array, **profile):
+    def from_array(cls, array, filename=None, **profile):
         r"""Create a ``Raster`` from a numpy array. 
         This method requires a profile (see `rasterio documentation <https://rasterio.readthedocs.io/en/latest/topics/profiles.html>`__).
 
@@ -181,14 +184,14 @@ class Raster(Data):
         out_profile = profile or {}
         out_profile.update({
             "count": array.shape[-3] if len(array.shape) > 2 else 1,
-            "width": array.shape[-2],
-            "height": array.shape[-1],
+            "height": array.shape[-2],
+            "width": array.shape[-1],
             "dtype": str(array.dtype)
         })
         memfile = MemoryFile()
         data = memfile.open(**out_profile)
         data.write(array)
-        return Raster(data)
+        return Raster(data, filename=filename)
 
     @classmethod
     def from_postgis(cls, *args, **kwargs):
@@ -201,7 +204,9 @@ class Raster(Data):
         Args:
             out_file (str): Name of the file to be saved.
         """
-        with rasterio.open(str(out_file), "w", **profile) as dst:
+        out_profile = self.data.profile.copy()
+        out_profile.update({**profile})
+        with rasterio.open(str(out_file), "w", **out_profile) as dst:
             dst.write(self.data.read(window=window))
 
     def rescale(self, factor, resampling="bilinear"):
@@ -243,7 +248,8 @@ class Raster(Data):
             "height": out_height,
             "transform": out_transform
         })
-        return self.from_array(out_data, **out_profile)
+        filename = Path(self.filename).parent / f"{Path(self.filename).stem}-rescaled{Path(self.filename).suffix}"
+        return self.from_array(out_data, filename=filename, **out_profile)
 
     def zoom(self, zoom):
         """Rescale the raster on a `zoom` level. 
@@ -330,6 +336,49 @@ class Raster(Data):
             out_raster.save(out_path, window=window, **out_profile)
         return out_dir
 
+    def crop(self, bbox):
+        """Crop a raster from a bounding box.
+
+        .. note::
+            The bounding box coordinates should be in the same system as the raster extent.
+
+        Args:
+            bbox (tuple): Bounding box used to crop the geometries,
+                in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
+
+        Returns:
+            Raster
+        """
+        df_bounds = gpd.GeoDataFrame({"geometry": box(*bbox)}, index=[0], crs=self.data.crs)
+        # Format the bounding box in a format understood by rasterio
+        shape = json.loads(df_bounds.to_json())["features"][0]["geometry"]
+        out_array, out_transform = rasterio.mask.mask(self.data, shapes=[shape], crop=True)
+        out_profile = self.data.profile.copy()
+        out_profile.update({
+            "driver": "GTiff",
+            "height": out_array.shape[1],
+            "width": out_array.shape[2],
+            "transform": out_transform
+        })
+        filename = Path(self.filename).parent / f"{Path(self.filename).stem}-cropped{Path(self.filename).suffix}"
+        return self.from_array(out_array, filename=filename, **out_profile)
+
+    def crop_category(self, category):
+        """Crop a raster from a ``Category``.
+
+        .. seealso::
+            See ``Raster.crop()`` for further details.
+
+        Args:
+            category (Category): Category used to crop the raster.
+
+        Returns:
+            Raster
+        """
+        data = category.data.to_crs(self.data.crs)
+        bbox = tuple(data.total_bounds)
+        return self.crop(bbox)
+
     def inner_repr(self):
         return f"name='{self.filename or 'None'}', bbox={tuple(self.data.bounds)}, crs={self.data.crs}"
 
@@ -338,8 +387,6 @@ class RasterCollection(DataCollection):
     r"""
     Defines a collection of ``Raster``.
     This class behaves similarly as a ``list``, excepts it is made only of ``Raster``.
-
-    * :attr:`items` (list): List of rasters.
 
     """
 

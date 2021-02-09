@@ -79,7 +79,8 @@ class OverpassAPI:
             >;
             out skel qt;
         """
-        logger.info(f"Making a query to overpass: {query}")
+        query_string = re.sub(" +", "", query.replace("\n", " "))
+        logger.info(f"Making a query to overpass: {query_string}")
 
         # Connect to Overpass API
         response = requests.get(
@@ -105,8 +106,12 @@ class OverpassAPI:
             out_file = f"{out_file}.json"
 
         # Save
-        logger.info(f"Saving the data at '{out_file}'.")
         df = gpd.GeoDataFrame.from_features(features)
+        if df.empty:
+            logger.info(f"The data is empty. Skipping the saving process.")
+            return None
+        Path(out_file).parent.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Saving the data at '{out_file}'.")
         df.to_file(out_file, driver="GeoJSON")
         logger.info("OSM geometries successfully saved.")
         return out_file

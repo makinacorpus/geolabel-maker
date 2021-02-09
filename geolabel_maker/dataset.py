@@ -214,7 +214,7 @@ class Dataset:
                     raster_path = retrieve_path(raster_info["filename"], root=in_dir)
                     rasters.append(Raster.open(raster_path))
             # Else, load all rasters from a directory.
-            elif Path(in_dir).exists():
+            elif in_dir and Path(in_dir).exists():
                 data = list(Path(in_dir).iterdir())
                 for raster_path in tqdm(data, desc=desc, leave=True, position=0):
                     rasters.append(Raster.open(raster_path))
@@ -231,7 +231,7 @@ class Dataset:
                     category_path = retrieve_path(category_info["filename"], root=in_dir)
                     categories.append(Category.open(category_path, name=name, color=color))
             # Else, load all categories from a directory.
-            elif Path(in_dir).exists():
+            elif in_dir and Path(in_dir).exists():
                 data = list(Path(in_dir).iterdir())
                 for category_path in tqdm(data, desc=desc, leave=True, position=0):
                     categories.append(Category.open(category_path))
@@ -624,6 +624,7 @@ class Dataset:
 
     def __repr__(self):
         rep = f"Dataset("
+        rep += f"\n  (root): {self.root}"
         for key, value in self.__dict__.items():
             # Add images / categories / labels if provided
             if value and key[0] == "_":

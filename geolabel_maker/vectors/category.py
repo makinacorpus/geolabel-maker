@@ -34,7 +34,6 @@ from shapely.geometry import box
 
 # Geolabel Maker
 from geolabel_maker.data import Data, DataCollection
-from geolabel_maker.rasters import Raster
 from geolabel_maker.vectors.color import Color
 from geolabel_maker.vectors.overpass import OverpassAPI
 from geolabel_maker.logger import logger
@@ -139,6 +138,16 @@ class Category(Data):
 
     @classmethod
     def download(cls, bbox, **kwargs):
+        """Download a geometry using the `Open Street Map` API.
+
+        Args:
+            bbox (tuple): Bounding box used to retrieve geometries, 
+                in the format :math:`(lat_{min}, lon_{min}, lat_{max}, lon_{max})`.
+            kwargs (dict): Arguments used in the ``OverpassAPI`` download method.
+
+        Returns:
+            Category
+        """
         api = OverpassAPI()
         color = kwargs.pop("color", None)
         name = kwargs.pop("name", None)
@@ -181,10 +190,12 @@ class Category(Data):
     def crop(self, bbox):
         r"""Get the geometries which are in a bounding box.
 
+        .. note::
+            The bounding box coordinates should be in the same system as the geometries.
+
         Args:
-            bbox (tuple): Bounding box used to crop the geometries.
-                The format should follow (left, bottom, right, top).
-                See `shapely.geometry.box` for further details.
+            bbox (tuple): Bounding box used to crop the geometries,
+                in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
 
         Returns:
             list: The geometries of the tif file's geographic extent.
@@ -195,8 +206,8 @@ class Category(Data):
             >>> category_cropped = category.crop((1843000, 5173000, 1845000, 5174000))
         """
         # Create a polygon from the bbox
-        left, bottom, right, top = bbox
-        crop_box = box(left, bottom, right, top)
+        Xmin, Ymin, Xmax, Ymax = bbox
+        crop_box = box(Xmin, Ymin, Xmax, Ymax)
 
         # Read vector file
         # Create a polygon from the raster bounds
@@ -205,8 +216,6 @@ class Category(Data):
         # Make sure the raster bbox is contained in the vector bbox
         if vector_box.contains(crop_box):
             # Select vector data within the raster bounds
-            Xmin, Xmax = left, right
-            Ymin, Ymax = bottom, top
             sub_data = self.data.cx[Xmin:Xmax, Ymin:Ymax]
         else:
             raise ValueError(f"The geographic extents are not consistent. "
@@ -231,7 +240,7 @@ class Category(Data):
             >>> category_cropped = category.crop_raster(raster)
         """
         # Read raster file
-        raster_data = Raster(raster).data
+        raster_data = raster.data
         bounds = tuple(raster_data.bounds)
 
         # Read vector file
@@ -255,8 +264,6 @@ class CategoryCollection(DataCollection):
     .. warning::
         If you initialize a ``CategoryCollection`` from categories with shared colors,
         the duplicated colors will be replaced with random ones.
-
-    * :attr:`items` (list): List of categories.
 
     """
 
