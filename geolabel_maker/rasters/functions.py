@@ -75,7 +75,7 @@ def generate_vrt(filename, rasters):
         >>> tile2 = Raster.open("tile2.tif")
         >>> generate_vrt("tiles.vrt", [tile1, tile2])
     """
-    raster_files = [str(Raster(raster).filename) for raster in rasters]
+    raster_files = [str(raster.filename) for raster in rasters]
     ds = gdal.BuildVRT(str(filename), raster_files)
     ds.FlushCache()
     return filename

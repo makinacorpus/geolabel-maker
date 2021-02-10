@@ -205,6 +205,7 @@ class Dataset:
         dir_mosaics = retrieve_path(config.get("dir_mosaics", None), root=root)
         dir_tiles = retrieve_path(config.get("dir_tiles", None), root=root)
 
+        #TODO: one function
         def load_rasters(data=None, in_dir=None, desc="Loading"):
             rasters = []
             # Load rasters if provided from a list of dict.

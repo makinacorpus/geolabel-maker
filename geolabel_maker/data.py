@@ -30,7 +30,11 @@ class Data(ABC):
 
     def __init__(self, data, filename=None):
         self.data = data
-        self.filename = str(filename) if filename else None
+        self._filename = str(filename) if filename else None
+
+    @property
+    def filename(self):
+        return self._filename
 
     @classmethod
     def open(cls, filename, *args, **kwargs):

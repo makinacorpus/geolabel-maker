@@ -69,28 +69,26 @@ __all__ = [
 ]
 
 
-def to_rasterio(element, **kwargs):
-    r"""Convert an object to a ``Raster``.
+def _check_rasterio(element):
+    r"""Check if the element is a ``rasterio.DatasetReader`` or ``rasterio.DatasetWriter``.
 
     Args:
-        element (any): Element to convert. 
-            It can be a ``str``, ``Path``, ``rasterio.DatasetReader`` etc...
+        element (any): Element to check. 
+
+    Raises:
+        ValueError: If the element is not a ``DatasetReader`` or ``DatasetWriter``.
 
     Returns:
-        Raster
+        bool: ``True`` if the element is in the correct type.
 
     Examples:
-        >>> raster = to_rasterio("tile.tif")
-        >>> raster = to_rasterio(Path("tile.tif"))
-        >>> raster = to_rasterio(rasterio.open("tile.tif"))
+        >>> _check_rasterio("tile.tif")
+        >>> _check_rasterio(Path("tile.tif"))
+        >>> _check_rasterio(rasterio.open("tile.tif"))
     """
-    if isinstance(element, (str, Path)):
-        return rasterio.open(str(element), **kwargs)
-    elif isinstance(element, (rasterio.io.DatasetReader, rasterio.io.DatasetWriter)):
-        return element
-    elif isinstance(element, Raster):
-        return element.data
-    raise ValueError(f"Unknown element: Could not convert '{type(element).__name__}' to 'Raster'.")
+    if isinstance(element, (rasterio.io.DatasetReader, rasterio.io.DatasetWriter)):
+        return True
+    raise ValueError(f"Element of class '{type(element).__name__}' is not a 'DatasetReader' or 'DatasetWriter'.")
 
 
 def _check_raster(element):
@@ -124,7 +122,7 @@ class Raster(Data):
     """
 
     def __init__(self, data, filename=None):
-        data = to_rasterio(data)
+        _check_rasterio(data)
         super().__init__(data, filename=filename)
 
     @classmethod
@@ -382,7 +380,7 @@ class Raster(Data):
         return self.crop(bbox)
 
     def inner_repr(self):
-        return f"name='{self.filename or 'None'}', bbox={tuple(self.data.bounds)}, crs={self.data.crs}"
+        return f"filename='{self.filename or 'None'}', bbox={tuple(self.data.bounds)}, crs={self.data.crs}"
 
 
 class RasterCollection(DataCollection):
