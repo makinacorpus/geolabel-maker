@@ -36,8 +36,8 @@ class ObjectDetection(Annotation):
             yolo_annotations = []
             annotation_id = 0
             couple_labels = list(zip(images_paths, labels_paths))
-            pbar = tqdm(total=len(couple_labels), desc="Build Annotations", leave=True, position=0)
-            for image_id, (image_path, label_path) in enumerate(couple_labels):
+            pbar = tqdm(couple_labels, desc="Build Annotations", leave=True, position=0)
+            for image_id, (image_path, label_path) in enumerate(pbar):
                 image_path = relative_path(image_path, root=root)
                 for category in extract_categories(label_path, categories, **kwargs):
                     category_id = category2id[category.name]
@@ -60,7 +60,6 @@ class ObjectDetection(Annotation):
                             "area": area,
                         })
                         annotation_id += 1
-                pbar.update(1)
             return yolo_annotations
 
         yolo_annotations = get_annotations()

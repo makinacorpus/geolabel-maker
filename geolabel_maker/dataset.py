@@ -394,42 +394,41 @@ class Dataset:
             >>> dataset = Dataset.open("data/")
             >>> dataset.generate_label(0)
         """
-        image = self.images[image_idx]
-        img_list = []
+        raster = self.images[image_idx]
+        images = []
         out_transform = None
         for category in self.categories:
             # Match the category to the raster extends
             # image_cropped = image.crop_category(category)
-            category_cropped = category.crop_raster(image)
+            category_cropped = category.crop_raster(raster)
             # If the category contains vectors in the cropped area
             if not category_cropped.data.empty:
                 # Create a raster from the geometries
                 out_image, out_transform = rasterio.mask.mask(
-                    image.data,
+                    raster.data,
                     list(category_cropped.data.geometry),
                     crop=False
                 )
-                # Format to (Bands, Width, Height)
-                out_image = np.rollaxis(out_image, 0, 3)
+                # Format to (Height, Width, Bands)
+                out_image = out_image.transpose(1, 2, 0)
                 # Convert image in black & color
-                bw_image = utils.rgb2color(out_image, category.color)
-                # Create a PIL image
-                img = Image.fromarray(bw_image.astype(rasterio.uint8))
-                img_list.append(img)
+                mask_color = utils.rgb2color(out_image, category.color)
+                image = Image.fromarray(mask_color.astype(rasterio.uint8))
+                images.append(image)
 
         # Merge images
-        label_image = img_list[0]
-        if len(img_list) > 1:
-            for img in img_list[1:]:
+        label_image = images[0]
+        if len(images) > 1:
+            for img in images[1:]:
                 label_image = ImageChops.add(label_image, img)
-        label_array = np.rollaxis(np.array(label_image), -1, 0)
+        label_array = np.array(label_image).transpose(2, 0, 1)
 
         # Update the profile before saving the tif
         # See the list of options and effects: https://gdal.org/drivers/raster/gtiff.html#creation-options
         # NOTE: the tiles 256x256 are not kept as is decrease the precision of the pixel information
         # TODO: the profile option 'tiles' should be kept (usually tiles of 256x256) to reduce the output file's size.
         # TODO: if so, improve the segmentation method to retrieve contours from a tiled image.
-        out_profile = image.data.profile
+        out_profile = raster.data.profile
         out_profile = {
             "driver": "GTiff",
             "height": label_array.shape[1],  # numpy.array.shape[1] or PIL.Image.size[1],
@@ -442,7 +441,7 @@ class Dataset:
         }
 
         # Generate filename "raster-label.tif"
-        raster_path = Path(image.data.name)
+        raster_path = Path(raster.filename)
         out_name = f"{raster_path.stem}-label.tif"
         # Create the output directory if it does not exists
         out_dir = out_dir or "."
@@ -529,6 +528,7 @@ class Dataset:
         return images_vrt, labels_vrt
 
     # TODO: write from a VRT image. Currently not supported in rasterio.
+    # TODO: remove zoom directory before writing to file (issue if the user re-run with different width, height)
     def generate_mosaics(self, out_dir=None, make_images=True, make_labels=True, zoom=None, **kwargs):
         r"""Generate sets of mosaics from the images and labels. 
         A mosaic is a division of the main raster into 'windows'.
@@ -625,7 +625,7 @@ class Dataset:
 
     def __repr__(self):
         rep = f"Dataset("
-        rep += f"\n  (root): {self.root}"
+        rep += f"\n  (root): '{self.root}'"
         for key, value in self.__dict__.items():
             # Add images / categories / labels if provided
             if value and key[0] == "_":

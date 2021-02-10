@@ -28,6 +28,6 @@ def extract_paths(element, pattern="*.*"):
         paths =  [Path(elem.filename) for elem in element]
     elif isinstance(element, (tuple, list)):
         for elem in element:
-            path = extract_paths(elem, patter=pattern)
+            path = extract_paths(elem, pattern=pattern)
             paths.extend(path)
     return paths

@@ -15,7 +15,7 @@ def rgb2gray(rgb_img):
     """Convert an RGB image to grayscale.
 
     Args:
-        rgb_img (numpy.ndarray): RGB image of size :math:`(3, X, Y)`.
+        rgb_img (numpy.ndarray): RGB image of size :math:`(X, Y, 3)`.
 
     Returns:
         numpy.ndarray: Gray image of size :math:`(X, Y)`.
@@ -50,8 +50,12 @@ def rgb2color(rgb_img, color):
     and the rest is left in black. Note that black pixels in the input image 
     are not modified i.e. are kept black in the output image.
 
+    .. warning::
+        The ``color`` must be different than black. 
+        The color black is used to represent no data.
+
     Args:
-        rgb_img (numpy.ndarray): Image to convert in a single color, of size :math:`(3, X, Y)`.
+        rgb_img (numpy.ndarray): Image to convert in a single color, of size :math:`(X, Y, 3)`.
         color (tuple): RGB color, in the format :math:`(R, G, B)`.
 
     Returns:

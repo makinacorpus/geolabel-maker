@@ -49,7 +49,7 @@ setup(
         "scikit-image",
         "sentinelsat",
         "osmtogeojson",
-        "opencv-python"
+        "opencv-python",
         "pillow",
         "rasterio",
         "requests", 

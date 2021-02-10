@@ -66,7 +66,7 @@ def to_geopandas(element, **kwargs):
         return element
     elif isinstance(element, Category):
         return element.data
-    raise ValueError(f"Unknown element: Cannot load {type(element)} as `GeoDataFrame`.")
+    raise ValueError(f"Unknown element: Could not load '{type(element).__name__}' as 'GeoDataFrame'.")
 
 
 def _check_category(element):
@@ -345,3 +345,24 @@ class CategoryCollection(DataCollection):
         """
         for category in self:
             yield category.name
+
+    def crop(self, bbox):
+        """Crop all categories from a bounding box.
+
+        .. seealso::
+            See ``Category.crop()`` method for further details.
+
+        Args:
+            bbox (tuple): Bounding box used to crop the geometries,
+                in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.                
+
+        Returns:
+            CategoryCollection
+        """
+        cropped = CategoryCollection()
+        for category in self:
+            try:
+                cropped.append(category.crop(bbox))
+            except:
+                pass
+        return cropped

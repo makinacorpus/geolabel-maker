@@ -34,6 +34,7 @@ import geopandas as gpd
 # Geolabel Maker
 from .sentinelhub import SentinelHubAPI
 from geolabel_maker.data import Data, DataCollection
+from geolabel_maker.logger import logger
 
 
 # Global variables
@@ -89,7 +90,7 @@ def to_rasterio(element, **kwargs):
         return element
     elif isinstance(element, Raster):
         return element.data
-    raise ValueError(f"Unknown element: Cannot convert {type(element)} to `Raster`.")
+    raise ValueError(f"Unknown element: Could not convert '{type(element).__name__}' to 'Raster'.")
 
 
 def _check_raster(element):
@@ -273,6 +274,7 @@ class Raster(Data):
             >>> raster.filename
                 None
         """
+        zoom = int(zoom)
         x_res, y_res = self.data.res
         x_factor = x_res / ZOOM2RES[zoom]
         y_factor = y_res / ZOOM2RES[zoom]
@@ -343,7 +345,7 @@ class Raster(Data):
             The bounding box coordinates should be in the same system as the raster extent.
 
         Args:
-            bbox (tuple): Bounding box used to crop the geometries,
+            bbox (tuple): Bounding box used to crop the rasters,
                 in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
 
         Returns:
@@ -438,3 +440,24 @@ class RasterCollection(DataCollection):
         """
         _check_raster(raster)
         self._items[index] = raster
+
+    def crop(self, bbox):
+        """Crop all rasters from a bounding box.
+
+        .. seealso::
+            See ``Raster.crop()`` method for further details.
+
+        Args:
+            bbox (tuple): Bounding box used to crop the rasters,
+                in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.                
+
+        Returns:
+            RasterCollection
+        """
+        cropped = RasterCollection()
+        for raster in self:
+            try:
+                cropped.append(raster.crop(bbox))
+            except ValueError as error:
+                logger.error(f"Could not crop raster '{raster.filename}': {error}")
+        return cropped

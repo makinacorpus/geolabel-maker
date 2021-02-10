@@ -96,7 +96,6 @@ class COCO:
             annotation_id = 0
             couple_labels = list(zip(images_paths, labels_paths))
             for image_id, (image_path, label_path) in enumerate(tqdm(couple_labels, desc="Build Annotations", leave=True, position=0)):
-                image_path = relative_path(image_path, root=root)
                 for category in extract_categories(label_path, categories, **kwargs):
                     category_id = category2id[category.name]
                     for _, row in category.data.iterrows():
@@ -127,12 +126,11 @@ class COCO:
             coco_categories = []
             for category in tqdm(categories, desc="Build Categories", leave=True, position=0):
                 category_id = category2id[category.name]
-                category_path = relative_path(category.filename, root=root)
                 coco_categories.append({
                     "id": category_id,
                     "name": category.name,
                     "color": category.color,
-                    "file_name": str(category_path),
+                    "file_name": str(category.filename),
                     "supercategory": category.name
                 })
             return coco_categories
@@ -141,7 +139,6 @@ class COCO:
             # Retrieve image paths / metadata
             coco_images = []
             for image_id, image_path in enumerate(tqdm(images_paths, desc="Build Images", leave=True, position=0)):
-                image_path = relative_path(image_path, root=root)
                 image = Image.open(image_path)
                 width, height = image.size
                 # Create image description
@@ -160,12 +157,24 @@ class COCO:
 
         return COCO(coco_images, coco_categories, coco_annotations)
 
-    def to_dict(self):
+    def to_dict(self, root=None):
+        root = root or "."
+        images = self.images.copy()
+        categories = self.categories.copy()
+        annotations = self.annotations.copy()
+        # Update the path relative to root
+        for image in images:
+            image["file_name"] = relative_path(image["file_name"], root)
+        for category in categories:
+            category["file_name"] = relative_path(category["file_name"], root)
+        for annotation in annotations:
+            annotation["image_name"] = relative_path(annotation["image_name"], root)
+            
         return {
             "info": self.info,
-            "images": self.images,
-            "categories": self.categories,
-            "annotations": self.annotations
+            "images": images,
+            "categories": categories,
+            "annotations": annotations
         }
 
     def save(self, filename):
@@ -178,8 +187,9 @@ class COCO:
             >>> annotations = COCO.build(images="data/mosaics/images", labels="data/mosaics/labels", categories=dataset.categories)
             >>> annotations.save("coco.json")
         """
+        root = str(Path(filename).parent)
         with open(filename, "w") as f:
-            json.dump(self.to_dict(), f, indent=4)
+            json.dump(self.to_dict(root=root), f, indent=4)
 
     def get_image(self, image_id):
         """Get the image from its id.
