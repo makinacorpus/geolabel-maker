@@ -19,6 +19,7 @@ from abc import ABC
 import numpy as np
 from shapely.geometry import box
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 
 
 class BoundingBox:
@@ -97,7 +98,8 @@ class Data(ABC):
         if not axes or figsize:
             _, axes = plt.subplots(figsize=figsize)
         axes.plot(x, y, label=label, **kwargs)
-        axes.legend(loc=1, frameon=True)
+        if label:
+            axes.legend(loc=1, frameon=True)
         plt.title(f"Bounds of the {self.__class__.__name__}")
         return axes
 
@@ -241,8 +243,9 @@ class DataCollection(ABC):
         """
         if not axes or figsize:
             _, axes = plt.subplots(figsize=figsize)
-        for value in self:
-            axes = value.plot_bounds(axes=axes, label=label, **kwargs)
+        for i, value in enumerate(self):
+            label_ = label or f"{value.__class__.__name__.lower()} {i}"
+            axes = value.plot_bounds(axes=axes, label=label_, **kwargs)
             if label:
                 label = "_no_legend_"
         axes.legend(loc=1, frameon=True)

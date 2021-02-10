@@ -85,7 +85,7 @@ class Dataset:
 
     """
 
-    def __init__(self, images, categories, labels=None,
+    def __init__(self, images=None, categories=None, labels=None,
                  dir_images=None, dir_categories=None, dir_labels=None,
                  dir_mosaics=None, dir_tiles=None, bbox=None, filename=None):
 
@@ -639,7 +639,7 @@ class Dataset:
         self.save()
         return self.dir_tiles
 
-    def plot_bounds(self, axes=None, figsize=None, image_color=None, category_color=None):
+    def plot_bounds(self, axes=None, figsize=None, dataset_color=None, image_color=None, category_color=None):
         """Show the geographic extent.
 
         Args:
@@ -655,10 +655,15 @@ class Dataset:
         """
         if not axes or figsize:
             _, axes = plt.subplots(figsize=figsize)
+        dataset_color = dataset_color or "red"
         image_color = image_color or "steelblue"
         category_color = category_color or "lightseagreen"
         axes = self.categories.plot_bounds(axes=axes, color=category_color, label="categories")
         axes = self.images.plot_bounds(axes=axes, color=image_color, label="images")
+        # Plot the dataset bounding box
+        bounds = self.get_bounds()
+        x, y = box(*bounds).exterior.xy
+        axes.plot(x, y, color=dataset_color, label="dataset")
         axes.legend(loc=1, frameon=True)
         plt.title(f"Bounds of the Dataset")
         return axes
