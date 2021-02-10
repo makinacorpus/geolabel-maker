@@ -45,7 +45,7 @@ __all__ = [
 ]
 
 
-def to_geopandas(element, **kwargs):
+def _check_geopandas(element, **kwargs):
     r"""Convert an object to a ``GeoDataFrame``.
 
     Args:
@@ -56,17 +56,13 @@ def to_geopandas(element, **kwargs):
         geopandas.GeoDataFrame
 
     Examples:
-        >>> dataframe = to_geopandas("buildings.json")
-        >>> dataframe = to_geopandas(Path("buildings.json"))
-        >>> dataframe = to_geopandas(gpd.read_file("buildings.json"))
+        >>> _check_geopandas("buildings.json")
+        >>> _check_geopandas(Path("buildings.json"))
+        >>> _check_geopandas(gpd.read_file("buildings.json"))
     """
-    if isinstance(element, (str, Path)):
-        return Category.open(str(element), **kwargs)
-    elif isinstance(element, gpd.GeoDataFrame):
-        return element
-    elif isinstance(element, Category):
-        return element.data
-    raise ValueError(f"Unknown element: Could not load '{type(element).__name__}' as 'GeoDataFrame'.")
+    if not isinstance(element, gpd.GeoDataFrame):
+        ValueError(f"Element of class '{type(element).__name__}' is not a 'geopandas.GeoDataFrame'.")
+    return True
 
 
 def _check_category(element):
@@ -109,11 +105,19 @@ class Category(Data):
     """
 
     def __init__(self, data, name, color=None, filename=None):
-        data = to_geopandas(data)
+        _check_geopandas(data)
         super().__init__(data, filename=filename)
         self.name = name
         color = Color.get(color) if color else Color.random()
-        self.color = tuple(color)
+        self._color = tuple(color)
+
+    @property
+    def color(self):
+        return self._color
+
+    @color.setter
+    def color(self, value):
+        self._color = tuple(Color.get(value))
 
     @classmethod
     def open(cls, filename, name=None, color=None):

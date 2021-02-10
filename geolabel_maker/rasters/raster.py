@@ -86,9 +86,9 @@ def _check_rasterio(element):
         >>> _check_rasterio(Path("tile.tif"))
         >>> _check_rasterio(rasterio.open("tile.tif"))
     """
-    if isinstance(element, (rasterio.io.DatasetReader, rasterio.io.DatasetWriter)):
-        return True
-    raise ValueError(f"Element of class '{type(element).__name__}' is not a 'DatasetReader' or 'DatasetWriter'.")
+    if not isinstance(element, (rasterio.io.DatasetReader, rasterio.io.DatasetWriter)):
+        ValueError(f"Element of class '{type(element).__name__}' is not a 'DatasetReader' or 'DatasetWriter'.")
+    return True
 
 
 def _check_raster(element):

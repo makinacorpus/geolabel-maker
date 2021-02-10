@@ -38,9 +38,6 @@ from pathlib import Path
 from osgeo import gdal
 import gdal2tiles
 
-# Geolabel Maker
-from .raster import Raster
-
 
 def generate_tiles(filename, out_dir="tiles", **kwargs):
     r"""Create tiles from a raster file (using GDAL)
