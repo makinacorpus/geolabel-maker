@@ -33,7 +33,7 @@ import geopandas as gpd
 
 # Geolabel Maker
 from .sentinelhub import SentinelHubAPI
-from geolabel_maker.data import Data, DataCollection
+from geolabel_maker.data import Data, DataCollection, BoundingBox
 from geolabel_maker.logger import logger
 
 
@@ -385,6 +385,9 @@ class Raster(Data):
         data = category.data.to_crs(self.data.crs)
         bbox = tuple(data.total_bounds)
         return self.crop(bbox)
+
+    def get_bounds(self):
+        return BoundingBox(*self.data.bounds)
 
     def inner_repr(self):
         return f"filename='{self.filename or 'None'}', bbox={tuple(self.data.bounds)}, crs={self.data.crs}"

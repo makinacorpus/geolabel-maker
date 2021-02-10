@@ -35,16 +35,20 @@ import re
 import json
 from pathlib import Path
 from tqdm import tqdm
+from shapely.geometry import box
 from PIL import Image, ImageChops
+import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 import rasterio.mask
 
 # Geolabel Maker
+from geolabel_maker.data import BoundingBox
 from geolabel_maker.rasters import Raster, RasterCollection, generate_tiles, generate_vrt
 from geolabel_maker.rasters import utils
 from geolabel_maker.vectors import Category, CategoryCollection
 from geolabel_maker.utils import retrieve_path, relative_path
+from geolabel_maker.logger import logger
 
 
 # Global variables
@@ -82,7 +86,7 @@ class Dataset:
 
     def __init__(self, images, categories, labels=None,
                  dir_images=None, dir_categories=None, dir_labels=None,
-                 dir_mosaics=None, dir_tiles=None, filename=None):
+                 dir_mosaics=None, dir_tiles=None, bbox=None, filename=None):
 
         self.filename = str(filename or "dataset.json")
         self.dir_images = None if not dir_images else str(Path(dir_images))
@@ -90,6 +94,7 @@ class Dataset:
         self.dir_labels = None if not dir_labels else str(Path(dir_labels))
         self.dir_mosaics = None if not dir_mosaics else str(Path(dir_mosaics))
         self.dir_tiles = None if not dir_tiles else str(Path(dir_tiles))
+        self._bbox = None if not bbox else BoundingBox(*bbox)
         self._images = RasterCollection(images)
         self._categories = CategoryCollection(categories)
         self._labels = RasterCollection(labels)
@@ -98,6 +103,10 @@ class Dataset:
     @property
     def root(self):
         return str(Path(self.filename).parent)
+
+    @property
+    def bbox(self):
+        return self._bbox or self.get_bounds
 
     @property
     def images(self):
@@ -367,6 +376,22 @@ class Dataset:
         with open(filename, "w") as f:
             json.dump(config, f, indent=4)
 
+    def get_bounds(self):
+        images_bounds = self.images.get_bounds()
+        labels_bounds = self.labels.get_bounds()
+        categories_bounds = self.categories.get_bounds()
+
+        bounds_array = [np.array([*bounds]) for bounds in [images_bounds, labels_bounds, categories_bounds] if bounds]
+        if len(bounds_array) == 0:
+            return None
+
+        bounds_array = np.stack(bounds_array)
+        left = np.max(bounds_array[:, 0])
+        bottom = np.max(bounds_array[:, 1])
+        right = np.min(bounds_array[:, 2])
+        top = np.min(bounds_array[:, 3])
+        return BoundingBox(left, bottom, right, top)
+
     def generate_label(self, image_idx, out_dir=None):
         r"""Extract the categories visible in one image's extent. 
         This method will saved the extracted geometries as a raster image.
@@ -596,14 +621,14 @@ class Dataset:
         dir_tiles = str(out_dir or self.dir_tiles or Path(self.root) / "tiles")
         # Generate tiles from the images
         if make_images:
-            print(f"Generating Image Tiles at {str(Path(dir_tiles) / 'images')}")
+            logger.info(f"Generating Image Tiles at {str(Path(dir_tiles) / 'images')}")
             images_vrt = self.generate_vrt(make_images=True, make_labels=False)
             out_dir_images = Path(dir_tiles) / "images"
             out_dir_images.mkdir(parents=True, exist_ok=True)
             generate_tiles(images_vrt, out_dir_images, **kwargs)
         # Generate tiles from the labels
         if make_labels:
-            print(f"Generating Label Tiles at {str(Path(dir_tiles) / 'labels')}")
+            logger.info(f"Generating Label Tiles at {str(Path(dir_tiles) / 'labels')}")
             labels_vrt = self.generate_vrt(make_images=False, make_labels=True)
             out_dir_labels = Path(dir_tiles) / "labels"
             out_dir_labels.mkdir(parents=True, exist_ok=True)
@@ -612,6 +637,36 @@ class Dataset:
         self.dir_tiles = dir_tiles
         self.save()
         return self.dir_tiles
+
+    def show_bounds(self, figure=None, axes=None, figsize=None, image_color=None, category_color=None, label_color=None):
+        """Show the geographic extent.
+
+        Args:
+            axes (matplotlib.AxesSubplot, optional): Axes used to show. Defaults to ``None``.
+            figsize (tuple, optional): Size of the graph. Defaults to ``None``.
+            label (str, optional): Legend for the collection. Defaults to ``None``.
+            image_color (str, optional): Name of the color used to show images. Defaults to ``None``.
+            category_color (str, optional): Name of the color used to show categories. Defaults to ``None``.
+            label_color (str, optional): Name of the color used to show labels. Defaults to ``None``.
+            kwargs (dict): Other arguments from `matplotlib`.
+
+        Returns:
+            matplotlib.AxesSubplot
+        """
+        if not axes:
+            _, axes = plt.subplots(figsize=figsize)
+        image_color = image_color or "steelblue"
+        category_color = category_color or "lightseagreen"
+        label_color = label_color or "skyblue"
+        axes = self.categories.show_bounds(axes=axes, color=category_color, label="categories")
+        axes = self.images.show_bounds(axes=axes, color=image_color, label="images")
+        axes = self.labels.show_bounds(axes=axes, color=label_color, label="labels")
+        plt.title(f"Bounds of the Dataset")
+        plt.legend(loc=1, frameon=True)
+        return axes
+
+    def show(self, image_color=None, category_color=None, label_color=None):
+        raise NotImplementedError
 
     def __repr__(self):
         rep = f"Dataset("

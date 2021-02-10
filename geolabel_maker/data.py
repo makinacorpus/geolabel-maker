@@ -16,6 +16,27 @@ Therefore the child classes ``Raster`` and ``Category`` share a common architect
 
 # Basic imports
 from abc import ABC
+import numpy as np
+from shapely.geometry import box
+import matplotlib.pyplot as plt
+
+
+class BoundingBox:
+
+    def __init__(self, left, bottom, right, top):
+        self.left = left
+        self.bottom = bottom
+        self.right = right
+        self.top = top
+
+    def __iter__(self):
+        yield from [self.left, self.bottom, self.right, self.top]
+
+    def __len__(self):
+        return 4
+
+    def __repr__(self):
+        return f"BoundingBox(left={self.left}, bottom={self.bottom}, right={self.right}, top={self.top})"
 
 
 class Data(ABC):
@@ -54,6 +75,10 @@ class Data(ABC):
         Args:
             out_file (str): name of the saved file.
         """
+        raise NotImplementedError
+
+    def get_bounds(self):
+        """Get the total bounds of the data."""
         raise NotImplementedError
 
     def inner_repr(self):
@@ -151,6 +176,44 @@ class DataCollection(ABC):
             DataCollection
         """
         return self.__class__(self._items.copy())
+
+    def get_bounds(self):
+        """Get the total bounds of the collection."""
+        # If the collection is empty
+        if len(self) == 0:
+            return None
+        
+        bounds_array = []
+        for value in self:
+            bounds_array.append(np.array([*value.get_bounds()]))
+        bounds_array = np.stack(bounds_array)
+        left = np.min(bounds_array[:, 0])
+        bottom = np.min(bounds_array[:, 1])
+        right = np.max(bounds_array[:, 2])
+        top = np.max(bounds_array[:, 3])
+        return BoundingBox(left, bottom, right, top)
+
+    def show_bounds(self, axes=None, figsize=None, label=None, **kwargs):
+        """Show the geographic extent of the collection.
+
+        Args:
+            axes (matplotlib.AxesSubplot, optional): Axes used to show. Defaults to ``None``.
+            figsize (tuple, optional): Size of the graph. Defaults to ``None``.
+            label (str, optional): Legend for the collection. Defaults to ``None``.
+            kwargs (dict): Other arguments from `matplotlib`.
+
+        Returns:
+            matplotlib.AxesSubplot
+        """
+        values_xy = [box(*value.get_bounds()).exterior.xy for value in self]
+        if not axes:
+            _, axes = plt.subplots(figsize=figsize)
+        for i, (x, y) in enumerate(values_xy) :
+            axes.plot(x, y, **kwargs, label=label or f"index {i}")
+            if label: label = "_no_legend_"
+        plt.title(f"Bounds of the {self.__class__.__name__}")
+        plt.legend(loc=1, frameon=True)
+        return axes
 
     def __getitem__(self, index):
         return self._items[index]

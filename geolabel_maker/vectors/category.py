@@ -32,7 +32,7 @@ from pathlib import Path
 import geopandas as gpd
 
 # Geolabel Maker
-from geolabel_maker.data import Data, DataCollection
+from geolabel_maker.data import Data, DataCollection, BoundingBox
 from geolabel_maker.vectors.color import Color
 from geolabel_maker.vectors.overpass import OverpassAPI
 from geolabel_maker.logger import logger
@@ -252,6 +252,9 @@ class Category(Data):
         data = self.data.to_crs(raster_data.crs)
         category = Category(data, self.name, color=self.color)
         return category.crop(bounds)
+
+    def get_bounds(self):
+        return BoundingBox(*self.data.total_bounds)
 
     def inner_repr(self):
         rows, cols = self.data.shape
