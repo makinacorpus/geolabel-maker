@@ -83,8 +83,11 @@ def _check_rasterio(element):
 
     Examples:
         >>> _check_rasterio("tile.tif")
+            ValueError("Element of class 'str' is not a 'rasterio.DatasetReader'.")
         >>> _check_rasterio(Path("tile.tif"))
+            ValueError("Element of class 'Path' is not a 'rasterio.DatasetReader'.")
         >>> _check_rasterio(rasterio.open("tile.tif"))
+            True
     """
     if not isinstance(element, (rasterio.io.DatasetReader, rasterio.io.DatasetWriter)):
         ValueError(f"Element of class '{type(element).__name__}' is not a 'DatasetReader' or 'DatasetWriter'.")
@@ -106,7 +109,8 @@ def _check_raster(element):
     Examples:
         >>> _check_raster("raster.tif")
             ValueError("Element of class 'str' is not a 'Raster'.")
-        >>>  _check_raster(Raster.open("raster.tif"))
+        >>> _check_raster(Raster.open("raster.tif"))
+            True
     """
     if not isinstance(element, Raster):
         raise ValueError(f"Element of class '{type(element).__name__}' is not a 'Raster'.")
@@ -123,6 +127,7 @@ class Raster(Data):
 
     def __init__(self, data, filename=None):
         _check_rasterio(data)
+        filename = filename or "raster.tif"
         super().__init__(data, filename=filename)
 
     @classmethod
@@ -137,7 +142,6 @@ class Raster(Data):
             Category
 
         Examples:
-            >>> from geolabel_maker.rasters import Raster
             >>> raster = Raster.open("images/tile.tif")
         """
         data = rasterio.open(filename)

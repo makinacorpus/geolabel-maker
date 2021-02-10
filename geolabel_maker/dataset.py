@@ -30,6 +30,7 @@ from raster images.
 """
 
 # Basic imports
+import inspect
 import re
 import json
 from pathlib import Path
@@ -205,43 +206,31 @@ class Dataset:
         dir_mosaics = retrieve_path(config.get("dir_mosaics", None), root=root)
         dir_tiles = retrieve_path(config.get("dir_tiles", None), root=root)
 
-        #TODO: one function
-        def load_rasters(data=None, in_dir=None, desc="Loading"):
-            rasters = []
+        def load_collection(data_name, data_list=None, in_dir=None, desc="Loading"):
+            collection = []
+            data_class = eval(data_name)
+            data_optional_args = dict(inspect.signature(data_class.open).parameters)
+            data_optional_args = [arg for arg in data_optional_args if arg not in ["cls", "self", "filename"]]
             # Load rasters if provided from a list of dict.
-            if data:
+            if data_list:
                 in_dir = in_dir or root
-                for raster_info in tqdm(data, desc=desc, leave=True, position=0):
-                    raster_path = retrieve_path(raster_info["filename"], root=in_dir)
-                    rasters.append(Raster.open(raster_path))
+                pbar = tqdm(data_list, desc=desc, leave=True, position=0)
+                for data_info in pbar:
+                    filename = retrieve_path(data_info["filename"], root=in_dir)
+                    pbar.set_postfix({"file": Path(filename).name})
+                    args = {arg: data_info.get(arg, None) for arg in data_optional_args}
+                    collection.append(data_class.open(filename, **args))
             # Else, load all rasters from a directory.
             elif in_dir and Path(in_dir).exists():
-                data = list(Path(in_dir).iterdir())
-                for raster_path in tqdm(data, desc=desc, leave=True, position=0):
-                    rasters.append(Raster.open(raster_path))
-            return rasters
-
-        def load_categories(data=None, in_dir=None, desc="Loading"):
-            categories = []
-            # Load categories if provided from a list of dict.
-            if data:
-                in_dir = in_dir or root
-                for category_info in tqdm(data, desc=desc, leave=True, position=0):
-                    color = category_info.get("color", None)
-                    name = category_info.get("name", None)
-                    category_path = retrieve_path(category_info["filename"], root=in_dir)
-                    categories.append(Category.open(category_path, name=name, color=color))
-            # Else, load all categories from a directory.
-            elif in_dir and Path(in_dir).exists():
-                data = list(Path(in_dir).iterdir())
-                for category_path in tqdm(data, desc=desc, leave=True, position=0):
-                    categories.append(Category.open(category_path))
-            return categories
+                data_list = list(Path(in_dir).iterdir())
+                for raster_path in tqdm(data_list, desc=desc, leave=True, position=0):
+                    collection.append(data_class.open(raster_path))
+            return collection
 
         # Load the different objects either from a directory or list of paths.
-        images = load_rasters(data=images, in_dir=dir_images, desc="Loading Images")
-        labels = load_rasters(data=labels, in_dir=dir_labels, desc="Loading Labels")
-        categories = load_categories(data=categories, in_dir=dir_categories, desc="Loading Categories")
+        images = load_collection("Raster", data_list=images, in_dir=dir_images, desc="Loading Images")
+        labels = load_collection("Raster", data_list=labels, in_dir=dir_labels, desc="Loading Labels")
+        categories = load_collection("Category", data_list=categories, in_dir=dir_categories, desc="Loading Categories")
 
         return Dataset(images=images, categories=categories, labels=labels,
                        dir_images=dir_images, dir_categories=dir_categories, dir_labels=dir_labels,

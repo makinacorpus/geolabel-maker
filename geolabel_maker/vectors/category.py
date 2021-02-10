@@ -23,14 +23,13 @@ The class ``Category`` wraps the ``GeoDataFrame`` class from ``geopandas`` and a
     
     # 2. Load from GeoPandas
     data = gpd.read_file("categories/buildings.json")
-    category = Category("buildings", data, color=(255, 255, 255))
+    category = Category(data, "buildings", color=(255, 255, 255))
     
 """
 
 # Basic imports
 from pathlib import Path
 import geopandas as gpd
-from shapely.geometry import box
 
 # Geolabel Maker
 from geolabel_maker.data import Data, DataCollection
@@ -57,8 +56,11 @@ def _check_geopandas(element, **kwargs):
 
     Examples:
         >>> _check_geopandas("buildings.json")
+            ValueError("Element of class 'str' is not a 'geopandas.GeoDataFrame'.")
         >>> _check_geopandas(Path("buildings.json"))
+            ValueError("Element of class 'Path' is not a 'geopandas.GeoDataFrame'.")
         >>> _check_geopandas(gpd.read_file("buildings.json"))
+            True
     """
     if not isinstance(element, gpd.GeoDataFrame):
         ValueError(f"Element of class '{type(element).__name__}' is not a 'geopandas.GeoDataFrame'.")
@@ -80,7 +82,8 @@ def _check_category(element):
     Examples:
         >>> _check_category("buildings.json")
             ValueError("Element of class 'str' is not a 'Category'.")
-        >>>  _check_category(Category.open("buildings.json"))
+        >>> _check_category(Category.open("buildings.json"))
+            True
     """
     if not isinstance(element, Category):
         raise ValueError(f"Element of class '{type(element).__name__}' is not a 'Category'.")
@@ -106,6 +109,7 @@ class Category(Data):
 
     def __init__(self, data, name, color=None, filename=None):
         _check_geopandas(data)
+        filename = filename or "category.json"
         super().__init__(data, filename=filename)
         self.name = name
         color = Color.get(color) if color else Color.random()
