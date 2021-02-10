@@ -30,6 +30,7 @@ import gdal2tiles
 import json
 from shapely.geometry import box
 import geopandas as gpd
+import matplotlib.pyplot as plt
 
 # Geolabel Maker
 from .sentinelhub import SentinelHubAPI
@@ -387,7 +388,24 @@ class Raster(Data):
         return self.crop(bbox)
 
     def get_bounds(self):
-        return BoundingBox(*self.data.bounds)
+        return BoundingBox(*self.data.bounds)       
+
+    def plot(self, axes=None, figsize=None, **kwargs):
+        """Plot a raster.
+
+        Args:
+            axes (matplotlib.AxesSubplot, optional): Axes used to show the raster. Defaults to ``None``.
+            figsize (tuple, optional): Size of the figure. Defaults to ``None``.
+            kwargs (dict): Other arguments from `matplotlib`.
+
+        Returns:
+            matplotlib.AxesSubplot
+        """
+        if not axes or figsize:
+            _, axes = plt.subplots(figsize=figsize)
+        array = self.data.read().transpose(1, 2, 0)
+        axes.imshow(array, **kwargs)
+        return axes
 
     def inner_repr(self):
         return f"filename='{self.filename or 'None'}', bbox={tuple(self.data.bounds)}, crs={self.data.crs}"

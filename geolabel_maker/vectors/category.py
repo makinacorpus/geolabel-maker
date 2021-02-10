@@ -30,6 +30,8 @@ The class ``Category`` wraps the ``GeoDataFrame`` class from ``geopandas`` and a
 # Basic imports
 from pathlib import Path
 import geopandas as gpd
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 # Geolabel Maker
 from geolabel_maker.data import Data, DataCollection, BoundingBox
@@ -112,8 +114,7 @@ class Category(Data):
         filename = filename or "category.json"
         super().__init__(data, filename=filename)
         self.name = name
-        color = Color.get(color) if color else Color.random()
-        self._color = tuple(color)
+        self._color = Color.get(color) if color else Color.random()
 
     @property
     def color(self):
@@ -121,7 +122,7 @@ class Category(Data):
 
     @color.setter
     def color(self, value):
-        self._color = tuple(Color.get(value))
+        self._color = Color.get(value)
 
     @classmethod
     def open(cls, filename, name=None, color=None):
@@ -256,6 +257,24 @@ class Category(Data):
     def get_bounds(self):
         return BoundingBox(*self.data.total_bounds)
 
+    def plot(self, axes=None, figsize=None, **kwargs):
+        """Plot a category.
+
+        Args:
+            axes (matplotlib.AxesSubplot, optional): Axes used to show the category. Defaults to ``None``.
+            figsize (tuple, optional): Size of the figure. Defaults to ``None``.
+            kwargs (dict): Other arguments from `matplotlib`.
+
+        Returns:
+            matplotlib.AxesSubplot
+        """
+        color = self.color.to_hex()
+        axes = self.data.plot(ax=axes, figsize=figsize, color=color, **kwargs)
+        handle = mpatches.Patch(facecolor=self.color.to_hex(), label=self.name)
+        axes.legend(loc=1, handles=[handle], frameon=True)
+        plt.title(f"Bounds of the {self.__class__.__name__}")
+        return axes
+
     def inner_repr(self):
         rows, cols = self.data.shape
         return f"data=GeoDataFrame({rows} rows, {cols} columns), name='{self.name}', color={self.color}"
@@ -285,7 +304,7 @@ class CategoryCollection(DataCollection):
             other_colors = set(colors[:i] + colors[i + 1:])
             max_steps = 200  # Prevent infinite loops
             while color in other_colors and max_steps > 0:
-                color = tuple(Color.random())
+                color = Color.random()
                 max_steps -= 1
             self._items[i].color = color
 
@@ -377,3 +396,25 @@ class CategoryCollection(DataCollection):
             except:
                 pass
         return cropped
+
+    def plot(self, axes=None, figsize=None, **kwargs):
+        """Plot the the data.
+
+        Args:
+            axes (matplotlib.AxesSubplot, optional): Axes used to show. Defaults to ``None``.
+            figsize (tuple, optional): Size of the graph. Defaults to ``None``.
+            label (str, optional): Legend for the collection. Defaults to ``None``.
+            kwargs (dict): Other arguments from `matplotlib`.
+
+        Returns:
+            matplotlib.AxesSubplot
+        """
+        if not axes or figsize:
+            _, axes = plt.subplots(figsize=figsize)
+        handles = []
+        for category in self._items:
+            axes = category.plot(axes=axes, **kwargs)
+        handles = [mpatches.Patch(facecolor=category.color.to_hex(), label=category.name) for category in self._items]
+        axes.legend(loc=1, handles=handles, frameon=True)
+        plt.title(f"{self.__class__.__name__}")
+        return axes

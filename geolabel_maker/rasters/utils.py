@@ -65,5 +65,5 @@ def rgb2color(rgb_img, color):
     # find non black pixels
     mask = np.any((color_img != [0, 0, 0]), axis=-1)
     # apply the mask to overwrite the pixels with the chosen color
-    color_img[mask] = color
+    color_img[mask] = np.array(color)
     return color_img

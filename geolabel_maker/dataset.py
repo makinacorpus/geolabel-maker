@@ -38,6 +38,7 @@ from tqdm import tqdm
 from shapely.geometry import box
 from PIL import Image, ImageChops
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import numpy as np
 import rasterio
 import rasterio.mask
@@ -321,7 +322,7 @@ class Dataset:
                 categories.append({
                     "id": id,
                     "name": category.name,
-                    "color": category.color,
+                    "color": tuple(category.color),
                     "filename": str(filename)
                 })
             return categories
@@ -638,7 +639,7 @@ class Dataset:
         self.save()
         return self.dir_tiles
 
-    def show_bounds(self, figure=None, axes=None, figsize=None, image_color=None, category_color=None, label_color=None):
+    def plot_bounds(self, axes=None, figsize=None, image_color=None, category_color=None):
         """Show the geographic extent.
 
         Args:
@@ -647,26 +648,44 @@ class Dataset:
             label (str, optional): Legend for the collection. Defaults to ``None``.
             image_color (str, optional): Name of the color used to show images. Defaults to ``None``.
             category_color (str, optional): Name of the color used to show categories. Defaults to ``None``.
-            label_color (str, optional): Name of the color used to show labels. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
 
         Returns:
             matplotlib.AxesSubplot
         """
-        if not axes:
+        if not axes or figsize:
             _, axes = plt.subplots(figsize=figsize)
         image_color = image_color or "steelblue"
         category_color = category_color or "lightseagreen"
-        label_color = label_color or "skyblue"
-        axes = self.categories.show_bounds(axes=axes, color=category_color, label="categories")
-        axes = self.images.show_bounds(axes=axes, color=image_color, label="images")
-        axes = self.labels.show_bounds(axes=axes, color=label_color, label="labels")
+        axes = self.categories.plot_bounds(axes=axes, label="categories")
+        axes = self.images.plot_bounds(axes=axes, color=image_color, label="images")
+        axes.legend(loc=1, frameon=True)
         plt.title(f"Bounds of the Dataset")
-        plt.legend(loc=1, frameon=True)
         return axes
 
-    def show(self, image_color=None, category_color=None, label_color=None):
-        raise NotImplementedError
+    def plot(self, axes=None, figsize=None, image_color=None, **kwargs):
+        """Show the elements of the dataset.
+
+        Args:
+            axes (matplotlib.AxesSubplot, optional): Axes used to show. Defaults to ``None``.
+            figsize (tuple, optional): Size of the graph. Defaults to ``None``.
+            image_color (str, optional): Name of the color used to show images. Defaults to ``None``.
+            kwargs (dict): Other arguments from `matplotlib`.
+
+        Returns:
+            matplotlib.AxesSubplot
+        """
+        if not axes or figsize:
+            _, axes = plt.subplots(figsize=figsize)
+        image_color = image_color or "steelblue"
+        axes = self.categories.plot(axes=axes, label="categories", **kwargs)
+        axes = self.images.plot_bounds(axes=axes, color=image_color, label="images", **kwargs)
+        # Add the legend
+        handles = [mpatches.Patch(facecolor=category.color.to_hex(), label=category.name) for category in self.categories]
+        handles.append(mpatches.Patch(edgecolor=image_color, label="images"))
+        axes.legend(loc=1, handles=handles, frameon=True)
+        plt.title(f"Dataset")
+        return axes
 
     def __repr__(self):
         rep = f"Dataset("

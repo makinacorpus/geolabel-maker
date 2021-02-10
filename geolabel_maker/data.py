@@ -81,6 +81,40 @@ class Data(ABC):
         """Get the total bounds of the data."""
         raise NotImplementedError
 
+    def plot_bounds(self, axes=None, figsize=None, label=None, **kwargs):
+        """Plot the geographic extent of the data.
+
+        Args:
+            axes (matplotlib.AxesSubplot, optional): Axes used to show. Defaults to ``None``.
+            figsize (tuple, optional): Size of the graph. Defaults to ``None``.
+            label (str, optional): Legend for the collection. Defaults to ``None``.
+            kwargs (dict): Other arguments from `matplotlib`.
+
+        Returns:
+            matplotlib.AxesSubplot
+        """
+        x, y = box(*self.get_bounds()).exterior.xy
+        if not axes or figsize:
+            _, axes = plt.subplots(figsize=figsize)
+        axes.plot(x, y, label=label, **kwargs)
+        axes.legend(loc=1, frameon=True)
+        plt.title(f"Bounds of the {self.__class__.__name__}")
+        return axes
+
+    def plot(self, axes=None, figsize=None, label=None, **kwargs):
+        """Plot the the data.
+
+        Args:
+            axes (matplotlib.AxesSubplot, optional): Axes used to show. Defaults to ``None``.
+            figsize (tuple, optional): Size of the graph. Defaults to ``None``.
+            label (str, optional): Legend for the collection. Defaults to ``None``.
+            kwargs (dict): Other arguments from `matplotlib`.
+
+        Returns:
+            matplotlib.AxesSubplot
+        """
+        return self.plot_bounds(axes=axes, figsize=figsize, label=label, **kwargs)
+
     def inner_repr(self):
         """Inner representation of the data."""
         return ""
@@ -182,7 +216,7 @@ class DataCollection(ABC):
         # If the collection is empty
         if len(self) == 0:
             return None
-        
+
         bounds_array = []
         for value in self:
             bounds_array.append(np.array([*value.get_bounds()]))
@@ -193,8 +227,8 @@ class DataCollection(ABC):
         top = np.max(bounds_array[:, 3])
         return BoundingBox(left, bottom, right, top)
 
-    def show_bounds(self, axes=None, figsize=None, label=None, **kwargs):
-        """Show the geographic extent of the collection.
+    def plot_bounds(self, axes=None, figsize=None, label=None, **kwargs):
+        """Plot the geographic extent of the collection.
 
         Args:
             axes (matplotlib.AxesSubplot, optional): Axes used to show. Defaults to ``None``.
@@ -205,15 +239,29 @@ class DataCollection(ABC):
         Returns:
             matplotlib.AxesSubplot
         """
-        values_xy = [box(*value.get_bounds()).exterior.xy for value in self]
-        if not axes:
+        if not axes or figsize:
             _, axes = plt.subplots(figsize=figsize)
-        for i, (x, y) in enumerate(values_xy) :
-            axes.plot(x, y, **kwargs, label=label or f"index {i}")
-            if label: label = "_no_legend_"
+        for value in self:
+            axes = value.plot_bounds(axes=axes, label=label, **kwargs)
+            if label:
+                label = "_no_legend_"
+        axes.legend(loc=1, frameon=True)
         plt.title(f"Bounds of the {self.__class__.__name__}")
-        plt.legend(loc=1, frameon=True)
         return axes
+
+    def plot(self, axes=None, figsize=None, label=None, **kwargs):
+        """Plot the the data.
+
+        Args:
+            axes (matplotlib.AxesSubplot, optional): Axes used to show. Defaults to ``None``.
+            figsize (tuple, optional): Size of the graph. Defaults to ``None``.
+            label (str, optional): Legend for the collection. Defaults to ``None``.
+            kwargs (dict): Other arguments from `matplotlib`.
+
+        Returns:
+            matplotlib.AxesSubplot
+        """
+        return self.plot_bounds(axes=axes, figsize=figsize, label=label, **kwargs)
 
     def __getitem__(self, index):
         return self._items[index]
