@@ -55,11 +55,9 @@ class Dataset:
     r"""
     A ``Dataset`` is a combination of ``Raster`` and ``Category`` data.
 
-    * :attr:`images` (list): Collection of raster images (usually satellite images).
+    * :attr:`root` (str): Path to the root of the dataset.
 
-    * :attr:`labels` (list): Collection of raster labels (usually generated with ``generate_labels()``).
-
-    * :attr:`categories` (list): Collection of vector categories (usually geometries a.k.a ``GeoDataFrame``).
+    * :attr:`filename` (str): Name of the configuration file associated to the dataset.
 
     * :attr:`dir_images` (str): Name of the directory containing the satellite images.
 
@@ -71,7 +69,11 @@ class Dataset:
 
     * :attr:`dir_tiles` (str): Name of the directory containing the slippy tiles of satellite images and labels.
 
-    * :attr:`filename` (str): Name of the configuration file associated to the dataset.
+    * :attr:`images` (list): Collection of raster images (usually satellite images).
+
+    * :attr:`categories` (list): Collection of vector categories (usually geometries a.k.a ``GeoDataFrame``).
+
+    * :attr:`labels` (list): Collection of raster labels (usually generated with ``generate_labels()``).
 
     .. note::
         Every processing steps are saved in the configuration file ``filename`` (default to ``dataset.json``).
@@ -214,10 +216,8 @@ class Dataset:
             # Load rasters if provided from a list of dict.
             if data_list:
                 in_dir = in_dir or root
-                pbar = tqdm(data_list, desc=desc, leave=True, position=0)
-                for data_info in pbar:
+                for data_info in tqdm(data_list, desc=desc, leave=True, position=0):
                     filename = retrieve_path(data_info["filename"], root=in_dir)
-                    pbar.set_postfix({"file": Path(filename).name})
                     args = {arg: data_info.get(arg, None) for arg in data_optional_args}
                     collection.append(data_class.open(filename, **args))
             # Else, load all rasters from a directory.
@@ -227,7 +227,7 @@ class Dataset:
                     collection.append(data_class.open(raster_path))
             return collection
 
-        # Load the different objects either from a directory or list of paths.
+        # Load the different objects either from a directory or list of dict {"filename": path, **kwargs}.
         images = load_collection("Raster", data_list=images, in_dir=dir_images, desc="Loading Images")
         labels = load_collection("Raster", data_list=labels, in_dir=dir_labels, desc="Loading Labels")
         categories = load_collection("Category", data_list=categories, in_dir=dir_categories, desc="Loading Categories")
@@ -444,7 +444,7 @@ class Dataset:
 
         return out_path
 
-    def generate_labels(self, out_dir=None):
+    def generate_labels(self, out_dir=None, **kwargs):
         r"""Generate labels from a set of ``images`` and ``categories``. 
         The label associated to an image in respect of the categories 
         is a ``.tif`` image containing all geometries 
@@ -474,14 +474,14 @@ class Dataset:
         dir_labels = str(out_dir or self.dir_labels or Path(self.root) / "labels")
         # Generate and load the labels
         for image_idx, _ in enumerate(tqdm(self.images, desc="Generating Labels", leave=True, position=0)):
-            label_path = self.generate_label(image_idx, out_dir=dir_labels)
+            label_path = self.generate_label(image_idx, out_dir=dir_labels, **kwargs)
             self.labels.append(Raster.open(label_path))
 
         self.dir_labels = dir_labels
         self.save()
         return self.dir_labels
 
-    def generate_vrt(self, make_images=True, make_labels=True):
+    def generate_vrt(self, make_images=True, make_labels=True, **kwargs):
         r"""Write virtual images from images and/or labels.
 
         .. seealso::
@@ -504,11 +504,11 @@ class Dataset:
         # Make virtual images
         if make_images:
             out_file = Path(self.root) / "images.vrt"
-            images_vrt = generate_vrt(str(out_file), self.images)
+            images_vrt = generate_vrt(str(out_file), self.images, **kwargs)
         # Make virtual labels
         if make_labels:
             out_file = Path(self.root) / "labels.vrt"
-            labels_vrt = generate_vrt(str(out_file), self.labels)
+            labels_vrt = generate_vrt(str(out_file), self.labels, **kwargs)
 
         # Return the path to the created files
         if not labels_vrt:

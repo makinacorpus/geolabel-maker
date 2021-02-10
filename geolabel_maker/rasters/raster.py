@@ -299,7 +299,7 @@ class Raster(Data):
         """
         gdal2tiles.generate_tiles(self.filename, out_dir, **kwargs)
 
-    def generate_mosaic(self, zoom=None, width=256, height=256, out_dir="mosaic"):
+    def generate_mosaic(self, zoom=None, width=256, height=256, is_full=True, out_dir="mosaic"):
         """Generate a mosaic from the raster. 
         A mosaic is a division of the main raster into 'windows'.
         This method does not create slippy tiles.
@@ -325,6 +325,9 @@ class Raster(Data):
         main_window = rasterio.windows.Window(col_off=0, row_off=0, width=num_cols, height=num_rows)
         for col_off, row_off in offsets:
             window = rasterio.windows.Window(col_off=col_off, row_off=row_off, width=width, height=height).intersection(main_window)
+            # Generate mosaics only for full sub image of shape (height, width)
+            if is_full and (window.height != height or window.width != width):
+                continue
             out_transform = rasterio.windows.transform(window, out_raster.data.transform)
             out_profile = {
                 "driver": "GTiff",
