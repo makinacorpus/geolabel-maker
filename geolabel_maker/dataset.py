@@ -657,7 +657,7 @@ class Dataset:
             _, axes = plt.subplots(figsize=figsize)
         image_color = image_color or "steelblue"
         category_color = category_color or "lightseagreen"
-        axes = self.categories.plot_bounds(axes=axes, label="categories")
+        axes = self.categories.plot_bounds(axes=axes, color=category_color, label="categories")
         axes = self.images.plot_bounds(axes=axes, color=image_color, label="images")
         axes.legend(loc=1, frameon=True)
         plt.title(f"Bounds of the Dataset")
@@ -682,7 +682,7 @@ class Dataset:
         axes = self.images.plot_bounds(axes=axes, color=image_color, label="images", **kwargs)
         # Add the legend
         handles = [mpatches.Patch(facecolor=category.color.to_hex(), label=category.name) for category in self.categories]
-        handles.append(mpatches.Patch(edgecolor=image_color, label="images"))
+        handles.append(mpatches.Patch(facecolor="white", edgecolor=image_color, label="images"))
         axes.legend(loc=1, handles=handles, frameon=True)
         plt.title(f"Dataset")
         return axes
