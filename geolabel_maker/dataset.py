@@ -30,11 +30,13 @@ from raster images.
 """
 
 # Basic imports
+import warnings
 import inspect
 import re
 import json
 from pathlib import Path
 from tqdm import tqdm
+from pyproj.crs import CRS
 from shapely.geometry import box
 from PIL import Image, ImageChops
 import matplotlib.pyplot as plt
@@ -44,7 +46,7 @@ import rasterio
 import rasterio.mask
 
 # Geolabel Maker
-from geolabel_maker.data import BoundingBox
+from geolabel_maker.data import BoundingBox, GeoBase
 from geolabel_maker.rasters import Raster, RasterCollection, generate_tiles, generate_vrt
 from geolabel_maker.rasters import utils
 from geolabel_maker.vectors import Category, CategoryCollection
@@ -56,7 +58,7 @@ from geolabel_maker.logger import logger
 Image.MAX_IMAGE_PIXELS = 156_250_000
 
 
-class Dataset:
+class Dataset(GeoBase):
     r"""
     A ``Dataset`` is a combination of ``Raster`` and ``Category`` data.
 
@@ -87,27 +89,54 @@ class Dataset:
 
     def __init__(self, images=None, categories=None, labels=None,
                  dir_images=None, dir_categories=None, dir_labels=None,
-                 dir_mosaics=None, dir_tiles=None, bbox=None, filename=None):
-
-        self.filename = str(filename or "dataset.json")
+                 dir_mosaics=None, dir_tiles=None, bounds=None, filename=None):
+        super().__init__()
+        self.filename = str(Path(filename)) if filename else None
         self.dir_images = None if not dir_images else str(Path(dir_images))
         self.dir_categories = None if not dir_categories else str(Path(dir_categories))
         self.dir_labels = None if not dir_labels else str(Path(dir_labels))
         self.dir_mosaics = None if not dir_mosaics else str(Path(dir_mosaics))
         self.dir_tiles = None if not dir_tiles else str(Path(dir_tiles))
-        self._bbox = None if not bbox else BoundingBox(*bbox)
+        self._bounds = None if not bounds else BoundingBox(*bounds)
         self._images = RasterCollection(images)
         self._categories = CategoryCollection(categories)
         self._labels = RasterCollection(labels)
-        self.save()
+        if filename:
+            self.save()
+
+    @property
+    def crs(self):
+        collections = []
+        if self.images:
+            collections.append(self.images)
+        if self.categories:
+            collections.append(self.categories)
+        if self.labels:
+            collections.append(self.labels)
+        crs = None
+        for collection in collections:
+            if crs is None:
+                crs = CRS(collection.crs)
+            elif crs and crs and CRS(collection.crs) != crs:
+                error_msg = f"The CRS values from {self.__class__.__name__} are different: " \
+                            f"got EPSG:{crs.to_epsg()} != EPSG:{CRS(collection.crs).to_epsg()}."
+                warnings.warn(error_msg, RuntimeWarning)
+                logger.warning(error_msg)
+        return crs
 
     @property
     def root(self):
-        return str(Path(self.filename).parent)
+        if self.filename:
+            return str(Path(self.filename).parent)
+        return None
 
     @property
-    def bbox(self):
-        return self._bbox or self.get_bounds
+    def bounds(self):
+        return self._bounds or self.get_bounds()
+
+    @bounds.setter
+    def bounds(self, value):
+        self._bounds = BoundingBox(*value)
 
     @property
     def images(self):
@@ -117,6 +146,7 @@ class Dataset:
     def images(self, rasters):
         self._images = RasterCollection(rasters)
         self.dir_images = None
+        self.bounds = None
 
     @property
     def categories(self):
@@ -126,6 +156,7 @@ class Dataset:
     def categories(self, categories):
         self._categories = CategoryCollection(categories)
         self.dir_categories = None
+        self.bounds = None
 
     @property
     def labels(self):
@@ -362,22 +393,53 @@ class Dataset:
             >>> dataset = Dataset.open("../dataset.json")
             >>> dataset.save("some/other/directory/dataset.json")
         """
-        filename = filename or self.filename
-        root = str(Path(filename).parent)
-
-        config = self.to_dict(root=root, **kwargs)
+        self.filename = filename or self.filename
+        config = self.to_dict(root=self.root, **kwargs)
         # If a previous configuration file exists, load it and overwrite only the items that changed.
-        if Path(filename).exists():
-            with open(filename, "r") as f:
+        if Path(self.filename).exists():
+            with open(self.filename, "r") as f:
                 prev_config = json.load(f)
                 prev_config.update(config)
                 config = prev_config
 
         # Save and update the configuration file.
-        with open(filename, "w") as f:
+        with open(self.filename, "w") as f:
             json.dump(config, f, indent=4)
 
+    def to_crs(self, crs, **kwargs):
+        out_images = self.images.to_crs(crs, **kwargs)
+        out_categories = self.categories.to_crs(crs, **kwargs)
+        out_labels = self.labels.to_crs(crs, **kwargs)
+        return Dataset(images=out_images, categories=out_categories, labels=out_labels,
+                       dir_images=self.dir_images, dir_categories=self.dir_categories, dir_labels=self.dir_labels,
+                       dir_mosaics=self.dir_mosaics, dir_tiles=self.dir_tiles, bounds=self.bounds, filename=None)
+
+    def crop(self, bbox, **kwargs):
+        """Crop the dataset from a bounding box.
+
+        .. note::
+            The bounding box coordinates should be in the same system as the dataset extent.
+
+        Args:
+            bbox (tuple): Bounding box used to crop the dataset,
+                in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
+
+        Returns:
+            Dataset
+        """
+        out_images = self.images.crop(bbox, **kwargs)
+        out_categories = self.categories.crop(bbox, **kwargs)
+        out_labels = self.labels.crop(bbox, **kwargs)
+        return Dataset(images=out_images, categories=out_categories, labels=out_labels,
+                       dir_images=self.dir_images, dir_categories=self.dir_categories, dir_labels=self.dir_labels,
+                       dir_mosaics=self.dir_mosaics, dir_tiles=self.dir_tiles, bounds=self.bounds, filename=None)
+
     def get_bounds(self):
+        """Get the minimal geographic extend that covers both categories and images.
+
+        Returns:
+            BoundingBox
+        """
         images_bounds = self.images.get_bounds()
         labels_bounds = self.labels.get_bounds()
         categories_bounds = self.categories.get_bounds()
@@ -441,9 +503,8 @@ class Dataset:
 
         # Update the profile before saving the tif
         # See the list of options and effects: https://gdal.org/drivers/raster/gtiff.html#creation-options
-        # NOTE: the tiles 256x256 are not kept as is decrease the precision of the pixel information
         # TODO: the profile option 'tiles' should be kept (usually tiles of 256x256) to reduce the output file's size.
-        # TODO: if so, improve the segmentation method to retrieve contours from a tiled image.
+        # TODO: if so, improve the segmentation method to retrieve contours from a tiled (compressed) image.
         out_profile = raster.data.profile
         out_profile = {
             "driver": "GTiff",
@@ -668,7 +729,7 @@ class Dataset:
         plt.title(f"Bounds of the Dataset")
         return axes
 
-    def plot(self, axes=None, figsize=None, image_color=None, **kwargs):
+    def plot(self, axes=None, figsize=None, dataset_color=None, image_color=None, **kwargs):
         """Show the elements of the dataset.
 
         Args:
@@ -682,6 +743,7 @@ class Dataset:
         """
         if not axes or figsize:
             _, axes = plt.subplots(figsize=figsize)
+        dataset_color = dataset_color or "red"
         image_color = image_color or "steelblue"
         axes = self.categories.plot(axes=axes, label="categories", **kwargs)
         axes = self.images.plot_bounds(axes=axes, color=image_color, label="images", **kwargs)
@@ -694,7 +756,8 @@ class Dataset:
 
     def __repr__(self):
         rep = f"Dataset("
-        rep += f"\n  (root): '{self.root}'"
+        if self.root:
+            rep += f"\n  (root): '{self.root}'"            
         for key, value in self.__dict__.items():
             # Add images / categories / labels if provided
             if value and key[0] == "_":

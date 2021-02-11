@@ -74,7 +74,7 @@ def find_polygons(mask_array, preserve_topology=False, simplify_level=1.0):
     """Retrieve the polygons from a black and white raster image.
 
     Args:
-        mask_image (PIL.Image): Black and white mask image of shape :math:`(X, Y, 3)`, 
+        mask_array (numpy.ndarray): Black and white mask image of shape :math:`(X, Y, 3)`, 
             usually generated with the function ``retrieve_masks()``.
         preserve_topology (bool): If ``True``, preserve the topology of the polygon. Default to ``False``.
 
@@ -140,7 +140,7 @@ def extract_categories(label_file, categories, **kwargs):
     Examples:
         >>> dataset = Dataset.open("data")
     """
-    image_array = cv2.imread(str(label_file))
+    image_array = np.array(Image.open(str(label_file)))
     color2name = {tuple(category.color): category.name for category in categories}
     colors = color2name.keys()
     categories_extracted = []

@@ -15,14 +15,32 @@ Therefore the child classes ``Raster`` and ``Category`` share a common architect
 
 
 # Basic imports
-from abc import ABC
+from abc import ABC, abstractmethod
+import warnings
+from pathlib import Path
 import numpy as np
 from shapely.geometry import box
 import matplotlib.pyplot as plt
-from matplotlib.patches import Patch
+from pyproj.crs import CRS
+
+# Geolabel Maker
+from geolabel_maker.logger import logger
+__version__ = 0.1
 
 
 class BoundingBox:
+    r"""
+    Defines a bounding box as :math`(left, bottom, right, top)`.
+
+    * :attr:`left` (float): The left coordinate of the bounding box.
+
+    * :attr:`bottom` (float): The bottom coordinate of the bounding box.
+
+    * :attr:`right` (float): The right coordinate of the bounding box.
+
+    * :attr:`top` (float): The top coordinate of the bounding box.
+
+    """
 
     def __init__(self, left, bottom, right, top):
         self.left = left
@@ -40,7 +58,54 @@ class BoundingBox:
         return f"BoundingBox(left={self.left}, bottom={self.bottom}, right={self.right}, top={self.top})"
 
 
-class Data(ABC):
+# TODO: rename 'bounds' as 'bbox' to be consistent with pyproj documentation 
+
+
+class GeoBase(ABC):
+
+    def __init__(self):
+        super().__init__()
+
+    @property
+    def crs(self):
+        return None
+
+    @classmethod
+    def open(cls, filename, **kwargs):
+        """Open the data from a file."""
+        raise NotImplementedError(f"This method is currently not supported for geolabel_maker version {__version__}")
+
+    def save(self, out_file):
+        """Save the data to the disk."""
+        raise NotImplementedError(f"This method is currently not supported for geolabel_maker version {__version__}")
+
+    @abstractmethod
+    def to_crs(self, crs, **kwargs):
+        """Project the geo data in another system."""
+        raise NotImplementedError(f"This method is currently not supported for geolabel_maker version {__version__}")
+
+    @abstractmethod
+    def get_bounds(self):
+        """Get the geographic extent of the data."""
+        raise NotImplementedError(f"This method is currently not supported for geolabel_maker version {__version__}")
+
+    def plot_bounds(self, **kwargs):
+        """Plot the geographic extent of the data."""
+        raise NotImplementedError(f"This method is currently not supported for geolabel_maker version {__version__}")
+
+    def plot(self, axes=None, figsize=None, label=None, **kwargs):
+        """Plot the the data."""
+        raise NotImplementedError(f"This method is currently not supported for geolabel_maker version {__version__}")
+
+    def inner_repr(self):
+        """Inner representation of the data."""
+        return ""
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.inner_repr()})"
+
+
+class GeoData(GeoBase):
     r"""
     Abstract class used to wraps rasters, categories and other data related elements.
 
@@ -51,36 +116,26 @@ class Data(ABC):
     """
 
     def __init__(self, data, filename=None):
+        super().__init__()
         self.data = data
-        self._filename = str(filename) if filename else None
+        self._filename = str(Path(filename)) if filename else None
 
     @property
     def filename(self):
         return self._filename
 
-    @classmethod
-    def open(cls, filename, *args, **kwargs):
-        """Open the data from a file.
+    @abstractmethod
+    def crop(self, bbox):
+        """Crop the data from a bounding box.
+
+        .. note::
+            The bounding box coordinates should be in the same system as the raster extent.
 
         Args:
-            filename (str): Path to the file.
-
-        Returns:
-            Data
+            bbox (tuple): Bounding box used to crop the rasters,
+                in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
         """
-        raise NotImplementedError
-
-    def save(self, out_file):
-        """Save the data to the disk.
-
-        Args:
-            out_file (str): name of the saved file.
-        """
-        raise NotImplementedError
-
-    def get_bounds(self):
-        """Get the total bounds of the data."""
-        raise NotImplementedError
+        NotImplementedError(f"This method is currently not supported for geolabel_maker version {__version__}")
 
     def plot_bounds(self, axes=None, figsize=None, label=None, **kwargs):
         """Plot the geographic extent of the data.
@@ -117,22 +172,28 @@ class Data(ABC):
         """
         return self.plot_bounds(axes=axes, figsize=figsize, label=label, **kwargs)
 
-    def inner_repr(self):
-        """Inner representation of the data."""
-        return ""
-
     def __repr__(self):
-        return f"{self.__class__.__name__}({self.inner_repr()})"
+        rep = f"{self.__class__.__name__}("
+        # Add the filename, if exists
+        if self.filename:
+            rep += f"filename='{self.filename}', "
+        rep += f"{self.inner_repr()}"
+        # Add the CRS, if exists
+        if self.crs:
+            rep += f", crs=EPSG:{CRS(self.crs).to_epsg()}"
+        rep += ")"
+        return rep
 
 
-class DataCollection(ABC):
-    """An abstract class used to store a list of ``Data``.
+class GeoCollection(GeoBase):
+    """An abstract class used to store a collection of ``Data``.
 
     """
 
     def __init__(self, *items):
+        super().__init__()
         self._items = []
-        if isinstance(items, Data):
+        if isinstance(items, GeoData):
             items = [items]
         elif isinstance(items, (list, tuple)) and len(items) == 1:
             items = items[0]
@@ -140,14 +201,29 @@ class DataCollection(ABC):
             items = []
         self.extend(items)
 
+    @property
+    def crs(self):
+        crs = None
+        for value in self._items:
+            if crs is None:
+                crs = CRS(value.crs)
+            elif value.crs and crs and CRS(value.crs) != crs:
+                error_msg = f"The CRS values of the {self.__class__.__name__} are different: " \
+                            f"got EPSG:{CRS(value.crs).to_epsg()} != EPSG:{crs.to_epsg()}."
+                warnings.warn(error_msg, RuntimeWarning)
+                logger.warning(error_msg)
+        return crs      
+
+    @abstractmethod
     def append(self, value):
         """Add a new value to the collection.
 
         Args:
             value (Data): The data to add.
         """
-        raise NotImplementedError
+        raise NotImplementedError(f"This method is currently not supported for geolabel_maker version {__version__}")
 
+    @abstractmethod
     def insert(self, index, value):
         """Insert a value at a specific index.
 
@@ -155,8 +231,9 @@ class DataCollection(ABC):
             index (int): index of the list.
             value (Data): Data to insert.
         """
-        raise NotImplementedError
+        raise NotImplementedError(f"This method is currently not supported for geolabel_maker version {__version__}")
 
+    @abstractmethod
     def extend(self, values):
         """Add a list of data to the collection.
 
@@ -209,12 +286,28 @@ class DataCollection(ABC):
         """Create a copy of the collection.
 
         Returns:
-            DataCollection
+            GeoCollection
         """
         return self.__class__(self._items.copy())
 
+    def to_crs(self, crs, **kwargs):
+        """Project all values of the collection to `CRS`.
+
+        Args:
+            crs (int, str, pyproj.crs.CRS): Destination `CRS`.
+
+        Returns:
+            GeoCollection
+        """
+        collection = self.__class__()
+        for value in self._items:                
+            if not value.crs or CRS(value.crs) != CRS(crs):
+                value = value.to_crs(crs, **kwargs)
+            collection.append(value)
+        return collection
+
     def get_bounds(self):
-        """Get the total bounds of the collection."""
+        """Get the total geographic extent of the collection."""
         # If the collection is empty
         if len(self) == 0:
             return None

@@ -23,18 +23,19 @@ This module handles georeferenced raster image (usually ``.tif`` image).
 from tqdm import tqdm
 from itertools import product
 from pathlib import Path
+import json
 import rasterio
 from rasterio.io import MemoryFile
-from rasterio.enums import Resampling
+from rasterio.warp import calculate_default_transform, reproject, Resampling
 import gdal2tiles
-import json
+from pyproj.crs import CRS
 from shapely.geometry import box
 import geopandas as gpd
 import matplotlib.pyplot as plt
 
 # Geolabel Maker
 from .sentinelhub import SentinelHubAPI
-from geolabel_maker.data import Data, DataCollection, BoundingBox
+from geolabel_maker.data import GeoData, GeoCollection, BoundingBox
 from geolabel_maker.logger import logger
 
 
@@ -118,7 +119,7 @@ def _check_raster(element):
     return True
 
 
-class Raster(Data):
+class Raster(GeoData):
     r"""Defines a georeferenced image. This class encapsulates ``rasterio`` dataset,
     and defines custom auto-download and processing methods, to work with `geolabel_maker`.
 
@@ -128,8 +129,11 @@ class Raster(Data):
 
     def __init__(self, data, filename=None):
         _check_rasterio(data)
-        filename = filename or "raster.tif"
         super().__init__(data, filename=filename)
+
+    @property
+    def crs(self):
+        return CRS(self.data.crs)
 
     @classmethod
     def open(cls, filename):
@@ -193,9 +197,9 @@ class Raster(Data):
             "dtype": str(array.dtype)
         })
         memfile = MemoryFile()
-        data = memfile.open(**out_profile)
-        data.write(array)
-        return Raster(data, filename=filename)
+        out_data = memfile.open(**out_profile)
+        out_data.write(array)
+        return Raster(out_data, filename=filename)
 
     @classmethod
     def from_postgis(cls, *args, **kwargs):
@@ -252,8 +256,7 @@ class Raster(Data):
             "height": out_height,
             "transform": out_transform
         })
-        filename = Path(self.filename).parent / f"{Path(self.filename).stem}-rescaled{Path(self.filename).suffix}"
-        return self.from_array(out_data, filename=filename, **out_profile)
+        return self.from_array(out_data, filename=self.filename, **out_profile)
 
     def zoom(self, zoom):
         """Rescale the raster on a `zoom` level. 
@@ -283,6 +286,44 @@ class Raster(Data):
         y_factor = y_res / ZOOM2RES[zoom]
         factor = min(x_factor, y_factor)
         return self.rescale(factor)
+
+    def to_crs(self, crs, **profile):
+        """Project the raster from its initial `CRS` to another one.
+
+        .. note::
+            This method will create an in-memory raster.
+
+        Args:
+            crs (str, int, rasterio.crs.CRS): The destination `CRS`.
+
+        Returns:
+            Raster
+        """
+        transform, width, height = calculate_default_transform(
+            self.data.crs, crs, self.data.width, self.data.height, *self.data.bounds
+        )
+        out_profile = self.data.profile.copy()
+        out_profile.update({
+            "crs": crs,
+            "transform": transform,
+            "width": width,
+            "height": height,
+            **profile
+        })
+
+        memfile = MemoryFile()
+        out_data = memfile.open(**out_profile)
+        
+        for i in range(1, self.data.count + 1):
+            reproject(
+                source=rasterio.band(self.data, i),
+                destination=rasterio.band(out_data, i),
+                src_transform=self.data.transform,
+                src_crs=self.data.crs,
+                dst_transform=transform,
+                dst_crs=crs
+            )
+        return Raster(out_data, filename=self.filename)
 
     def generate_tiles(self, out_dir="tiles", **kwargs):
         r"""Create tiles from a raster file (using GDAL)
@@ -368,8 +409,7 @@ class Raster(Data):
             "width": out_array.shape[2],
             "transform": out_transform
         })
-        filename = Path(self.filename).parent / f"{Path(self.filename).stem}-cropped{Path(self.filename).suffix}"
-        return self.from_array(out_array, filename=filename, **out_profile)
+        return self.from_array(out_array, filename=self.filename, **out_profile)
 
     def crop_category(self, category):
         """Crop a raster from a ``Category``.
@@ -408,10 +448,10 @@ class Raster(Data):
         return axes
 
     def inner_repr(self):
-        return f"filename='{self.filename or 'None'}', bbox={tuple(self.data.bounds)}, crs={self.data.crs}"
+        return f"bounds={tuple(self.data.bounds)}"
 
 
-class RasterCollection(DataCollection):
+class RasterCollection(GeoCollection):
     r"""
     Defines a collection of ``Raster``.
     This class behaves similarly as a ``list``, excepts it is made only of ``Raster``.

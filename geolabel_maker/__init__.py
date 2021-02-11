@@ -14,9 +14,9 @@ import os
 # Geolabel Maker
 from .dataset import Dataset
 
+
 # Global variables
 HERE = os.path.abspath(os.path.dirname(__file__))
-DISABLE_SPEEDUPS = False
 
 
 __version__ = open(os.path.join(HERE, "VERSION.md")).read().strip()
@@ -24,8 +24,3 @@ __all__ = (
     "__version__",
     "Dataset"
 )
-
-# if DISABLE_SPEEDUPS:
-#     speedups.disable()
-# else:
-#     speedups.enable()

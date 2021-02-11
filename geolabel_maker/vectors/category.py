@@ -28,13 +28,15 @@ The class ``Category`` wraps the ``GeoDataFrame`` class from ``geopandas`` and a
 """
 
 # Basic imports
+import warnings
 from pathlib import Path
+from pyproj.crs import CRS
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
 # Geolabel Maker
-from geolabel_maker.data import Data, DataCollection, BoundingBox
+from geolabel_maker.data import GeoData, GeoCollection, BoundingBox
 from geolabel_maker.vectors.color import Color
 from geolabel_maker.vectors.overpass import OverpassAPI
 from geolabel_maker.logger import logger
@@ -92,7 +94,7 @@ def _check_category(element):
     return True
 
 
-class Category(Data):
+class Category(GeoData):
     r"""
     A category is a set of vectors (or geometries) corresponding to the same geographic element.
     A category must have a name (e.g. ``"buildings"``) and a RGB color (e.g. ``(255, 255, 255)``),
@@ -111,10 +113,20 @@ class Category(Data):
 
     def __init__(self, data, name, color=None, filename=None):
         _check_geopandas(data)
-        filename = filename or "category.json"
         super().__init__(data, filename=filename)
         self.name = name
         self._color = Color.get(color) if color else Color.random()
+
+    @property
+    def crs(self):
+        try:
+            return CRS(self.data.crs)
+        except:
+            error_msg = f"There are no CRS for the category {self.name}. " \
+                        f"Maybe its in geographic coordinates, or try using `to_crs()` method."
+            warnings.warn(error_msg, RuntimeWarning)
+            logger.warning(error_msg)
+            return None
 
     @property
     def color(self):
@@ -196,6 +208,10 @@ class Category(Data):
     def save(self, out_file):
         self.data.to_file(out_file, driver="GeoJSON")
 
+    def to_crs(self, crs, **kwargs):
+        data = self.data.to_crs(crs, **kwargs)
+        return Category(data, self.name, self.color, filename=self.filename)
+
     def crop(self, bbox):
         r"""Get the geometries which are in a bounding box.
 
@@ -227,7 +243,7 @@ class Category(Data):
         Ymax = min(Ymax, YCmax)
         sub_data = self.data.cx[Xmin:Xmax, Ymin:Ymax]
 
-        return Category(sub_data, self.name, color=self.color)
+        return Category(sub_data, self.name, color=self.color, filename=self.filename)
 
     def crop_raster(self, raster):
         """Get the geometries which are in the image's extent.
@@ -249,9 +265,7 @@ class Category(Data):
         raster_data = raster.data
         bounds = tuple(raster_data.bounds)
 
-        # Read vector file
-        data = self.data.to_crs(raster_data.crs)
-        category = Category(data, self.name, color=self.color)
+        category = self.to_crs(raster_data.crs)
         return category.crop(bounds)
 
     def get_bounds(self):
@@ -277,10 +291,10 @@ class Category(Data):
 
     def inner_repr(self):
         rows, cols = self.data.shape
-        return f"data=GeoDataFrame({rows} rows, {cols} columns), name='{self.name}', color={self.color}"
+        return f"data=GeoDataFrame({rows} rows, {cols} columns), name='{self.name}', color={tuple(self.color)}"
 
 
-class CategoryCollection(DataCollection):
+class CategoryCollection(GeoCollection):
     r"""
     Defines a collection of ``Category``.
     This class behaves similarly as a ``list``, excepts it is made only of ``Category``.
