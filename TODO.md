@@ -2,16 +2,13 @@
 
 ## Important
 
--   Add abstract `Data`class and `DataCollection`
-    -   `items` to private `_items`
--   Update `RasterCollection` and `CategoryCollection` class
--   Add abstract `Annotation` or `GroundTruth` labels
--   Update `rescale()` from `Raster`
-    -   Add `zoom(...)` method
-        -   Rescale with the equivalence resolution = m / pixel from https://wiki.openstreetmap.org/wiki/Zoom_levels
 -   Optimize `generate_label()`
 -   `Classification`
 -   `ObjectDetection` or `YOLO`
+-   Crop with rotation (currently not supported, will crop on a regular cartesian grid)
+-   Fix `filename` issues.
+    - Can occur if the `GeoData` is generated from scratch instead of being loaded from a file from the disk
+        - Will raise an error if any methods that need to read / write the data because `filename` is unknown
 
 ## Applications
 
