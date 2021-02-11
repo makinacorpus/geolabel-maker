@@ -9,6 +9,8 @@
 -   Fix `filename` issues.
     - Can occur if the `GeoData` is generated from scratch instead of being loaded from a file from the disk
         - Will raise an error if any methods that need to read / write the data because `filename` is unknown
+-   BoundingBox: add ``contains`` method and other utilities
+
 
 ## Applications
 
