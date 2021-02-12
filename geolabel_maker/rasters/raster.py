@@ -27,6 +27,7 @@ import json
 import rasterio
 from rasterio.io import MemoryFile
 from rasterio.warp import calculate_default_transform, reproject, Resampling
+from osgeo import gdal
 import gdal2tiles
 from pyproj.crs import CRS
 from shapely.geometry import box
@@ -163,7 +164,7 @@ class Raster(GeoData):
         Args:
             username (str): SciHub username.
             password (str): SciHub pasword.
-            bbox (tuple): A bounding box in the format :math:`(lat_{min}, lon_{min}, lat_{max}, lon_{max})`.
+            bbox (tuple): A bounding box in the format :math:`(lon_{min}, lat_{min}, lon_{max}, lat_{max})`.
             kwargs (dict): Remaining arguments from ``SentinelHubAPI.download()`` method.
 
         Returns:
@@ -339,6 +340,7 @@ class Raster(GeoData):
             >>> raster = Raster.open("raster.tif")
             >>> raster.generate_tiles(out_dir="tiles")
         """
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
         gdal2tiles.generate_tiles(self.filename, out_dir, **kwargs)
 
     def generate_mosaic(self, zoom=None, width=256, height=256, is_full=True, out_dir="mosaic"):
@@ -527,3 +529,23 @@ class RasterCollection(GeoCollection):
             except ValueError as error:
                 logger.error(f"Could not crop raster '{raster.filename}': {error}")
         return cropped
+
+    def generate_vrt(self, out_file):
+        """Builds a virtual raster from a list of rasters.
+
+        Args:
+            filename (str): Name of the output virtual raster.
+            rasters (list): List of rasters to be merged.
+
+        Returns:
+            str: Path to the VRT file.
+
+        Examples:
+            >>> tile1 = Raster.open("tile1.tif")
+            >>> tile2 = Raster.open("tile2.tif")
+            >>> generate_vrt("tiles.vrt", [tile1, tile2])
+        """
+        raster_files = [str(raster.filename) for raster in self._items]
+        ds = gdal.BuildVRT(str(out_file), raster_files)
+        ds.FlushCache()
+        return out_file

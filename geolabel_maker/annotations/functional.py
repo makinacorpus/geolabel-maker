@@ -140,7 +140,8 @@ def extract_categories(label_file, categories, **kwargs):
     Examples:
         >>> dataset = Dataset.open("data")
     """
-    image_array = np.array(Image.open(str(label_file)))
+    image = Image.open(str(label_file)).convert("RGB")
+    image_array = np.array(image)
     color2name = {tuple(category.color): category.name for category in categories}
     colors = color2name.keys()
     categories_extracted = []

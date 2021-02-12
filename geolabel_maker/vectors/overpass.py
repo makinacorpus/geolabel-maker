@@ -54,7 +54,7 @@ class OverpassAPI:
         A ``selector`` can be used to retrieve specific areas / regions of interests.
 
         Args:
-            bbox (tuple): Bounding box in the format :math:`(lat_{min}, lon_{min}, lat_{max}, lon_{max})`.
+            bbox (tuple): Bounding box in the format :math:`(lon_{min}, lat_{min}, lon_{max}, lat_{max})`.
             selector (str, optional): Seclector used to retrieve parts of data. This could be buildings, offices, farms etc.
                 See the OSM documentation for more details of the available options.
                 Defaults to ``'"building"'``.
@@ -69,11 +69,11 @@ class OverpassAPI:
             >>> api = OverpassAPI()
             >>> api.download((48.0, 2.0, 48.1, 2.1), selector="building", out_file="buildings.json")
         """
-        lat_min, lon_min, lat_max, lon_max = bbox
+        lon_min, lat_min, lon_max, lat_max = bbox
         query = f"""
             [out:json][timeout:{timeout}];
-            (relation[{selector}]({lat_min},{lon_min},{lat_max},{lon_max});
-            way[{selector}]({lat_min},{lon_min},{lat_max},{lon_max});
+            (relation[{selector}]({lon_min},{lat_min},{lon_max},{lat_max});
+            way[{selector}]({lon_min},{lat_min},{lon_max},{lat_max});
             );
             out body;
             >;

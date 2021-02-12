@@ -163,7 +163,7 @@ class Category(GeoData):
 
         Args:
             bbox (tuple): Bounding box used to retrieve geometries, 
-                in the format :math:`(lat_{min}, lon_{min}, lat_{max}, lon_{max})`.
+                in the format :math:`(lon_{min}, lat_{min}, lon_{max}, lat_{max})`.
             kwargs (dict): Arguments used in the ``OverpassAPI`` download method.
 
         Returns:

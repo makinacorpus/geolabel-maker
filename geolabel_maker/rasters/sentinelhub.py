@@ -61,7 +61,7 @@ class SentinelHubAPI:
             Read `SentinelHub <https://docs.sentinel-hub.com/api/latest/>`__ API documentation for further details.
 
         Args:
-            bbox (tuple): A bounding box in the format :math:`(lat_{min}, lon_{min}, lat_{max}, lon_{max})`.
+            bbox (tuple): A bounding box in the format :math:`(lon_{min}, lat_{min}, lon_{max}, lat_{max})`.
             date (str, datetime or tuple, optional): The date (range) to download images. Defaults to ``None``.
             platformname (str, optional): Name of the satellite constellation. Default to ``"Sentinel-2"``.
             processinglevel (str, optional): Level of processing, product quality. Default to ``"Level-2A"``.
@@ -92,8 +92,8 @@ class SentinelHubAPI:
         logger.info("Successfully connected.")
 
         # Retrieve the area of interest in WKT format
-        lat_min, lon_min, lat_max, lon_max = bbox
-        footprint = f"POLYGON(({lon_max} {lat_min},{lon_min} {lat_min},{lon_min} {lat_max},{lon_max} {lat_max},{lon_max} {lat_min}))"
+        lon_min, lat_min, lon_max, lat_max = bbox
+        footprint = f"POLYGON(({lat_max} {lon_min},{lat_min} {lon_min},{lat_min} {lon_max},{lat_max} {lon_max},{lat_max} {lon_min}))"
 
         # Make date range
         if date is None:

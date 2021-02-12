@@ -10,9 +10,7 @@
 r"""
 Functions used to interact with ``Raster`` objects, 
 like the creation of virtual images or merging tiles.
-
 .. code-block:: python
-
     from geolabel_maker.rasters import Raster
     from geolabel_maker.vectors import Vector
     from geolabel_maker.functional import *
@@ -30,13 +28,18 @@ like the creation of virtual images or merging tiles.
     tile1 = Raster.open("tile1.tif")
     tile2 = Raster.open("tile2.tif")
     merge_rasters("tiles.tif", [tile1, tile2])
-
 """
 
 # Basic imports
 from pathlib import Path
 from osgeo import gdal
 import gdal2tiles
+
+
+__all__ = [
+    "generate_tiles",
+    "generate_vrt"
+]
 
 
 def generate_tiles(filename, out_dir="tiles", **kwargs):
