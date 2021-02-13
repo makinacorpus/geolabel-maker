@@ -35,6 +35,7 @@ import os
 from pathlib import Path
 from osgeo import gdal
 import gdal2tiles
+import rasterio
 
 
 __all__ = [
@@ -43,7 +44,7 @@ __all__ = [
 ]
 
 
-def generate_tiles(out_dir, filename, **kwargs):
+def generate_tiles(out_dir, in_file, **kwargs):
     r"""Create tiles from a raster file (using GDAL)
 
     .. note::
@@ -52,21 +53,21 @@ def generate_tiles(out_dir, filename, **kwargs):
 
     Args:
         out_dir (str, optional): Path to the directory where the tiles will be saved.
-        filename (str): Name of the raster file used to generate tiles.
+        in_file (str): Name of the raster file used to generate tiles.
 
     Examples:
         >>> generate_tiles("raster.tif", out_dir="tiles")
     """
     Path(out_dir).mkdir(parents=True, exist_ok=True)
-    gdal2tiles.generate_tiles(str(filename), out_dir, **kwargs)
+    gdal2tiles.generate_tiles(str(in_file), str(out_dir), **kwargs)
 
 
-def generate_vrt(out_file, rasters):
+def generate_vrt(out_file, in_files):
     """Builds a virtual raster from a list of rasters.
 
     Args:
         out_file (str): Name of the output virtual raster.
-        rasters (list): List of rasters to be merged.
+        in_files (list): List of rasters paths to be merged.
 
     Returns:
         str: Path to the VRT file.
@@ -76,22 +77,21 @@ def generate_vrt(out_file, rasters):
         >>> tile2 = Raster.open("tile2.tif")
         >>> generate_vrt("tiles.vrt", [tile1, tile2])
     """
-    raster_files = [str(raster.filename) for raster in rasters]
-    ds = gdal.BuildVRT(str(out_file), raster_files)
+    in_files = list(map(str, in_files))
+    ds = gdal.BuildVRT(str(out_file), in_files)
     ds.FlushCache()
     return out_file
 
 
-def merge(out_file, in_file, driver="GTiff", compress="jpeg", photometric="ycbcr", tiled=True, **kwargs):
+def merge(out_file, in_file, driver="GTiff", compress=None, photometric="rgb", tiled=False, **kwargs):
     command = ["gdal_translate"]
     if driver:
         command.extend(["-of", driver])
     if compress:
         command.extend(["-co", f"COMPRESS={compress.upper()}"])
     if photometric:
-        command.extend(["-co", f"PHOTOMETRIC={compress.upper()}"])
+        command.extend(["-co", f"PHOTOMETRIC={photometric.upper()}"])
     if tiled:
-        command.extend(["-co", f"TILED={compress.upper()}"])
-    command.extend([in_file, out_file])
-    print(command)
+        command.extend(["-co", f"TILED=YES"])
+    command.extend([str(in_file), str(out_file)])
     os.system(" ".join(command))

@@ -591,11 +591,11 @@ class Dataset(GeoBase):
         # Make virtual images
         if make_images:
             out_file = Path(self.root) / "images.vrt"
-            images_vrt = generate_vrt(str(out_file), self.images, **kwargs)
+            images_vrt =  self.images.generate_vrt(str(out_file), **kwargs)
         # Make virtual labels
         if make_labels:
             out_file = Path(self.root) / "labels.vrt"
-            labels_vrt = generate_vrt(str(out_file), self.labels, **kwargs)
+            labels_vrt = self.labels.generate_vrt(str(out_file), **kwargs)
 
         # Return the path to the created files
         if not labels_vrt:
