@@ -58,10 +58,12 @@ class BoundingBox:
         return f"BoundingBox(left={self.left}, bottom={self.bottom}, right={self.right}, top={self.top})"
 
 
-# TODO: rename 'bounds' as 'bbox' to be consistent with pyproj documentation 
-
-
 class GeoBase(ABC):
+    """Abstract architecture for all geographic elements.
+
+    * :attr:`crs` (pyproj.crs.CRS): CRS projection of the element.
+
+    """
 
     def __init__(self):
         super().__init__()
@@ -71,10 +73,12 @@ class GeoBase(ABC):
         return None
 
     @classmethod
+    @abstractmethod
     def open(cls, filename, **kwargs):
         """Open the data from a file."""
         raise NotImplementedError(f"This method is currently not supported for geolabel_maker version {__version__}")
 
+    @abstractmethod
     def save(self, out_file):
         """Save the data to the disk."""
         raise NotImplementedError(f"This method is currently not supported for geolabel_maker version {__version__}")
@@ -122,7 +126,7 @@ class GeoData(GeoBase):
 
     @property
     def filename(self):
-        return self._filename
+        return self._filename        
 
     @abstractmethod
     def crop(self, bbox):

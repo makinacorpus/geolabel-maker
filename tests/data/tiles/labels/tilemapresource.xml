@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
     <TileMap version="1.0.0" tilemapservice="http://tms.osgeo.org/1.0.0">
-      <Title>labels.vrt</Title>
+      <Title>.raster-collection.vrt</Title>
       <Abstract></Abstract>
       <SRS>EPSG:3857</SRS>
       <BoundingBox minx="4.83824828670710" miny="45.74714262298080" maxx="4.83905574669321" maxy="45.74770824295649"/>

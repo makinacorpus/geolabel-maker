@@ -30,7 +30,6 @@ import os
 from pathlib import Path
 from osgeo import gdal
 import gdal2tiles
-import rasterio
 
 
 __all__ = [

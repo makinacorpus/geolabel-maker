@@ -122,11 +122,17 @@ def _check_raster(element):
     return True
 
 
+class RasterBase(GeoData):
+    pass
+
+
 class Raster(GeoData):
     r"""Defines a georeferenced image. This class encapsulates ``rasterio`` dataset,
     and defines custom auto-download and processing methods, to work with `geolabel_maker`.
 
     * :attr:`data` (rasterio.io.DatasetReader): The ``rasterio`` data corresponding to a georeferenced image.
+
+    * :attr:`filename` (str): Name of the raster image.
 
     """
 
@@ -136,7 +142,7 @@ class Raster(GeoData):
 
     @property
     def crs(self):
-        return CRS(self.data.crs)
+        return CRS(self.data.crs)   
 
     @classmethod
     def open(cls, filename):
@@ -199,6 +205,7 @@ class Raster(GeoData):
             "width": array.shape[-1],
             "dtype": str(array.dtype)
         })
+
         memfile = MemoryFile()
         out_data = memfile.open(**out_profile)
         out_data.write(array)
@@ -210,10 +217,16 @@ class Raster(GeoData):
         raise NotImplementedError
 
     def save(self, out_file, window=None, **profile):
-        """Save the raster to the disk.
+        r"""Save the raster to the disk.
 
         Args:
             out_file (str): Name of the file to be saved.
+            window (rasterio.Window, optional): Output window. Defaults to ``None``.
+            profile (dict): Profile parameters from ``rasterio``.
+
+        Examples:
+            >>> raster = Raster.open("tile.tif")
+            >>> raster.save("tile2.tif")
         """
         out_profile = self.data.profile.copy()
         out_profile.update({**profile})
@@ -221,11 +234,11 @@ class Raster(GeoData):
             dst.write(self.data.read(window=window))
 
     def rescale(self, factor, resampling="bilinear"):
-        """Rescale the geo-referenced image. The result is the rescaled data and 
+        r"""Rescale the geo-referenced image. The result is the rescaled data and 
         the associated transformation.
 
         .. warning::
-            This operation will return a ``Raster`` with no filename.
+            This operation create a ``Raster`` in memory.
 
         Args:
             factor (float): Rescale factor.
@@ -239,8 +252,8 @@ class Raster(GeoData):
             >>> raster = Raster.open("tile.tif")
             >>> raster.data.shape
                 (3, 256, 256)
-            >>> out_data, out_transform = raster.rescale(factor=2)
-            >>> out_data.shape
+            >>> out_raster = raster.rescale(factor=2)
+            >>> out_raster.data.shape
                 (3, 512, 512)
         """
         out_count = self.data.count
@@ -259,10 +272,11 @@ class Raster(GeoData):
             "height": out_height,
             "transform": out_transform
         })
-        return self.from_array(out_data, filename=self.filename, **out_profile)
+        
+        return self.from_array(out_data, **out_profile)
 
-    def zoom(self, zoom):
-        """Rescale the raster on a `zoom` level. 
+    def zoom(self, zoom, **kwargs):
+        r"""Rescale the raster on a `zoom` level. 
         The levels used are from `Open Street Map <https://wiki.openstreetmap.org/wiki/Zoom_levels>`__.
 
         .. seealso::
@@ -288,16 +302,16 @@ class Raster(GeoData):
         x_factor = x_res / ZOOM2RES[zoom]
         y_factor = y_res / ZOOM2RES[zoom]
         factor = min(x_factor, y_factor)
-        return self.rescale(factor)
+        return self.rescale(factor, **kwargs)
 
     def to_crs(self, crs, **profile):
-        """Project the raster from its initial `CRS` to another one.
+        r"""Project the raster from its initial `CRS` to another one.
 
         .. note::
             This method will create an in-memory raster.
 
         Args:
-            crs (str, int, rasterio.crs.CRS): The destination `CRS`.
+            crs (str, pyproj.crs.CRS): The destination `CRS`.
 
         Returns:
             Raster
@@ -326,7 +340,51 @@ class Raster(GeoData):
                 dst_transform=transform,
                 dst_crs=crs
             )
-        return Raster(out_data, filename=self.filename)
+
+        return Raster(out_data)
+
+    def crop(self, bbox):
+        r"""Crop a raster from a bounding box.
+
+        .. note::
+            The bounding box coordinates should be in the same system as the raster extent.
+
+        Args:
+            bbox (tuple): Bounding box used to crop the rasters,
+                in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
+
+        Returns:
+            Raster
+        """
+        df_bounds = gpd.GeoDataFrame({"geometry": box(*bbox)}, index=[0], crs=self.data.crs)
+        # Format the bounding box in a format understood by rasterio
+        shape = json.loads(df_bounds.to_json())["features"][0]["geometry"]
+        out_array, out_transform = rasterio.mask.mask(self.data, shapes=[shape], crop=True)
+        out_profile = self.data.profile.copy()
+        out_profile.update({
+            "driver": "GTiff",
+            "height": out_array.shape[1],
+            "width": out_array.shape[2],
+            "transform": out_transform
+        })
+
+        return self.from_array(out_array, **out_profile)
+
+    def crop_category(self, category, **kwargs):
+        r"""Crop a raster from a ``Category``.
+
+        .. seealso::
+            See ``Raster.crop()`` for further details.
+
+        Args:
+            category (Category): Category used to crop the raster.
+
+        Returns:
+            Raster
+        """
+        data = category.data.to_crs(self.data.crs)
+        bbox = tuple(data.total_bounds)
+        return self.crop(bbox, **kwargs)
 
     def generate_tiles(self, out_dir="tiles", **kwargs):
         r"""Create tiles from a raster file (using GDAL)
@@ -346,7 +404,7 @@ class Raster(GeoData):
         gdal2tiles.generate_tiles(self.filename, out_dir, **kwargs)
 
     def generate_mosaic(self, zoom=None, width=256, height=256, is_full=True, out_dir="mosaic"):
-        """Generate a mosaic from the raster. 
+        r"""Generate a mosaic from the raster. 
         A mosaic is a division of the main raster into 'windows'.
         This method does not create slippy tiles.
 
@@ -389,53 +447,11 @@ class Raster(GeoData):
             out_raster.save(out_path, window=window, **out_profile)
         return out_dir
 
-    def crop(self, bbox):
-        """Crop a raster from a bounding box.
-
-        .. note::
-            The bounding box coordinates should be in the same system as the raster extent.
-
-        Args:
-            bbox (tuple): Bounding box used to crop the rasters,
-                in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
-
-        Returns:
-            Raster
-        """
-        df_bounds = gpd.GeoDataFrame({"geometry": box(*bbox)}, index=[0], crs=self.data.crs)
-        # Format the bounding box in a format understood by rasterio
-        shape = json.loads(df_bounds.to_json())["features"][0]["geometry"]
-        out_array, out_transform = rasterio.mask.mask(self.data, shapes=[shape], crop=True)
-        out_profile = self.data.profile.copy()
-        out_profile.update({
-            "driver": "GTiff",
-            "height": out_array.shape[1],
-            "width": out_array.shape[2],
-            "transform": out_transform
-        })
-        return self.from_array(out_array, filename=self.filename, **out_profile)
-
-    def crop_category(self, category):
-        """Crop a raster from a ``Category``.
-
-        .. seealso::
-            See ``Raster.crop()`` for further details.
-
-        Args:
-            category (Category): Category used to crop the raster.
-
-        Returns:
-            Raster
-        """
-        data = category.data.to_crs(self.data.crs)
-        bbox = tuple(data.total_bounds)
-        return self.crop(bbox)
-
     def get_bounds(self):
         return BoundingBox(*self.data.bounds)
 
     def plot(self, axes=None, figsize=None, **kwargs):
-        """Plot a raster.
+        r"""Plot a raster.
 
         Args:
             axes (matplotlib.AxesSubplot, optional): Axes used to show the raster. Defaults to ``None``.
@@ -464,6 +480,16 @@ class RasterCollection(GeoCollection):
 
     def __init__(self, *rasters):
         super().__init__(*rasters)
+
+    @classmethod
+    def open(cls, *filenames, **kwargs):
+        rasters = []
+        for filename in filenames:
+            rasters.append(Raster.open(filename, **kwargs))
+        return RasterCollection(*rasters)
+
+    def save(self, out_dir):
+        raise NotImplementedError
 
     def append(self, raster):
         r"""Add a ``Raster`` to the collection.
@@ -532,6 +558,8 @@ class RasterCollection(GeoCollection):
                 logger.error(f"Could not crop raster '{raster.filename}': {error}")
         return cropped
 
+    #! It is not possible to create VRT from in memory Rasters.
+    # TODO: Provide an alternative.
     def generate_vrt(self, out_file):
         """Builds a virtual raster from a list of rasters.
 
@@ -545,6 +573,54 @@ class RasterCollection(GeoCollection):
             >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif")
             >>> rasters.generate_vrt("tiles.vrt")
         """
-        raster_files = [str(raster.filename) for raster in self._items]
+        raster_files = []
+        for raster in self._items:
+            if not raster.filename:
+                raise ValueError("Could not access the raster from the disk. "
+                                 "This error may be raised if the raster was loaded from a temporary file. "
+                                 "You should save the rasters first before creating a virtual raster (use `.save()` method).")
+            raster_files.append(str(raster.filename))
         out_file = generate_vrt(raster_files, str(out_file))
         return out_file
+
+    def generate_mosaic(self, **kwargs):
+        """Generate a mosaic from the rasters. 
+        A mosaic is a division of the main raster into 'windows'.
+        This method does not create slippy tiles.
+
+        .. note::
+            If the output directory ``out_dir`` does not exist,
+            it will be created.
+
+        Args:
+            width (int, optional): The width of the window. Defaults to ``256``.
+            height (int, optional): The height of the window. Defaults to ``256``.
+            out_dir (str, optional): Path to the directory where the windows are saved. Defaults to ``"mosaic"``.
+
+        Examples:
+            >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif)
+            >>> rasters.generate_mosaic(width=256, height=256, out_dir="mosaic")
+        """
+        for raster in tqdm(self._items, desc="Generating Mosaics", leave=True, position=0):
+            raster.generate_mosaic(**kwargs)
+
+    def generate_tiles(self, out_dir="tiles", **kwargs):
+        r"""Create tiles from rasters (using GDAL).
+
+        .. note::
+            If the output directory ``out_dir`` does not exist,
+            it will be created.
+
+        Args:
+            out_dir (str, optional): Path to the directory where the tiles will be saved.
+
+        Examples:
+            >>> raster = Raster.open("raster.tif")
+            >>> raster.generate_tiles(out_dir="tiles")
+        """
+        # Create a virtual raster of all the files
+        rasters_vrt = self.generate_vrt(".raster-collection.vrt")
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        generate_tiles(rasters_vrt, out_dir, **kwargs)
+        # Remove the virtual raster
+        Path(rasters_vrt).unlink()

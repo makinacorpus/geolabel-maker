@@ -206,11 +206,28 @@ class Category(GeoData):
         return Category(data, name, color=color)
 
     def save(self, out_file):
+        """Save the category in `JSON` format.
+
+        Args:
+            out_file (str): Name of the output file.
+        """
         self.data.to_file(out_file, driver="GeoJSON")
 
     def to_crs(self, crs, **kwargs):
+        r"""Project the category from its initial `CRS` to another one.
+
+        .. note::
+            This method will create an in-memory category.
+
+        Args:
+            crs (str, pyproj.crs.CRS): The destination `CRS`.
+
+        Returns:
+            Category
+        """
         data = self.data.to_crs(crs, **kwargs)
-        return Category(data, self.name, self.color, filename=self.filename)
+        out_category = Category(data, self.name, self.color)
+        return out_category
 
     def crop(self, bbox):
         r"""Get the geometries which are in a bounding box.
@@ -310,6 +327,24 @@ class CategoryCollection(GeoCollection):
 
     def __init__(self, *categories):
         super().__init__(*categories)
+
+    @classmethod
+    def open(cls, *filenames, **kwargs):
+        r"""Open multiple categories.
+
+        Returns:
+            CategoryCollection
+
+        Examples:
+            >>> categories = CategoryCollection.open("buildings.json", "vegetation.json")
+        """
+        categories = []
+        for filename in filenames:
+            categories.append(Category.open(filename, **kwargs))
+        return CategoryCollection(*categories)
+
+    def save(self):
+        raise NotImplementedError
 
     def _make_unique_colors(self):
         """Make sure the categories have unique colors."""

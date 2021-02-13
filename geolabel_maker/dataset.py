@@ -62,6 +62,10 @@ class Dataset(GeoBase):
     r"""
     A ``Dataset`` is a combination of ``Raster`` and ``Category`` data.
 
+    .. note::
+        If a ``filename`` is provided,
+        every processing steps are saved in this configuration file.
+
     * :attr:`root` (str): Path to the root of the dataset.
 
     * :attr:`filename` (str): Name of the configuration file associated to the dataset.
@@ -82,9 +86,6 @@ class Dataset(GeoBase):
 
     * :attr:`labels` (list): Collection of raster labels (usually generated with ``generate_labels()``).
 
-    .. note::
-        Every processing steps are saved in the configuration file ``filename`` (default to ``dataset.json``).
-
     """
 
     def __init__(self, images=None, categories=None, labels=None,
@@ -101,8 +102,7 @@ class Dataset(GeoBase):
         self._images = RasterCollection(images)
         self._categories = CategoryCollection(categories)
         self._labels = RasterCollection(labels)
-        if filename:
-            self.save()
+        self.save()
 
     @property
     def crs(self):
@@ -122,6 +122,7 @@ class Dataset(GeoBase):
                             f"got EPSG:{crs.to_epsg()} != EPSG:{CRS(collection.crs).to_epsg()}."
                 warnings.warn(error_msg, RuntimeWarning)
                 logger.warning(error_msg)
+                return crs
         return crs
 
     @property
@@ -394,6 +395,10 @@ class Dataset(GeoBase):
             >>> dataset.save("some/other/directory/dataset.json")
         """
         self.filename = filename or self.filename
+        # Save if possible
+        if not self.filename:
+            return None
+
         config = self.to_dict(root=self.root, **kwargs)
         # If a previous configuration file exists, load it and overwrite only the items that changed.
         if Path(self.filename).exists():
@@ -407,6 +412,24 @@ class Dataset(GeoBase):
             json.dump(config, f, indent=4)
 
     def to_crs(self, crs, **kwargs):
+        """Project all elements in the dataset to ``crs``.
+
+        .. warning::
+            The returned dataset is loaded in memory, 
+            meaning it is not associated to a configuration ``filename``.
+
+        Args:
+            crs (str, pyproj.crs.CRS): Destination `CRS`.
+
+        Returns:
+            Dataset
+
+        Examples:
+            >>> dataset = Dataset.open("data/")
+            >>> dataset_proj = dataset.to_crs("EPSG:4326")
+            >>> dataset_proj.filename
+                None
+        """
         out_images = self.images.to_crs(crs, **kwargs)
         out_categories = self.categories.to_crs(crs, **kwargs)
         out_labels = self.labels.to_crs(crs, **kwargs)
@@ -505,7 +528,7 @@ class Dataset(GeoBase):
         # See the list of options and effects: https://gdal.org/drivers/raster/gtiff.html#creation-options
         # TODO: the profile option 'tiles' should be kept (usually tiles of 256x256) to reduce the output file's size.
         # TODO: if so, improve the segmentation method to retrieve contours from a tiled (compressed) image.
-        out_profile = raster.data.profile
+        out_profile = raster.data.profile.copy()
         out_profile = {
             "driver": "GTiff",
             "height": label_array.shape[1],  # numpy.array.shape[1] or PIL.Image.size[1],
@@ -518,18 +541,17 @@ class Dataset(GeoBase):
         }
 
         # Generate filename "raster-label.tif"
-        raster_path = Path(raster.filename)
-        out_name = f"{raster_path.stem}-label.tif"
+        out_name = f"{Path(raster.filename).stem}-label.tif"
         # Create the output directory if it does not exists
         out_dir = out_dir or "."
         Path(out_dir).mkdir(parents=True, exist_ok=True)
         out_path = Path(out_dir) / out_name
 
-        # Write the `tif` image
-        with rasterio.open(out_path, 'w', **out_profile) as dst:
-            dst.write(label_array.astype("uint8"))
+        # Save the label
+        out_raster = Raster.from_array(label_array.astype("uint8"), **out_profile)
+        out_raster.save(out_path)
 
-        return out_path
+        return str(out_path)
 
     def generate_labels(self, out_dir=None, **kwargs):
         r"""Generate labels from a set of ``images`` and ``categories``. 
@@ -553,12 +575,13 @@ class Dataset(GeoBase):
         Examples:
             >>> dataset = Dataset.open("data/")
             >>> dataset.generate_labels()
-            >>> # Labels generated in "data/labels" 
+            
+            The labels are generated in ``"data/labels" ``.
         """
-        # Initialize/Clean the labels attribute
+        # Clean previously generated labels
         self.labels = []
-        # Setting rasters / categories invalidate the associated directory. Update it.
         dir_labels = str(out_dir or self.dir_labels or Path(self.root) / "labels")
+
         # Generate and load the labels
         for image_idx, _ in enumerate(tqdm(self.images, desc="Generating Labels", leave=True, position=0)):
             label_path = self.generate_label(image_idx, out_dir=dir_labels, **kwargs)
@@ -591,7 +614,8 @@ class Dataset(GeoBase):
         # Make virtual images
         if make_images:
             out_file = Path(self.root) / "images.vrt"
-            images_vrt =  self.images.generate_vrt(str(out_file), **kwargs)
+            images_vrt = self.images.generate_vrt(str(out_file), **kwargs)
+
         # Make virtual labels
         if make_labels:
             out_file = Path(self.root) / "labels.vrt"
@@ -637,16 +661,16 @@ class Dataset(GeoBase):
         """
         dir_mosaics = str(out_dir or self.dir_mosaics or Path(self.root) / "mosaics")
         zoom_dir = str(zoom) if zoom else "original"
+
         # Generate mosaic from the images
         if make_images:
             out_dir = Path(dir_mosaics) / "images" / zoom_dir
-            out_dir.mkdir(parents=True, exist_ok=True)
             for image in tqdm(self.images, desc="Generating Image Mosaics", leave=True, position=0):
                 image.generate_mosaic(out_dir=out_dir, zoom=zoom, **kwargs)
+
         # Generate mosaic from the labels
         if make_labels:
             out_dir = Path(dir_mosaics) / "labels" / zoom_dir
-            out_dir.mkdir(parents=True, exist_ok=True)
             for label in tqdm(self.labels, desc="Generating Label Mosaics", leave=True, position=0):
                 label.generate_mosaic(out_dir=out_dir, zoom=zoom, **kwargs)
 
@@ -681,20 +705,18 @@ class Dataset(GeoBase):
             >>> dataset.generate_tiles(make_images=True, make_labels=True, zoom="14-16")
         """
         dir_tiles = str(out_dir or self.dir_tiles or Path(self.root) / "tiles")
+
         # Generate tiles from the images
         if make_images:
             logger.info(f"Generating Image Tiles at {str(Path(dir_tiles) / 'images')}")
-            images_vrt = self.generate_vrt(make_images=True, make_labels=False)
             out_dir_images = Path(dir_tiles) / "images"
-            out_dir_images.mkdir(parents=True, exist_ok=True)
-            generate_tiles(images_vrt, out_dir_images, **kwargs)
+            self.images.generate_tiles(out_dir_images, **kwargs)
+
         # Generate tiles from the labels
         if make_labels:
             logger.info(f"Generating Label Tiles at {str(Path(dir_tiles) / 'labels')}")
-            labels_vrt = self.generate_vrt(make_images=False, make_labels=True)
             out_dir_labels = Path(dir_tiles) / "labels"
-            out_dir_labels.mkdir(parents=True, exist_ok=True)
-            generate_tiles(labels_vrt, out_dir_labels, **kwargs)
+            self.labels.generate_tiles(out_dir_labels, **kwargs)
 
         self.dir_tiles = dir_tiles
         self.save()
@@ -721,6 +743,7 @@ class Dataset(GeoBase):
         category_color = category_color or "lightseagreen"
         axes = self.categories.plot_bounds(axes=axes, color=category_color, label="categories")
         axes = self.images.plot_bounds(axes=axes, color=image_color, label="images")
+
         # Plot the dataset bounding box
         bounds = self.get_bounds()
         x, y = box(*bounds).exterior.xy
@@ -741,23 +764,27 @@ class Dataset(GeoBase):
         Returns:
             matplotlib.AxesSubplot
         """
+        # Create matplotlib axes
         if not axes or figsize:
             _, axes = plt.subplots(figsize=figsize)
+
         dataset_color = dataset_color or "red"
         image_color = image_color or "steelblue"
         axes = self.categories.plot(axes=axes, label="categories", **kwargs)
         axes = self.images.plot_bounds(axes=axes, color=image_color, label="images", **kwargs)
+
         # Add the legend
         handles = [mpatches.Patch(facecolor=category.color.to_hex(), label=category.name) for category in self.categories]
         handles.append(mpatches.Patch(facecolor="white", edgecolor=image_color, label="images"))
         axes.legend(loc=1, handles=handles, frameon=True)
         plt.title(f"Dataset")
+
         return axes
 
     def __repr__(self):
         rep = f"Dataset("
         if self.root:
-            rep += f"\n  (root): '{self.root}'"            
+            rep += f"\n  (root): '{self.root}'"
         for key, value in self.__dict__.items():
             # Add images / categories / labels if provided
             if value and key[0] == "_":
