@@ -31,6 +31,7 @@ like the creation of virtual images or merging tiles.
 """
 
 # Basic imports
+import os
 from pathlib import Path
 from osgeo import gdal
 import gdal2tiles
@@ -42,7 +43,7 @@ __all__ = [
 ]
 
 
-def generate_tiles(filename, out_dir="tiles", **kwargs):
+def generate_tiles(out_dir, filename, **kwargs):
     r"""Create tiles from a raster file (using GDAL)
 
     .. note::
@@ -50,8 +51,8 @@ def generate_tiles(filename, out_dir="tiles", **kwargs):
         it will be created.
 
     Args:
-        filename (str): Name of the raster file used to generate tiles.
         out_dir (str, optional): Path to the directory where the tiles will be saved.
+        filename (str): Name of the raster file used to generate tiles.
 
     Examples:
         >>> generate_tiles("raster.tif", out_dir="tiles")
@@ -60,11 +61,11 @@ def generate_tiles(filename, out_dir="tiles", **kwargs):
     gdal2tiles.generate_tiles(str(filename), out_dir, **kwargs)
 
 
-def generate_vrt(filename, rasters):
+def generate_vrt(out_file, rasters):
     """Builds a virtual raster from a list of rasters.
 
     Args:
-        filename (str): Name of the output virtual raster.
+        out_file (str): Name of the output virtual raster.
         rasters (list): List of rasters to be merged.
 
     Returns:
@@ -76,6 +77,21 @@ def generate_vrt(filename, rasters):
         >>> generate_vrt("tiles.vrt", [tile1, tile2])
     """
     raster_files = [str(raster.filename) for raster in rasters]
-    ds = gdal.BuildVRT(str(filename), raster_files)
+    ds = gdal.BuildVRT(str(out_file), raster_files)
     ds.FlushCache()
-    return filename
+    return out_file
+
+
+def merge(out_file, in_file, driver="GTiff", compress="jpeg", photometric="ycbcr", tiled=True, **kwargs):
+    command = ["gdal_translate"]
+    if driver:
+        command.extend(["-of", driver])
+    if compress:
+        command.extend(["-co", f"COMPRESS={compress.upper()}"])
+    if photometric:
+        command.extend(["-co", f"PHOTOMETRIC={compress.upper()}"])
+    if tiled:
+        command.extend(["-co", f"TILED={compress.upper()}"])
+    command.extend([in_file, out_file])
+    print(command)
+    os.system(" ".join(command))

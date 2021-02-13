@@ -341,7 +341,7 @@ class Raster(GeoData):
             >>> raster.generate_tiles(out_dir="tiles")
         """
         Path(out_dir).mkdir(parents=True, exist_ok=True)
-        gdal2tiles.generate_tiles(self.filename, out_dir, **kwargs)
+        gdal2tiles.generate_tiles(out_dir, self.filename, **kwargs)
 
     def generate_mosaic(self, zoom=None, width=256, height=256, is_full=True, out_dir="mosaic"):
         """Generate a mosaic from the raster. 
