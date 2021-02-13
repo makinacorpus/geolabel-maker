@@ -55,7 +55,7 @@ class MapBoxAPI:
         else:
             return Path(tile_dir) / f"MAPBOX_{z}_{x}_{y}.{tile_format}"
 
-    def download_tile(self, x, y, z, high_res=False, out_file="mapbox.png"):
+    def download_tile(self, x, y, z, high_res=True, out_file="mapbox.png"):
         res = "@2x" if high_res else ""
         url = self.url.format(z=z, x=x, y=y, res=res, format="png", access_token=self.access_token)
         response = requests.get(url)
@@ -75,8 +75,8 @@ class MapBoxAPI:
         x, y = latlon2xyz(lat, lon, zoom)
         return self.download_tile(x, y, zoom, **kwargs)
 
-    def download(self, bbox, zoom, width=256, height=256, high_res=False, slippy_maps=False,
-                 out_format="tif", out_dir="mapbox", compress=None, photometric="rgb", tiled=False):
+    def download(self, bbox, zoom, width=256, height=256, high_res=True, slippy_maps=False,
+                 out_format="tif", out_dir="mapbox", compress="jpeg", photometric="ycbcr", tiled=True):
         """Download satellite images from `MapBox` API.
 
         Args:
@@ -87,7 +87,7 @@ class MapBoxAPI:
             height (int, optional): height of the downloaded image. The height must be a multiple of ``256``. 
                 Defaults to ``256``.
             high_res (bool, optional): If ``True`` will save slippy maps as image of shape :math:`(512, 512)`. *
-                If not, the shape is :math:`(256, 256)`. Defaults to ``False``. 
+                If not, the shape is :math:`(256, 256)`. Defaults to ``True``. 
             slippy_maps (bool, optional): If ``True``, save the images as slippy maps. Defaults to ``False``.
             out_format (str, optional): Output format of the files. Options are ``"png"`` or ``"tif"``. Defaults to ``"png"``.
             out_dir (str, optional): Path to the output directory. Defaults to ``"mapbox"``.
@@ -109,7 +109,7 @@ class MapBoxAPI:
                 mosaic_files = []
                 for x in range(x_mosaic, min(x_mosaic + x_range, x_max + 1)):
                     for y in range(y_mosaic, min(y_mosaic + y_range, y_max + 1)):
-                        # Download slippy maps in png format
+                        # Download slippy image in png format
                         tile_image = self.get_tile(x, y, zoom, slippy_maps=slippy_maps, tile_dir=out_dir, tile_format="png")
                         self.download_tile(x, y, zoom, high_res=high_res, out_file=tile_image)
                         # Georeference the image
@@ -117,13 +117,15 @@ class MapBoxAPI:
                             tile_geotiff = self.get_tile(x, y, zoom, slippy_maps=False, tile_dir=out_dir, tile_format=out_format)
                             tile_geotiff = self.georeference(x, y, zoom, tile_image, tile_geotiff)
                             mosaic_files.append(str(tile_geotiff))
+                        # Remove the slippy image
+                        if not slippy_maps:
+                            tile_image.unlink()
 
                 # Merge the georeferenced tiles
                 if out_format.lower() in ["tif", "tiff"]:
-                    out_mosaic = Path(out_dir) / f"MAPBOX_MOSAIC_{zoom}_{x}_{y}.tif"
-
                     # Merge the tiles for each mosaic
                     if len(mosaic_files) > 1:
+                        out_mosaic = Path(out_dir) / f"MAPBOX_MOSAIC_{zoom}_{x}_{y}.tif"
                         mosaic_vrt = out_mosaic.with_suffix(".vrt")
                         mosaic_vrt = generate_vrt(mosaic_vrt, mosaic_files)
                         merge(out_mosaic, mosaic_vrt, compress=compress, photometric=photometric, tiled=tiled)
