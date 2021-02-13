@@ -211,10 +211,7 @@ class MapBoxAPI:
                     # Merge the tiles for each mosaic
                     if len(mosaic_files) > 1:
                         out_mosaic = Path(out_dir) / f"MAPBOX_MOSAIC_{zoom}_{x}_{y}.tif"
-                        mosaic_vrt = out_mosaic.with_suffix(".vrt")
-                        mosaic_vrt = generate_vrt(mosaic_vrt, mosaic_files)
-                        merge(out_mosaic, mosaic_vrt, compress=compress, photometric=photometric, tiled=tiled)
-                        Path(mosaic_vrt).unlink()
+                        merge(mosaic_files, out_mosaic, compress=compress, photometric=photometric, tiled=tiled)
                         # Remove the georeferenced
                         for mosaic_file in mosaic_files:
                             Path(mosaic_file).unlink()

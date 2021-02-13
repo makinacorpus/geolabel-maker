@@ -36,6 +36,8 @@ import matplotlib.pyplot as plt
 
 # Geolabel Maker
 from .sentinelhub import SentinelHubAPI
+from .mapbox import MapBoxAPI
+from .functions import generate_vrt, generate_tiles
 from geolabel_maker.data import GeoData, GeoCollection, BoundingBox
 from geolabel_maker.logger import logger
 
@@ -314,7 +316,7 @@ class Raster(GeoData):
 
         memfile = MemoryFile()
         out_data = memfile.open(**out_profile)
-        
+
         for i in range(1, self.data.count + 1):
             reproject(
                 source=rasterio.band(self.data, i),
@@ -341,7 +343,7 @@ class Raster(GeoData):
             >>> raster.generate_tiles(out_dir="tiles")
         """
         Path(out_dir).mkdir(parents=True, exist_ok=True)
-        gdal2tiles.generate_tiles(out_dir, self.filename, **kwargs)
+        gdal2tiles.generate_tiles(self.filename, out_dir, **kwargs)
 
     def generate_mosaic(self, zoom=None, width=256, height=256, is_full=True, out_dir="mosaic"):
         """Generate a mosaic from the raster. 
@@ -430,7 +432,7 @@ class Raster(GeoData):
         return self.crop(bbox)
 
     def get_bounds(self):
-        return BoundingBox(*self.data.bounds)       
+        return BoundingBox(*self.data.bounds)
 
     def plot(self, axes=None, figsize=None, **kwargs):
         """Plot a raster.
@@ -534,18 +536,15 @@ class RasterCollection(GeoCollection):
         """Builds a virtual raster from a list of rasters.
 
         Args:
-            filename (str): Name of the output virtual raster.
-            rasters (list): List of rasters to be merged.
+            out_file (str): Name of the output virtual raster.
 
         Returns:
             str: Path to the VRT file.
 
         Examples:
-            >>> tile1 = Raster.open("tile1.tif")
-            >>> tile2 = Raster.open("tile2.tif")
-            >>> generate_vrt("tiles.vrt", [tile1, tile2])
+            >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif")
+            >>> rasters.generate_vrt("tiles.vrt")
         """
         raster_files = [str(raster.filename) for raster in self._items]
-        ds = gdal.BuildVRT(str(out_file), raster_files)
-        ds.FlushCache()
+        out_file = generate_vrt(raster_files, str(out_file))
         return out_file

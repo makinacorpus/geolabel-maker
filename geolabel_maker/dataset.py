@@ -687,14 +687,14 @@ class Dataset(GeoBase):
             images_vrt = self.generate_vrt(make_images=True, make_labels=False)
             out_dir_images = Path(dir_tiles) / "images"
             out_dir_images.mkdir(parents=True, exist_ok=True)
-            generate_tiles(out_dir_images, images_vrt, **kwargs)
+            generate_tiles(images_vrt, out_dir_images, **kwargs)
         # Generate tiles from the labels
         if make_labels:
             logger.info(f"Generating Label Tiles at {str(Path(dir_tiles) / 'labels')}")
             labels_vrt = self.generate_vrt(make_images=False, make_labels=True)
             out_dir_labels = Path(dir_tiles) / "labels"
             out_dir_labels.mkdir(parents=True, exist_ok=True)
-            generate_tiles(out_dir_labels, labels_vrt, **kwargs)
+            generate_tiles(labels_vrt, out_dir_labels, **kwargs)
 
         self.dir_tiles = dir_tiles
         self.save()

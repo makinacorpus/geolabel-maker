@@ -16,18 +16,13 @@ like the creation of virtual images or merging tiles.
     from geolabel_maker.functional import *
     
     # Generate tiles
-    raster = Raster.open("raster.tif")
-    generate_tiles(raster, "tiles")
+    generate_tiles("raster.tif", out_dir="tiles")
     
     # Generate virtual raster(s)
-    tile1 = Raster.open("tile1.tif")
-    tile2 = Raster.open("tile2.tif")
-    generate_vrt("tiles.vrt", [tile1, tile2])
+    generate_vrt("tiles.vrt", ["tile1.tif", "tile2.tif"])
     
     # Merge raster(s)
-    tile1 = Raster.open("tile1.tif")
-    tile2 = Raster.open("tile2.tif")
-    merge_rasters("tiles.tif", [tile1, tile2])
+    merge("tiles.tif", ["tile1.tif", "tile2.tif"])
 """
 
 # Basic imports
@@ -44,7 +39,7 @@ __all__ = [
 ]
 
 
-def generate_tiles(out_dir, in_file, **kwargs):
+def generate_tiles(in_file, out_dir, **kwargs):
     r"""Create tiles from a raster file (using GDAL)
 
     .. note::
@@ -52,8 +47,8 @@ def generate_tiles(out_dir, in_file, **kwargs):
         it will be created.
 
     Args:
-        out_dir (str, optional): Path to the directory where the tiles will be saved.
         in_file (str): Name of the raster file used to generate tiles.
+        out_dir (str, optional): Path to the directory where the tiles will be saved.
 
     Examples:
         >>> generate_tiles("raster.tif", out_dir="tiles")
@@ -62,8 +57,8 @@ def generate_tiles(out_dir, in_file, **kwargs):
     gdal2tiles.generate_tiles(str(in_file), str(out_dir), **kwargs)
 
 
-def generate_vrt(out_file, in_files):
-    """Builds a virtual raster from a list of rasters.
+def generate_vrt(in_files, out_file):
+    r"""Builds a virtual raster from a list of rasters.
 
     Args:
         out_file (str): Name of the output virtual raster.
@@ -73,9 +68,7 @@ def generate_vrt(out_file, in_files):
         str: Path to the VRT file.
 
     Examples:
-        >>> tile1 = Raster.open("tile1.tif")
-        >>> tile2 = Raster.open("tile2.tif")
-        >>> generate_vrt("tiles.vrt", [tile1, tile2])
+        >>> generate_vrt("tiles.vrt", ["tile1.tif", "tile2.tif"])
     """
     in_files = list(map(str, in_files))
     ds = gdal.BuildVRT(str(out_file), in_files)
@@ -83,7 +76,25 @@ def generate_vrt(out_file, in_files):
     return out_file
 
 
-def merge(out_file, in_file, driver="GTiff", compress=None, photometric="rgb", tiled=False, **kwargs):
+def merge(in_files, out_file, driver="GTiff", compress="jpeg", photometric="ycbcr", tiled=True):
+    r"""Merge multiple raster files with `GDAL`.
+
+    Args:
+        in_files (str): Path of the raster files to merge.
+        out_file (str): Name of the output file.
+        driver (str, optional): Name of the `GDAL` driver. Defaults to ``"GTiff"``.
+        compress (str, optional): Name of the `GDAL` compression mode. Defaults to ``"jpeg"``.
+        photometric (str, optional): Name of the `GDAL` pixel format. Defaults to ``"ycbcr"``.
+        tiled (bool, optional): If ``True``, tile the output raster to decrease file size. Defaults to ``True``.
+        
+    Examples:
+        >>> merge("tiles.tif", ["tile1.tif", "tile2.tif"])
+    """
+    # Create a virtual image of the files to be merged
+    out_vrt = Path(out_file).with_suffix(".vrt")
+    out_vrt = generate_vrt(in_files, out_vrt)
+
+    # Create a raster from the virtual image
     command = ["gdal_translate"]
     if driver:
         command.extend(["-of", driver])
@@ -93,5 +104,7 @@ def merge(out_file, in_file, driver="GTiff", compress=None, photometric="rgb", t
         command.extend(["-co", f"PHOTOMETRIC={photometric.upper()}"])
     if tiled:
         command.extend(["-co", f"TILED=YES"])
-    command.extend([str(in_file), str(out_file)])
+    command.extend([str(out_vrt), str(out_file)])
     os.system(" ".join(command))
+    # Delete the virtual image
+    Path(out_vrt).unlink()
