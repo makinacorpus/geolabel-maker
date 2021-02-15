@@ -66,7 +66,7 @@ def retrieve_masks(label_image, colors):
     for color in colors:
         color_array = np.array(color)
         mask_array = np.all(label_array == color_array, axis=-1)
-        masks[color] = Image.fromarray(mask_array)
+        masks[tuple(color)] = Image.fromarray(mask_array)
     return masks
 
 

@@ -47,7 +47,7 @@ import rasterio.mask
 
 # Geolabel Maker
 from geolabel_maker.data import BoundingBox, GeoBase
-from geolabel_maker.rasters import Raster, RasterCollection, generate_tiles, generate_vrt
+from geolabel_maker.rasters import Raster, RasterCollection
 from geolabel_maker.rasters import utils
 from geolabel_maker.vectors import Category, CategoryCollection
 from geolabel_maker.utils import retrieve_path, relative_path
@@ -90,7 +90,7 @@ class Dataset(GeoBase):
 
     def __init__(self, images=None, categories=None, labels=None,
                  dir_images=None, dir_categories=None, dir_labels=None,
-                 dir_mosaics=None, dir_tiles=None, bounds=None, filename=None):
+                 dir_mosaics=None, dir_tiles=None, filename=None):
         super().__init__()
         self.filename = str(Path(filename)) if filename else None
         self.dir_images = None if not dir_images else str(Path(dir_images))
@@ -98,7 +98,6 @@ class Dataset(GeoBase):
         self.dir_labels = None if not dir_labels else str(Path(dir_labels))
         self.dir_mosaics = None if not dir_mosaics else str(Path(dir_mosaics))
         self.dir_tiles = None if not dir_tiles else str(Path(dir_tiles))
-        self._bounds = None if not bounds else BoundingBox(*bounds)
         self._images = RasterCollection(images)
         self._categories = CategoryCollection(categories)
         self._labels = RasterCollection(labels)
@@ -126,14 +125,32 @@ class Dataset(GeoBase):
         return crs
 
     @property
+    def bounds(self):
+        """Get the minimal geographic extend that covers both categories and images.
+
+        Returns:
+            BoundingBox
+        """
+        images_bounds = self.images.bounds
+        labels_bounds = self.labels.bounds
+        categories_bounds = self.categories.bounds
+
+        bounds_array = [np.array([*bounds]) for bounds in [images_bounds, labels_bounds, categories_bounds] if bounds]
+        if len(bounds_array) == 0:
+            return None
+
+        bounds_array = np.stack(bounds_array)
+        left = np.max(bounds_array[:, 0])
+        bottom = np.max(bounds_array[:, 1])
+        right = np.min(bounds_array[:, 2])
+        top = np.min(bounds_array[:, 3])
+        return BoundingBox(left, bottom, right, top)
+
+    @property
     def root(self):
         if self.filename:
             return str(Path(self.filename).parent)
         return None
-
-    @property
-    def bounds(self):
-        return self._bounds or self.get_bounds()
 
     @bounds.setter
     def bounds(self, value):
@@ -435,7 +452,7 @@ class Dataset(GeoBase):
         out_labels = self.labels.to_crs(crs, **kwargs)
         return Dataset(images=out_images, categories=out_categories, labels=out_labels,
                        dir_images=self.dir_images, dir_categories=self.dir_categories, dir_labels=self.dir_labels,
-                       dir_mosaics=self.dir_mosaics, dir_tiles=self.dir_tiles, bounds=self.bounds, filename=None)
+                       dir_mosaics=self.dir_mosaics, dir_tiles=self.dir_tiles, filename=None)
 
     def crop(self, bbox, **kwargs):
         """Crop the dataset from a bounding box.
@@ -455,105 +472,9 @@ class Dataset(GeoBase):
         out_labels = self.labels.crop(bbox, **kwargs)
         return Dataset(images=out_images, categories=out_categories, labels=out_labels,
                        dir_images=self.dir_images, dir_categories=self.dir_categories, dir_labels=self.dir_labels,
-                       dir_mosaics=self.dir_mosaics, dir_tiles=self.dir_tiles, bounds=self.bounds, filename=None)
+                       dir_mosaics=self.dir_mosaics, dir_tiles=self.dir_tiles, filename=None)
 
-    def get_bounds(self):
-        """Get the minimal geographic extend that covers both categories and images.
-
-        Returns:
-            BoundingBox
-        """
-        images_bounds = self.images.get_bounds()
-        labels_bounds = self.labels.get_bounds()
-        categories_bounds = self.categories.get_bounds()
-
-        bounds_array = [np.array([*bounds]) for bounds in [images_bounds, labels_bounds, categories_bounds] if bounds]
-        if len(bounds_array) == 0:
-            return None
-
-        bounds_array = np.stack(bounds_array)
-        left = np.max(bounds_array[:, 0])
-        bottom = np.max(bounds_array[:, 1])
-        right = np.min(bounds_array[:, 2])
-        top = np.min(bounds_array[:, 3])
-        return BoundingBox(left, bottom, right, top)
-
-    def generate_label(self, image_idx, out_dir=None):
-        r"""Extract the categories visible in one image's extent. 
-        This method will saved the extracted geometries as a raster image.
-
-        Args:
-            image_idx (int): Image index used to generate the labels. 
-            out_dir (str, optional): Output directory where the file will be saved. 
-                If ``None``, the file will be saved in ``"{root}/labels"``.
-                Default to ``None``.
-
-        Returns:
-            str: Path to the created label image
-
-        Examples:
-            >>> dataset = Dataset.open("data/")
-            >>> dataset.generate_label(0)
-        """
-        raster = self.images[image_idx]
-        images = []
-        out_transform = None
-        for category in self.categories:
-            # Match the category to the raster extends
-            # image_cropped = image.crop_category(category)
-            category_cropped = category.crop_raster(raster)
-            # If the category contains vectors in the cropped area
-            if not category_cropped.data.empty:
-                # Create a raster from the geometries
-                out_image, out_transform = rasterio.mask.mask(
-                    raster.data,
-                    list(category_cropped.data.geometry),
-                    crop=False
-                )
-                # Format to (Height, Width, Bands)
-                out_image = out_image.transpose(1, 2, 0)
-                # Convert image in black & color
-                mask_color = utils.rgb2color(out_image, category.color)
-                image = Image.fromarray(mask_color.astype(rasterio.uint8))
-                images.append(image)
-
-        # Merge images
-        label_image = images[0]
-        if len(images) > 1:
-            for img in images[1:]:
-                label_image = ImageChops.add(label_image, img)
-        label_array = np.array(label_image).transpose(2, 0, 1)
-
-        # Update the profile before saving the tif
-        # See the list of options and effects: https://gdal.org/drivers/raster/gtiff.html#creation-options
-        # TODO: the profile option 'tiles' should be kept (usually tiles of 256x256) to reduce the output file's size.
-        # TODO: if so, improve the segmentation method to retrieve contours from a tiled (compressed) image.
-        out_profile = raster.data.profile.copy()
-        out_profile = {
-            "driver": "GTiff",
-            "height": label_array.shape[1],  # numpy.array.shape[1] or PIL.Image.size[1],
-            "width": label_array.shape[2],   # numpy.array.shape[2] or PIL.Image.size[0],
-            "count": 3,
-            "transform": out_transform,
-            "crs": out_profile.get("crs", None),
-            "photometric": "RGB",
-            "dtype": out_profile.get("dtype")
-        }
-
-        # Generate filename "raster-label.tif"
-        out_name = f"{Path(raster.filename).stem}-label.tif"
-        # Create the output directory if it does not exists
-        out_dir = out_dir or "."
-        Path(out_dir).mkdir(parents=True, exist_ok=True)
-        out_path = Path(out_dir) / out_name
-
-        # Save the label
-        out_raster = Raster.from_array(label_array.astype("uint8"), **out_profile)
-        out_raster.save(out_path)
-
-        return str(out_path)
-
-    def generate_labels(self, out_dir=None, **kwargs):
+    def generate_labels(self, out_dir=None):
         r"""Generate labels from a set of ``images`` and ``categories``. 
         The label associated to an image in respect of the categories 
         is a ``.tif`` image containing all geometries 
@@ -575,16 +496,19 @@ class Dataset(GeoBase):
         Examples:
             >>> dataset = Dataset.open("data/")
             >>> dataset.generate_labels()
-            
+
             The labels are generated in ``"data/labels" ``.
         """
         # Clean previously generated labels
         self.labels = []
         dir_labels = str(out_dir or self.dir_labels or Path(self.root) / "labels")
+        Path(dir_labels).mkdir(parents=True, exist_ok=True)
 
         # Generate and load the labels
-        for image_idx, _ in enumerate(tqdm(self.images, desc="Generating Labels", leave=True, position=0)):
-            label_path = self.generate_label(image_idx, out_dir=dir_labels, **kwargs)
+        for image in tqdm(self.images, desc="Generating Labels", leave=True, position=0):
+            label = image.mask(self.categories)
+            label_path = Path(dir_labels) / f"{Path(image.filename).stem}-label.tif"
+            label.save(label_path)
             self.labels.append(Raster.open(label_path))
 
         self.dir_labels = dir_labels
@@ -745,7 +669,7 @@ class Dataset(GeoBase):
         axes = self.images.plot_bounds(axes=axes, color=image_color, label="images")
 
         # Plot the dataset bounding box
-        bounds = self.get_bounds()
+        bounds = self.bounds
         x, y = box(*bounds).exterior.xy
         axes.plot(x, y, color=dataset_color, label="dataset")
         axes.legend(loc=1, frameon=True)

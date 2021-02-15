@@ -8,8 +8,10 @@
 
 
 # Basic imports
-from abc import ABC
+from abc import ABC, abstractmethod
 from datetime import datetime
+from copy import deepcopy
+from geolabel_maker.utils import relative_path
 
 
 # TODO: Add function to check if the arguments are in the correct format (list of dict)
@@ -17,8 +19,7 @@ from datetime import datetime
 
 class Annotation(ABC):
 
-    def __init___(self, images=None, categories=None, annotations=None, info=None):
-        super().__init__()
+    def __init__(self, images=None, categories=None, annotations=None, info=None):
         self.images = images or []
         self.categories = categories or []
         self.annotations = annotations or []
@@ -28,17 +29,37 @@ class Annotation(ABC):
         }
 
     @classmethod
+    @abstractmethod
     def open(cls, filename):
         raise NotImplementedError
 
     @classmethod
+    @abstractmethod
     def build(cls, images=None, categories=None, labels=None, **kwargs):
         raise NotImplementedError
 
-    def to_dict(self, root=None, **kwargs):
-        raise NotImplementedError
+    def to_dict(self, root=None):
+        root = root or "."
+        images = deepcopy(self.images)
+        categories = deepcopy(self.categories)
+        annotations = deepcopy(self.annotations)
+        
+        for image in images:
+            image["file_name"] = relative_path(image["file_name"], root)
+        for category in categories:
+            category["file_name"] = relative_path(category["file_name"], root)
+        for annotation in annotations:
+            annotation["image_name"] = relative_path(annotation["image_name"], root)                    
+                
+        return {
+            "info": self.info,
+            "images": images,
+            "categories": categories,
+            "annotations": annotations
+        }
 
-    def save(self, filename, **kwargs):
+    @abstractmethod
+    def save(self, out_file, **kwargs):
         raise NotImplementedError
 
     def inner_repr(self):

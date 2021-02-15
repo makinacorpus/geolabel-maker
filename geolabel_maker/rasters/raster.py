@@ -24,10 +24,10 @@ from tqdm import tqdm
 from itertools import product
 from pathlib import Path
 import json
+import numpy as np
 import rasterio
 from rasterio.io import MemoryFile
 from rasterio.warp import calculate_default_transform, reproject, Resampling
-from osgeo import gdal
 import gdal2tiles
 from pyproj.crs import CRS
 from shapely.geometry import box
@@ -38,6 +38,7 @@ import matplotlib.pyplot as plt
 from .sentinelhub import SentinelHubAPI
 from .mapbox import MapBoxAPI
 from .functions import generate_vrt, generate_tiles
+from .utils import color_mask, merge_masks
 from geolabel_maker.data import GeoData, GeoCollection, BoundingBox
 from geolabel_maker.logger import logger
 
@@ -138,11 +139,17 @@ class Raster(GeoData):
 
     def __init__(self, data, filename=None):
         _check_rasterio(data)
+        if (filename and data) and Path(filename) != Path(data.name):
+            raise ValueError(f"The provided filename does not correspond to the input data.")
         super().__init__(data, filename=filename)
 
     @property
     def crs(self):
-        return CRS(self.data.crs)   
+        return CRS(self.data.crs)
+
+    @property
+    def bounds(self):
+        return BoundingBox(*self.data.bounds)
 
     @classmethod
     def open(cls, filename):
@@ -158,8 +165,8 @@ class Raster(GeoData):
         Examples:
             >>> raster = Raster.open("images/tile.tif")
         """
-        data = rasterio.open(filename)
-        return Raster(data, filename=str(filename))
+        with rasterio.open(filename) as data:
+            return Raster(data, filename=str(filename))
 
     @classmethod
     def download(cls, username, password, bbox, **kwargs):
@@ -192,13 +199,13 @@ class Raster(GeoData):
 
         Args:
             array (numpy.ndarray): A 3 dimensional array, of shape :math:`(C, X, Y)`.
-            profile (dict): Additional arguments required.
+            profile (dict): Additional arguments required by `GDAL`.
 
         Returns:
             Raster
         """
         assert len(array.shape) >= 2, f"The provided array is not a matrix. Got a shape of {array.shape}."
-        out_profile = profile or {}
+        out_profile = {"driver": "GTiff", **profile}
         out_profile.update({
             "count": array.shape[-3] if len(array.shape) > 2 else 1,
             "height": array.shape[-2],
@@ -216,6 +223,18 @@ class Raster(GeoData):
         r"""Load a raster image from a `PostgreSQL` database."""
         raise NotImplementedError
 
+    def to_rasterio(self, **profile):
+        """Convert the inner data in an **opened** rasterio dataset.
+
+        Returns:
+            rasterio.DatasetBase
+        """
+        out_profile = self.data.meta.copy()
+        out_profile.update(**profile)
+        if self.data.closed and isinstance(self.data, rasterio.DatasetReader):
+            return rasterio.open(self.data.name, **out_profile)
+        return self.data
+
     def save(self, out_file, window=None, **profile):
         r"""Save the raster to the disk.
 
@@ -228,10 +247,11 @@ class Raster(GeoData):
             >>> raster = Raster.open("tile.tif")
             >>> raster.save("tile2.tif")
         """
-        out_profile = self.data.profile.copy()
+        out_profile = self.data.meta.copy()
         out_profile.update({**profile})
         with rasterio.open(str(out_file), "w", **out_profile) as dst:
-            dst.write(self.data.read(window=window))
+            raster_data = self.to_rasterio()
+            dst.write(raster_data.read(window=window))
 
     def rescale(self, factor, resampling="bilinear"):
         r"""Rescale the geo-referenced image. The result is the rescaled data and 
@@ -256,23 +276,23 @@ class Raster(GeoData):
             >>> out_raster.data.shape
                 (3, 512, 512)
         """
-        out_count = self.data.count
-        out_height = int(self.data.height * factor)
-        out_width = int(self.data.width * factor)
+        raster_data = self.to_rasterio()
+        out_count = raster_data.count
+        out_height = int(raster_data.height * factor)
+        out_width = int(raster_data.width * factor)
         out_shape = (out_count, out_height, out_width)
-        out_data = self.data.read(out_shape=out_shape, resampling=getattr(Resampling, resampling))
-        out_transform = self.data.transform * self.data.transform.scale(
-            (self.data.width / out_data.shape[-1]),
-            (self.data.height / out_data.shape[-2])
+        out_data = raster_data.read(out_shape=out_shape, resampling=getattr(Resampling, resampling))
+        out_transform = raster_data.transform * raster_data.transform.scale(
+            (raster_data.width / out_data.shape[-1]),
+            (raster_data.height / out_data.shape[-2])
         )
-        out_profile = self.data.profile.copy()
+        out_profile = raster_data.profile.copy()
         out_profile.update({
             "count": out_count,
             "width": out_width,
             "height": out_height,
             "transform": out_transform
         })
-        
         return self.from_array(out_data, **out_profile)
 
     def zoom(self, zoom, **kwargs):
@@ -316,10 +336,11 @@ class Raster(GeoData):
         Returns:
             Raster
         """
+        raster_data = self.to_rasterio()
         transform, width, height = calculate_default_transform(
-            self.data.crs, crs, self.data.width, self.data.height, *self.data.bounds
+            raster_data.crs, crs, raster_data.width, raster_data.height, *raster_data.bounds
         )
-        out_profile = self.data.profile.copy()
+        out_profile = raster_data.profile.copy()
         out_profile.update({
             "crs": crs,
             "transform": transform,
@@ -331,12 +352,12 @@ class Raster(GeoData):
         memfile = MemoryFile()
         out_data = memfile.open(**out_profile)
 
-        for i in range(1, self.data.count + 1):
+        for i in range(1, raster_data.count + 1):
             reproject(
-                source=rasterio.band(self.data, i),
+                source=rasterio.band(raster_data, i),
                 destination=rasterio.band(out_data, i),
-                src_transform=self.data.transform,
-                src_crs=self.data.crs,
+                src_transform=raster_data.transform,
+                src_crs=raster_data.crs,
                 dst_transform=transform,
                 dst_crs=crs
             )
@@ -356,13 +377,17 @@ class Raster(GeoData):
         Returns:
             Raster
         """
-        df_bounds = gpd.GeoDataFrame({"geometry": box(*bbox)}, index=[0], crs=self.data.crs)
+        # Open the dataset if its closed
+        raster_data = self.to_rasterio()
+        
         # Format the bounding box in a format understood by rasterio
+        df_bounds = gpd.GeoDataFrame({"geometry": box(*bbox)}, index=[0], crs=raster_data.crs)
         shape = json.loads(df_bounds.to_json())["features"][0]["geometry"]
-        out_array, out_transform = rasterio.mask.mask(self.data, shapes=[shape], crop=True)
-        out_profile = self.data.profile.copy()
+        
+        # Crop the raster
+        out_array, out_transform = rasterio.mask.mask(raster_data, shapes=[shape], crop=True)
+        out_profile = raster_data.profile.copy()
         out_profile.update({
-            "driver": "GTiff",
             "height": out_array.shape[1],
             "width": out_array.shape[2],
             "transform": out_transform
@@ -370,21 +395,50 @@ class Raster(GeoData):
 
         return self.from_array(out_array, **out_profile)
 
-    def crop_category(self, category, **kwargs):
-        r"""Crop a raster from a ``Category``.
-
-        .. seealso::
-            See ``Raster.crop()`` for further details.
+    def mask(self, categories):
+        """Mask the raster from a set of geometries.
 
         Args:
-            category (Category): Category used to crop the raster.
+            categories (CategoryCollection): A list of categories, with distinct colors.
 
         Returns:
             Raster
         """
-        data = category.data.to_crs(self.data.crs)
-        bbox = tuple(data.total_bounds)
-        return self.crop(bbox, **kwargs)
+        masks = []
+        out_transform = None
+        bbox = self.bounds
+        for category in categories:
+            # Match the category to the raster extends
+            category = category.to_crs(self.data.crs)
+            category_cropped = category.crop(bbox)
+            # If the category contains vectors in the cropped area
+            if not category_cropped.data.empty:
+                # Create a raster from the geometries
+                mask, out_transform = rasterio.mask.mask(
+                    self.to_rasterio(),
+                    list(category_cropped.data.geometry),
+                    crop=False
+                )
+                # Convert from (C, H, W) to (H, W, C)
+                mask = mask.transpose(1, 2, 0)
+                mask = color_mask(mask, category.color)
+                masks.append(mask)
+
+        # Merge masks into one image
+        out_mask = merge_masks(masks)
+        out_array = out_mask.transpose(2, 0, 1)
+    
+        out_profile = self.data.meta.copy()
+        out_profile.update({
+            "driver": "GTiff",
+            "height": out_array.shape[1],  # numpy.array.shape[1] or PIL.Image.size[1],
+            "width": out_array.shape[2],   # numpy.array.shape[2] or PIL.Image.size[0],
+            "count": 3,
+            "transform": out_transform,
+            "photometric": "RGB",
+        })
+
+        return self.from_array(out_array, **out_profile)
 
     def generate_tiles(self, out_dir="tiles", **kwargs):
         r"""Create tiles from a raster file (using GDAL)
@@ -433,22 +487,18 @@ class Raster(GeoData):
             if is_full and (window.height != height or window.width != width):
                 continue
             out_transform = rasterio.windows.transform(window, out_raster.data.transform)
-            out_profile = {
+            out_profile = out_raster.data.  meta.copy()
+            out_profile.update({
                 "driver": "GTiff",
                 "height": window.height,
                 "width": window.width,
                 "transform": out_transform,
-                "crs": out_raster.data.profile.get("crs", None),
                 "count": 3,
                 "photometric": "RGB",
-                "dtype": out_raster.data.profile.get("dtype", None)
-            }
+            })
             out_path = Path(out_dir) / f"{Path(self.filename).stem}-tile_{window.col_off}x{window.row_off}.tif"
             out_raster.save(out_path, window=window, **out_profile)
         return out_dir
-
-    def get_bounds(self):
-        return BoundingBox(*self.data.bounds)
 
     def plot(self, axes=None, figsize=None, **kwargs):
         r"""Plot a raster.
@@ -463,7 +513,8 @@ class Raster(GeoData):
         """
         if not axes or figsize:
             _, axes = plt.subplots(figsize=figsize)
-        array = self.data.read().transpose(1, 2, 0)
+        raster_data = self.to_rasterio()
+        array = raster_data.read().transpose(1, 2, 0)
         axes.imshow(array, **kwargs)
         return axes
 
@@ -554,7 +605,7 @@ class RasterCollection(GeoCollection):
         for raster in self:
             try:
                 cropped.append(raster.crop(bbox))
-            except ValueError as error:
+            except Exception as error:
                 logger.error(f"Could not crop raster '{raster.filename}': {error}")
         return cropped
 
@@ -598,7 +649,7 @@ class RasterCollection(GeoCollection):
             out_dir (str, optional): Path to the directory where the windows are saved. Defaults to ``"mosaic"``.
 
         Examples:
-            >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif)
+            >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif")
             >>> rasters.generate_mosaic(width=256, height=256, out_dir="mosaic")
         """
         for raster in tqdm(self._items, desc="Generating Mosaics", leave=True, position=0):

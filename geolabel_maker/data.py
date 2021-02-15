@@ -70,7 +70,11 @@ class GeoBase(ABC):
 
     @property
     def crs(self):
-        return None
+        raise AttributeError(f"This attribute is currently not supported for geolabel_maker version {__version__}")
+
+    @property
+    def bounds(self):
+        raise AttributeError(f"This attribute is currently not supported for geolabel_maker version {__version__}")
 
     @classmethod
     @abstractmethod
@@ -86,11 +90,6 @@ class GeoBase(ABC):
     @abstractmethod
     def to_crs(self, crs, **kwargs):
         """Project the geo data in another system."""
-        raise NotImplementedError(f"This method is currently not supported for geolabel_maker version {__version__}")
-
-    @abstractmethod
-    def get_bounds(self):
-        """Get the geographic extent of the data."""
         raise NotImplementedError(f"This method is currently not supported for geolabel_maker version {__version__}")
 
     def plot_bounds(self, **kwargs):
@@ -153,7 +152,7 @@ class GeoData(GeoBase):
         Returns:
             matplotlib.AxesSubplot
         """
-        x, y = box(*self.get_bounds()).exterior.xy
+        x, y = box(*self.bounds).exterior.xy
         if not axes or figsize:
             _, axes = plt.subplots(figsize=figsize)
         axes.plot(x, y, label=label, **kwargs)
@@ -217,6 +216,23 @@ class GeoCollection(GeoBase):
                 warnings.warn(error_msg, RuntimeWarning)
                 logger.warning(error_msg)
         return crs      
+
+    @property
+    def bounds(self):
+        """Get the total geographic extent of the collection."""
+        # If the collection is empty
+        if len(self) == 0:
+            return None
+
+        bounds_array = []
+        for value in self:
+            bounds_array.append(np.array([*value.bounds]))
+        bounds_array = np.stack(bounds_array)
+        left = np.min(bounds_array[:, 0])
+        bottom = np.min(bounds_array[:, 1])
+        right = np.max(bounds_array[:, 2])
+        top = np.max(bounds_array[:, 3])
+        return BoundingBox(left, bottom, right, top)
 
     @abstractmethod
     def append(self, value):
@@ -309,22 +325,6 @@ class GeoCollection(GeoBase):
                 value = value.to_crs(crs, **kwargs)
             collection.append(value)
         return collection
-
-    def get_bounds(self):
-        """Get the total geographic extent of the collection."""
-        # If the collection is empty
-        if len(self) == 0:
-            return None
-
-        bounds_array = []
-        for value in self:
-            bounds_array.append(np.array([*value.get_bounds()]))
-        bounds_array = np.stack(bounds_array)
-        left = np.min(bounds_array[:, 0])
-        bottom = np.min(bounds_array[:, 1])
-        right = np.max(bounds_array[:, 2])
-        top = np.max(bounds_array[:, 3])
-        return BoundingBox(left, bottom, right, top)
 
     def plot_bounds(self, axes=None, figsize=None, label=None, **kwargs):
         """Plot the geographic extent of the collection.

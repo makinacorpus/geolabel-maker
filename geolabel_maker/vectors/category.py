@@ -129,6 +129,10 @@ class Category(GeoData):
             return None
 
     @property
+    def bounds(self):
+        return BoundingBox(*self.data.total_bounds)
+
+    @property
     def color(self):
         return self._color
 
@@ -261,32 +265,6 @@ class Category(GeoData):
         sub_data = self.data.cx[Xmin:Xmax, Ymin:Ymax]
 
         return Category(sub_data, self.name, color=self.color, filename=self.filename)
-
-    def crop_raster(self, raster):
-        """Get the geometries which are in the image's extent.
-
-        Args:
-            raster (Raster): Georeferenced raster used as a croping mask.
-
-        Returns:
-            list: The geometries of the tif file's geographic extent.
-
-        Examples:
-            >>> from geolabel_maker.rasters import Raster
-            >>> from geolabel_maker.vectors import Category
-            >>> raster = Raster.open("images/tile.tif")
-            >>> category = Category.open("categories/buildings.json", name="buildings", color=(255, 255, 255))
-            >>> category_cropped = category.crop_raster(raster)
-        """
-        # Read raster file
-        raster_data = raster.data
-        bounds = tuple(raster_data.bounds)
-
-        category = self.to_crs(raster_data.crs)
-        return category.crop(bounds)
-
-    def get_bounds(self):
-        return BoundingBox(*self.data.total_bounds)
 
     def plot(self, axes=None, figsize=None, **kwargs):
         """Plot a category.
@@ -438,13 +416,15 @@ class CategoryCollection(GeoCollection):
         Returns:
             CategoryCollection
         """
-        cropped = CategoryCollection()
+        categories = CategoryCollection()
         for category in self:
             try:
-                cropped.append(category.crop(bbox))
-            except:
+                category_cropped = category.crop(bbox)
+                if category_cropped and not category_cropped.data.empty:
+                    categories.append(category.crop(bbox))
+            except Exception as error:
                 pass
-        return cropped
+        return categories
 
     def plot(self, axes=None, figsize=None, **kwargs):
         """Plot the the data.
