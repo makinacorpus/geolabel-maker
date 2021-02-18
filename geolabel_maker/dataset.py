@@ -501,6 +501,11 @@ class Dataset(GeoBase):
 
             >>> dataset = Dataset.open("data/")
             >>> dataset.generate_labels()
+<<<<<<< HEAD
+=======
+
+            The labels are generated in ``"data/labels" ``.
+>>>>>>> 79da38771a7f1104c6bc259c9b3eafbc93f5233d
         """
         # Clean previously generated labels
         self.labels = []

@@ -262,6 +262,23 @@ class GeoCollection(GeoBase):
         top = np.max(bounds_array[:, 3])
         return BoundingBox(left, bottom, right, top)
 
+    @property
+    def bounds(self):
+        """Get the total geographic extent of the collection."""
+        # If the collection is empty
+        if len(self) == 0:
+            return None
+
+        bounds_array = []
+        for value in self:
+            bounds_array.append(np.array([*value.bounds]))
+        bounds_array = np.stack(bounds_array)
+        left = np.min(bounds_array[:, 0])
+        bottom = np.min(bounds_array[:, 1])
+        right = np.max(bounds_array[:, 2])
+        top = np.max(bounds_array[:, 3])
+        return BoundingBox(left, bottom, right, top)
+
     @abstractmethod
     def append(self, value):
         """Add a new value to the collection.
