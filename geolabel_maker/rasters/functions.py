@@ -10,7 +10,9 @@
 r"""
 Functions used to interact with ``Raster`` objects, 
 like the creation of virtual images or merging tiles.
+
 .. code-block:: python
+
     from geolabel_maker.rasters import Raster
     from geolabel_maker.vectors import Vector
     from geolabel_maker.functional import *
@@ -85,7 +87,10 @@ def merge(in_files, out_file, driver="GTiff", compress="jpeg", photometric="ycbc
         compress (str, optional): Name of the `GDAL` compression mode. Defaults to ``"jpeg"``.
         photometric (str, optional): Name of the `GDAL` pixel format. Defaults to ``"ycbcr"``.
         tiled (bool, optional): If ``True``, tile the output raster to decrease file size. Defaults to ``True``.
-        
+
+    Returns:
+        str: Path to the merged raster.
+
     Examples:
         >>> merge("tiles.tif", ["tile1.tif", "tile2.tif"])
     """
@@ -107,3 +112,4 @@ def merge(in_files, out_file, driver="GTiff", compress="jpeg", photometric="ycbc
     os.system(" ".join(command))
     # Delete the virtual image
     Path(out_vrt).unlink()
+    return str(out_file)

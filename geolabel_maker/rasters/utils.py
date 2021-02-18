@@ -8,45 +8,13 @@
 
 
 # Basic imports
+from PIL import Image, ImageChops
 from math import log, tan, radians, cos, pi, floor, degrees, atan, sinh
 import numpy as np
 
 
-def rgb2gray(rgb_img):
-    """Convert an RGB image to grayscale.
-
-    Args:
-        rgb_img (numpy.ndarray): RGB image of size :math:`(X, Y, 3)`.
-
-    Returns:
-        numpy.ndarray: Gray image of size :math:`(X, Y)`.
-    """
-    gray_coef = [0.2989, 0.5870, 0.1140]
-
-    r = rgb_img[0] / 255
-    g = rgb_img[1] / 255
-    b = rgb_img[2] / 255
-
-    gray_img = gray_coef[0] * r + gray_coef[1] * g + gray_coef[2] * b
-
-    return gray_img * 255
-
-
-def gray2bw(gray_img):
-    """Convert a grayscale image to a black & white image
-
-    Args:
-        gray_img (numpy.ndarray): Gray image of size :math:`(X, Y)`.
-
-    Returns:
-         numpy.ndarray: Black and White image of size :math:`(X, Y)`.
-    """
-    gray_img[gray_img > 0] = 255
-    return gray_img
-
-
-def rgb2color(rgb_img, color):
-    """Convert an RGB image to a black and color image.
+def color_mask(mask, color):
+    """Assign a RGB color to a mask.
     All colored pixels in the input image are set to a unique color ``color``
     and the rest is left in black. Note that black pixels in the input image 
     are not modified i.e. are kept black in the output image.
@@ -56,18 +24,36 @@ def rgb2color(rgb_img, color):
         The color black is used to represent no data.
 
     Args:
-        rgb_img (numpy.ndarray): Image to convert in a single color, of size :math:`(X, Y, 3)`.
+        rgb_img (numpy.ndarray): Image to convert in a single color, of size :math:`(H, W, 3)`.
         color (tuple): RGB color, in the format :math:`(R, G, B)`.
 
     Returns:
         numpy.ndarray: The black and single-color image.
     """
-    color_img = rgb_img.copy()
-    # find non black pixels
+    color_img = mask.copy()
+    # Find non black pixels
     mask = np.any((color_img != [0, 0, 0]), axis=-1)
-    # apply the mask to overwrite the pixels with the chosen color
+    # Apply the mask to overwrite the pixels with the chosen color
     color_img[mask] = np.array(color)
     return color_img
+
+
+def merge_masks(masks):
+    """Merge multiple colored masks (images with black background and a colored mask) together.
+
+    Args:
+        masks (list): List of 3D matrices of shape :math:`(H, W, 3)` with a black background
+            and a colored mask (a mask has only one color).
+
+    Returns:
+        numpy.ndarray
+    """
+    out_image = Image.fromarray(masks[0].astype("uint8"))
+    if len(masks) > 1:
+        for mask in masks[1:]:
+            mask_image = Image.fromarray(mask.astype("uint8"))
+            out_image = ImageChops.add(out_image, mask_image)
+    return np.array(out_image)
 
 
 def sec(radian):

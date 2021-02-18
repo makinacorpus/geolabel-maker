@@ -18,6 +18,7 @@ autodoc_mock_imports = [
     "numpy",
     "gdal2tiles",
     "shapely",
+    "pandas",
     "geopandas",
     "rasterio",
     "PIL",
@@ -37,7 +38,7 @@ copyright = "2021, Daphne Lercier, Lucie Camanez, Arthur Dujardin"
 author = "Daphne Lercier, Lucie Camanez, Arthur Dujardin"
 
 # The full version, including alpha/beta/rc tags
-release = "0.0.1"
+release = "0.0.2"
 
 
 # -- General configuration ---------------------------------------------------

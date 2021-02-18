@@ -32,7 +32,7 @@ and convert slippy maps to georeferenced images.
 """
 
 # Basic imports
-import shutil
+from tqdm import tqdm
 from pathlib import Path
 import requests
 from osgeo import gdal
@@ -180,13 +180,17 @@ class MapBoxAPI:
             >>> bbox = (2.3483, 48.8520, 2.3693, 48.8638)
             >>> api.download(bbox, zoom=17, width=1024, height=1024, high_res=True, slippy_maps=True)
         """
+        # Track the downloaded files
+        out_files = []
         Path(out_dir).mkdir(parents=True, exist_ok=True)
+        # Convert the bbox to xyz (slippy maps format)
         lon_min, lat_min, lon_max, lat_max = bbox
         x_min, y_min, x_max, y_max = bbox2xyz(lon_min, lat_min, lon_max, lat_max, zoom)
         logger.info(f"Generate {(x_max - x_min + 1) * (y_max - y_min + 1):,} satellite images at zoom level {zoom}")
 
         x_range = max(width // (256 * (1 + int(high_res))), 1)
         y_range = max(height // (256 * (1 + int(high_res))), 1)
+        pbar = tqdm(total=((x_max - x_min + 1) * (y_max - y_min + 1)), desc="Downloading", leave=True, position=0)
         for x_mosaic in range(x_min, x_max + 1, x_range):
             for y_mosaic in range(y_min, y_max + 1, y_range):
 
@@ -205,13 +209,19 @@ class MapBoxAPI:
                         # Remove the slippy image
                         if not slippy_maps:
                             Path(tile_image).unlink()
+                        pbar.update(1)
 
                 # Merge the georeferenced tiles
                 if out_format.lower() in ["tif", "tiff"]:
                     # Merge the tiles for each mosaic
                     if len(mosaic_files) > 1:
                         out_mosaic = Path(out_dir) / f"MAPBOX_MOSAIC_{zoom}_{x}_{y}.tif"
-                        merge(mosaic_files, out_mosaic, compress=compress, photometric=photometric, tiled=tiled)
+                        out_file = merge(mosaic_files, out_mosaic, compress=compress, photometric=photometric, tiled=tiled)
+                        out_files.append(str(out_file))
                         # Remove the georeferenced
                         for mosaic_file in mosaic_files:
                             Path(mosaic_file).unlink()
+                # If the format was png
+                else:
+                    out_files.append(str(tile_image))
+        return out_files

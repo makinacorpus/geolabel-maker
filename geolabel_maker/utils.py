@@ -12,6 +12,24 @@ import os.path
 from pathlib import Path
 
 
+def relative_path(path, root=None):
+    """Get the relative path between two paths.
+
+    Args:
+        path (str): Main path.
+        root (str, optional): Root path. Defaults to ``None``.
+
+    Returns:
+        str
+    """
+    if not path:
+        return None
+    root = root or "."
+    root_abs = Path(root).resolve()
+    path_abs = Path(path).resolve()
+    return os.path.relpath(path_abs, start=root_abs)
+
+
 def retrieve_path(path, root=None):
     """Retrieve a path from a root directory.
 
@@ -29,22 +47,4 @@ def retrieve_path(path, root=None):
     elif Path(path).is_absolute():
         return str(Path(path))
     else:
-        return str(Path(root) / path)
-
-
-def relative_path(path, root=None):
-    """Get the relative path between two paths.
-
-    Args:
-        path (str): Main path.
-        root (str, optional): Root path. Defaults to ``None``.
-
-    Returns:
-        str
-    """
-    if not path:
-        return None
-    root = root or "."
-    root_abs = Path(root).resolve()
-    path_abs = Path(path).resolve()
-    return os.path.relpath(path_abs, start=root_abs)
+        return relative_path(Path(root) / path, root=Path(".").resolve())

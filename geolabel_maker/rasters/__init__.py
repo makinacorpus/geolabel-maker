@@ -9,3 +9,5 @@
 
 from .raster import Raster, RasterCollection
 from .functions import generate_tiles, generate_vrt
+from .sentinelhub import SentinelHubAPI
+from .mapbox import MapBoxAPI

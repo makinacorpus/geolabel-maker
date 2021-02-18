@@ -9,6 +9,8 @@
 
 # Basic imports
 from pathlib import Path
+from types import GeneratorType
+
 
 # Geolabel Maker
 from geolabel_maker.rasters import Raster, RasterCollection
@@ -26,8 +28,10 @@ def extract_paths(element, pattern="*.*"):
         paths =  [Path(element.filename)]
     elif isinstance(element, (RasterCollection, CategoryCollection)):
         paths =  [Path(elem.filename) for elem in element]
-    elif isinstance(element, (tuple, list)):
+    elif isinstance(element, (tuple, list, GeneratorType)):
         for elem in element:
             path = extract_paths(elem, pattern=pattern)
             paths.extend(path)
+    else:
+        raise ValueError(f"Unrecognized type {type(element).__name__}")
     return paths

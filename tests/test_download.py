@@ -12,7 +12,6 @@ import unittest
 from getpass import getpass
 
 # Geolabel Maker
-from geolabel_maker.download import OverpassAPI, SentinelHubAPI
 
 
 # Global variables
@@ -23,14 +22,7 @@ DATE = ("20200920", "20200925")
 
 
 class DownloadTests(unittest.TestCase):
-
-    def test_0_sentinelhub(self):
-        api = SentinelHubAPI(USERNAME, PASSWORD)
-        rasters = api.download(BBOX, date=DATE)
-
-    def test_1_overpass(self):
-        api = OverpassAPI()
-        geometry = api.download(BBOX)
+    pass
 
 
 if __name__ == '__main__':

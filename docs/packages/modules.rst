@@ -7,7 +7,16 @@ Geolabel Maker
 .. autosummary::
    :nosignatures:
 
+   ~base.GeoBase
+   ~base.GeoData
+   ~base.GeoCollection
    ~dataset.Dataset
+
+geolabel_maker.base
+======================
+
+.. automodule:: geolabel_maker.base
+    :members:
 
 
 geolabel_maker.dataset
@@ -30,10 +39,10 @@ Rasters
    ~raster.RasterCollection
    ~sentinelhub.SentinelHubAPI
    ~functions.generate_vrt
-   ~utils.rgb2gray
-   ~utils.gray2bw
-   ~utils.rgb2color
-   
+   ~utils.color_mask
+   ~utils.merge_masks
+   ~utils.merge_masks
+
 
 geolabel_maker.rasters.raster
 =============================

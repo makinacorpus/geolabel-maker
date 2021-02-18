@@ -74,7 +74,7 @@ class SentinelHubAPI:
             kwargs: Other arguments from `SentinelHub <https://docs.sentinel-hub.com/api/latest/>`__ API.
 
         Returns:
-            list: List of downloaded files.
+            list: List of path corresponding to downloaded files.
 
         Examples:
             >>> # Connect to the API
@@ -137,7 +137,7 @@ class SentinelHubAPI:
         self.extract_all(out_dir_cache, out_dir_cache)
 
         # Move the images at `resolution`
-        files = []
+        out_files = []
         logger.info(f"Transferring the images at resolution={resolution}, bandname={bandname} to directory {out_dir}.")
         for product_name in products_gdf.title:
             product_path = Path(out_dir_cache) / product_name
@@ -145,9 +145,9 @@ class SentinelHubAPI:
             # Move/copy the image to the main directory
             out_image = Path(out_dir) / Path(image_file).name
             copyfile(str(image_file), str(out_image))
-            files.append(out_image)
+            out_files.append(str(out_image))
 
-        return files
+        return out_files
 
     @staticmethod
     def extract_all(indir, out_dir=None):

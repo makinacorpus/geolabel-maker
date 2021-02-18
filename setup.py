@@ -46,6 +46,7 @@ setup(
         "gdal2tiles",
         "geopandas",
         "numpy",
+        "pandas",
         "scikit-image",
         "sentinelsat",
         "osmtogeojson",
