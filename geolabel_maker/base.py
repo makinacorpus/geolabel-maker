@@ -105,50 +105,6 @@ class GeoBase(ABC):
 
     @abstractmethod
     def crop(self, bbox, **kwargs):
-        """Crop the data from a bounding box."""
-        raise NotImplementedError(f"This method is currently not supported.")
-
-    def plot_bounds(self, **kwargs):
-        """Plot the geographic extent of the data."""
-        raise NotImplementedError(f"This method is currently not supported.")
-
-    def plot(self, axes=None, figsize=None, label=None, **kwargs):
-        """Plot the the data."""
-        raise NotImplementedError(f"This method is currently not supported.")
-
-    def inner_repr(self):
-        """Inner representation of the data."""
-        return ""
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.inner_repr()})"
-
-
-class GeoData(GeoBase):
-    r"""
-    Abstract class used to wrap rasters, categories and other geo data elements.
-
-    * :attr:`crs` (CRS): CRS projection of the element.
-
-    * :attr:`bounds` (BoundingBox): The geographic extent of the data.
-
-    * :attr:`data` (any): The data to be stored.
-
-    * :attr:`filename` (str): Path to the file.
-
-    """
-
-    def __init__(self, data, filename=None):
-        super().__init__()
-        self.data = data
-        self._filename = str(Path(filename)) if filename else None
-
-    @property
-    def filename(self):
-        return self._filename
-
-    @abstractmethod
-    def crop(self, bbox):
         """Crop the data from a bounding box.
 
         .. note::
@@ -158,7 +114,7 @@ class GeoData(GeoBase):
             bbox (tuple): Bounding box used to crop the rasters,
                 in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
         """
-        NotImplementedError(f"This method is currently not supported.")
+        raise NotImplementedError(f"This method is currently not supported.")
 
     def plot_bounds(self, axes=None, figsize=None, label=None, **kwargs):
         """Plot the geographic extent of the data.
@@ -194,6 +150,37 @@ class GeoData(GeoBase):
             matplotlib.AxesSubplot: Axes of the figure.
         """
         return self.plot_bounds(axes=axes, figsize=figsize, label=label, **kwargs)
+
+    def inner_repr(self):
+        """Inner representation of the data."""
+        return ""
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.inner_repr()})"
+
+
+class GeoData(GeoBase):
+    r"""
+    Abstract class used to wrap rasters, categories and other geo data elements.
+
+    * :attr:`crs` (CRS): CRS projection of the element.
+
+    * :attr:`bounds` (BoundingBox): The geographic extent of the data.
+
+    * :attr:`data` (any): The data to be stored.
+
+    * :attr:`filename` (str): Path to the file.
+
+    """
+
+    def __init__(self, data, filename=None):
+        super().__init__()
+        self.data = data
+        self._filename = str(Path(filename)) if filename else None
+
+    @property
+    def filename(self):
+        return self._filename
 
     def __repr__(self):
         rep = f"{self.__class__.__name__}("
