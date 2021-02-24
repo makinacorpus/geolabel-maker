@@ -8,4 +8,3 @@
 
 from .category import Category, CategoryCollection
 from .color import Color
-from .overpass import OverpassAPI

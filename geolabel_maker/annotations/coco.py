@@ -71,6 +71,8 @@ class COCO(Annotation):
 
         return COCO(images=images, categories=categories, annotations=annotations, info=info)
 
+    # TODO: change args images: add dir_images (to be more clear)
+    # TODO: add requirements images or dir_images / categories or dir_categories
     @classmethod
     def build(cls, images=None, categories=None, labels=None,
               pattern="*.*", root=None, is_crowd=False, **kwargs):

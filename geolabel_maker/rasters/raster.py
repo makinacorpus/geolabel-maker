@@ -20,27 +20,25 @@ This module handles georeferenced raster image (usually ``.tif`` image).
 
 
 # Basic imports
+from abc import abstractmethod
 from tqdm import tqdm
 from itertools import product
 from pathlib import Path
 import json
-import numpy as np
 import rasterio
 import rasterio.mask
 from rasterio.io import MemoryFile
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 import gdal2tiles
-from pyproj.crs import CRS
 from shapely.geometry import box
 import geopandas as gpd
 import matplotlib.pyplot as plt
 
 # Geolabel Maker
-from .sentinelhub import SentinelHubAPI
-from .mapbox import MapBoxAPI
+from geolabel_maker.downloads import SentinelHubAPI, MapBoxAPI
 from .functions import generate_vrt, generate_tiles
 from .utils import color_mask, merge_masks
-from geolabel_maker.base import GeoData, GeoCollection, BoundingBox
+from geolabel_maker.base import GeoBase, GeoData, GeoCollection, BoundingBox, CRS
 from geolabel_maker.logger import logger
 
 
@@ -124,8 +122,36 @@ def _check_raster(element):
     return True
 
 
-class Raster(GeoData):
-    r"""Defines a georeferenced image. This class encapsulates ``rasterio`` dataset,
+class RasterBase(GeoBase):
+    r"""
+    Defines a shared structure for ``Raster`` and ``RasterCollection``.
+    
+    """
+    
+    @abstractmethod
+    def rescale(self, factor):
+        raise NotImplementedError
+    
+    @abstractmethod
+    def zoom(self, zoom):
+        raise NotImplementedError
+    
+    @abstractmethod
+    def mask(self, categories):
+        raise NotImplementedError
+    
+    @abstractmethod
+    def generate_tiles(self, out_dir="tiles", **kwargs):
+        raise NotImplementedError
+    
+    @abstractmethod
+    def generate_mosaic(self, zoom=None, width=256, height=256, is_full=True, out_dir="mosaic"):
+        raise NotImplementedError
+
+
+class Raster(GeoData, RasterBase):
+    r"""
+    Defines a georeferenced image. This class encapsulates ``rasterio`` dataset,
     and defines custom auto-download and processing methods, to work with `geolabel_maker`.
 
     * :attr:`data` (rasterio.io.DatasetReader): The ``rasterio`` data corresponding to a georeferenced image.
@@ -138,7 +164,7 @@ class Raster(GeoData):
         _check_rasterio(data)
         if (filename and data) and Path(filename) != Path(data.name):
             raise ValueError(f"The provided filename does not correspond to the input data.")
-        super().__init__(data, filename=filename)
+        GeoData.__init__(self, data, filename=filename)
 
     @property
     def crs(self):
@@ -574,7 +600,7 @@ class Raster(GeoData):
         return f"bounds={tuple(self.data.bounds)}"
 
 
-class RasterCollection(GeoCollection):
+class RasterCollection(GeoCollection, RasterBase):
     r"""
     Defines a collection of ``Raster``.
     This class behaves similarly as a ``list``, excepts it is made only of ``Raster``.
@@ -582,7 +608,7 @@ class RasterCollection(GeoCollection):
     """
 
     def __init__(self, *rasters):
-        super().__init__(*rasters)
+        GeoCollection.__init__(self, *rasters)
 
     @classmethod
     def open(cls, *filenames, **kwargs):
@@ -640,15 +666,15 @@ class RasterCollection(GeoCollection):
         _check_raster(raster)
         self._items[index] = raster
 
-    def crop(self, bbox):
+    def crop(self, *args, **kwargs):
         """Crop all rasters from a bounding box.
 
         .. seealso::
             See ``Raster.crop()`` method for further details.
 
         Args:
-            bbox (tuple): Bounding box used to crop the rasters,
-                in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.                
+            args (list): List of mandatory arguments from ``Raster.crop()`` method.                
+            kwargs (dict): Dictionary of optional arguments from ``Raster.crop()`` method.                
 
         Returns:
             RasterCollection
@@ -658,16 +684,93 @@ class RasterCollection(GeoCollection):
             >>> bbox = (1843045.92, 5173595.36, 1843056.48, 5173605.92)
             >>> rasters.crop(bbox)
         """
-        cropped = RasterCollection()
-        for raster in self:
+        out_rasters = RasterCollection()
+        for raster in self._items:
             try:
-                cropped.append(raster.crop(bbox))
+                out_rasters.append(raster.crop(*args, **kwargs))
             except Exception as error:
                 logger.error(f"Could not crop raster '{raster.filename}': {error}")
-        return cropped
+        return out_rasters
 
-    #! It is not possible to create VRT from in memory Rasters.
-    # TODO: Provide an alternative or raise a warning.
+    def rescale(self, *args, **kwargs):
+        """Rescale all rasters in respect of a scale factor.
+
+        .. seealso::
+            See ``Raster.rescale()`` method for further details.
+
+        Args:
+            args (list): List of mandatory arguments from ``Raster.crop()`` method.                
+            kwargs (dict): Dictionary of optional arguments from ``Raster.crop()`` method.                    
+
+        Returns:
+            RasterCollection
+            
+        Examples:
+            >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif")
+            >>> factor = 2
+            >>> rasters.rescale(factor)
+        """
+        out_rasters = RasterCollection()
+        for raster in self._items:
+            try:
+                out_rasters.append(raster.rescale(*args, **kwargs))
+            except Exception as error:
+                logger.error(f"Could not rescale raster '{raster.filename}': {error}")
+        return out_rasters
+
+    def zoom(self, *args, **kwargs):
+        """Zoom all rasters in respect of a scale factor.
+
+        .. seealso::
+            See ``Raster.zoom()`` method for further details.
+
+        Args:
+            args (list): List of mandatory arguments from ``Raster.zoom()`` method.                
+            kwargs (dict): Dictionary of optional arguments from ``Raster.zoom()`` method.                    
+
+        Returns:
+            RasterCollection
+            
+        Examples:
+            >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif")
+            >>> zoom_level = 2
+            >>> rasters.zoom(zoom_level)
+        """
+        out_rasters = RasterCollection()
+        for raster in self._items:
+            try:
+                out_rasters.append(raster.zoom(*args, **kwargs))
+            except Exception as error:
+                logger.error(f"Could not zoom raster '{raster.filename}': {error}")
+        return out_rasters
+
+    def mask(self, *args, **kwargs):
+        """Mask all rasters in respect of a scale factor.
+
+        .. seealso::
+            See ``Raster.mask()`` method for further details.
+
+        Args:
+            args (list): List of mandatory arguments from ``Raster.zoom()`` method.                
+            kwargs (dict): Dictionary of optional arguments from ``Raster.zoom()`` method.                    
+
+        Returns:
+            RasterCollection
+            
+        Examples:
+            >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif")
+            >>> categories = CategoryCollection.open("buildings.json", "vegetation.json")
+            >>> rasters.zoom(zoom_level)
+        """
+        out_rasters = RasterCollection()
+        for raster in self._items:
+            try:
+                out_rasters.append(raster.zoom(*args, **kwargs))
+            except Exception as error:
+                logger.error(f"Could not zoom raster '{raster.filename}': {error}")
+        return out_rasters
+
+    #! It is not possible to create VRT from in memory rasters.
     def generate_vrt(self, out_file):
         """Builds a virtual raster from a list of rasters.
 
@@ -683,8 +786,8 @@ class RasterCollection(GeoCollection):
         """
         raster_files = []
         for raster in self._items:
-            if not raster.filename:
-                raise ValueError("Could not access the raster from the disk. "
+            if not isinstance(raster.data, rasterio.DatasetReader):
+                raise ValueError(f"Could not access the raster {raster.data.name} from the disk. "
                                  "This error may be raised if the raster was loaded from a temporary file. "
                                  "You should save the rasters first before creating a virtual raster (use `.save()` method).")
             raster_files.append(str(raster.filename))

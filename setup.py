@@ -55,5 +55,6 @@ setup(
         "rasterio",
         "requests", 
         "shapely",
+        "pyproj"
     ],
 )

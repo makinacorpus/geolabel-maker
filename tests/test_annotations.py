@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 
 # Geolabel Maker
-from geolabel_maker.annotations import COCO
+from geolabel_maker.annotations import COCO, Classification, ObjectDetection
 from geolabel_maker.vectors import Category
 from geolabel_maker import speedups
 
@@ -22,6 +22,64 @@ speedups.disable()
 # Global variables
 ROOT = Path("checkpoints/annotations")
 ROOT_CATEGORIES = Path("checkpoints/vectors")
+
+
+class ClassificationTests(unittest.TestCase):
+
+    def test_01_init(self):
+        classif = Classification()
+        assert len(classif.images) == 0, "Number of images is incorrect"
+        assert len(classif.categories) == 0, "Number of categories is incorrect"
+        assert len(classif.annotations) == 0, "Number of annotations is incorrect"
+        assert classif.info is not None, "Info section is unknown"
+
+    def test_02_open(self):
+        classif = Classification.open(ROOT / "classification.txt")
+        print(len(classif.annotations))
+        assert len(classif.annotations) == 9, "Number of annotations is incorrect"
+        assert classif.info is not None, "Info section is unknown"
+
+        classif = Classification.open(ROOT / "classification.csv")
+        assert len(classif.annotations) == 9, "Number of annotations is incorrect"
+        assert classif.info is not None, "Info section is unknown"
+
+    def test_03_save(self):
+        classif = Classification.open(ROOT / "coco.json")
+        tmp_file = "test_03_save.tmp.txt"
+        classif.save(ROOT / tmp_file)
+        classif_tmp = classif.open(ROOT / tmp_file)
+        assert classif_tmp.annotations.__dict__ == classif.annotations.__dict__, "Corrupted annotations"
+        Path(ROOT / tmp_file).unlink()
+
+    def test_04_build(self):
+        categories = [Category.open(ROOT_CATEGORIES / "buildings.json", color="lightgray"),
+                      Category.open(ROOT_CATEGORIES / "vegetation.json", color="green")]
+        classif = Classification.build(
+            images=ROOT / "images",
+            categories=categories,
+            labels=ROOT / "labels",
+            pattern="*.tif"
+        )
+        assert len(classif.annotations) == 9, "Number of annotations is incorrect"
+        assert classif.info is not None, "Info section is unknown"
+        # Check that the build is correct
+        classif_checkpoint = classif.open(ROOT / "classification.txt")
+        assert classif.categories == classif_checkpoint.categories, "The annotations are different"
+
+
+class ObjectDetectionTests(unittest.TestCase):
+
+    def test_01_init(self):
+        pass
+
+    def test_02_open(self):
+        pass
+
+    def test_03_save(self):
+        pass
+
+    def test_04_build(self):
+        pass
 
 
 class COCOTests(unittest.TestCase):

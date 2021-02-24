@@ -37,15 +37,13 @@ import json
 import numpy as np
 from pathlib import Path
 from tqdm import tqdm
-from pyproj.crs import CRS
 from shapely.geometry import box
 from PIL import Image
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-import rasterio.mask
 
 # Geolabel Maker
-from geolabel_maker.base import BoundingBox, GeoBase
+from geolabel_maker.base import BoundingBox, CRS, GeoBase
 from geolabel_maker.rasters import Raster, RasterCollection
 from geolabel_maker.vectors import Category, CategoryCollection
 from geolabel_maker.utils import retrieve_path, relative_path
@@ -86,9 +84,7 @@ class Dataset(GeoBase):
 
     """
 
-    def __init__(self, images=None, categories=None, labels=None,
-                 dir_images=None, dir_categories=None, dir_labels=None,
-                 dir_mosaics=None, dir_tiles=None, filename=None):
+    def __init__(self, images=None, categories=None, labels=None, dir_images=None, dir_categories=None, dir_labels=None, dir_mosaics=None, dir_tiles=None, filename=None):
         super().__init__()
         self.filename = str(Path(filename)) if filename else None
         self.dir_images = None if not dir_images else str(Path(dir_images))
@@ -149,10 +145,6 @@ class Dataset(GeoBase):
         if self.filename:
             return str(Path(self.filename).parent)
         return None
-
-    @bounds.setter
-    def bounds(self, value):
-        self._bounds = BoundingBox(*value)
 
     @property
     def images(self):
@@ -251,6 +243,7 @@ class Dataset(GeoBase):
                         "dir_labels": "labels"
                     }, f, indent=4)
 
+        logger.info(f"Reading the configuration at {filename}")
         # Load the configuration file.
         with open(filename, "r", encoding="utf-8") as f:
             config = json.load(f)
@@ -264,8 +257,10 @@ class Dataset(GeoBase):
         dir_labels = retrieve_path(config.get("dir_labels", None), root=root)
         dir_mosaics = retrieve_path(config.get("dir_mosaics", None), root=root)
         dir_tiles = retrieve_path(config.get("dir_tiles", None), root=root)
+        logger.info(f"Configuration successfully read")
 
         def load_collection(data_name, data_list=None, in_dir=None, desc="Loading"):
+            logger.info(f"Loading {data_name}")
             collection = []
             data_class = eval(data_name)
             data_optional_args = dict(inspect.signature(data_class.open).parameters)
@@ -282,6 +277,7 @@ class Dataset(GeoBase):
                 data_list = list(Path(in_dir).iterdir())
                 for raster_path in tqdm(data_list, desc=desc, leave=True, position=0):
                     collection.append(data_class.open(raster_path))
+            logger.info(f"Successfully loaded {data_name}")
             return collection
 
         # Load the different objects either from a directory or list of dict {"filename": path, **kwargs}.
@@ -501,11 +497,8 @@ class Dataset(GeoBase):
 
             >>> dataset = Dataset.open("data/")
             >>> dataset.generate_labels()
-<<<<<<< HEAD
-=======
 
             The labels are generated in ``"data/labels" ``.
->>>>>>> 79da38771a7f1104c6bc259c9b3eafbc93f5233d
         """
         # Clean previously generated labels
         self.labels = []

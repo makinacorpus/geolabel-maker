@@ -22,6 +22,8 @@ import numpy as np
 from shapely.geometry import box
 import matplotlib.pyplot as plt
 import pyproj.crs
+import rasterio.crs
+import osgeo.osr as osr
 
 # Geolabel Maker
 from geolabel_maker.logger import logger
@@ -61,6 +63,12 @@ class CRS(pyproj.crs.CRS):
     """Wraps ``pyproj.crs.CRS`` to add custom methods."""
 
     def __init__(self, projparams, **kwargs):
+        # If initialized from a rasterio.crs.CRS, convert it to pyproj.crs.CRS
+        if isinstance(projparams, rasterio.crs.CRS):   
+            srs = osr.SpatialReference()
+            srs.SetFromUserInput(projparams.to_wkt())
+            epsg = srs.GetAttrValue("AUTHORITY", 1)
+            projparams = int(epsg)
         super().__init__(projparams=projparams, **kwargs)
 
     def __repr__(self):
@@ -190,7 +198,7 @@ class GeoData(GeoBase):
         rep += f"{self.inner_repr()}"
         # Add the CRS, if exists
         if self.crs:
-            rep += f", crs=EPSG:{CRS(self.crs).to_epsg()}"
+            rep += f", crs=EPSG:{self.crs.to_epsg()}"
         rep += ")"
         return rep
 
@@ -232,22 +240,6 @@ class GeoCollection(GeoBase):
                 warnings.warn(error_msg, RuntimeWarning)
                 logger.warning(error_msg)
         return crs
-
-    @property
-    def bounds(self):
-        # If the collection is empty
-        if len(self) == 0:
-            return None
-
-        bounds_array = []
-        for value in self:
-            bounds_array.append(np.array([*value.bounds]))
-        bounds_array = np.stack(bounds_array)
-        left = np.min(bounds_array[:, 0])
-        bottom = np.min(bounds_array[:, 1])
-        right = np.max(bounds_array[:, 2])
-        top = np.max(bounds_array[:, 3])
-        return BoundingBox(left, bottom, right, top)
 
     @property
     def bounds(self):

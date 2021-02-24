@@ -28,8 +28,17 @@ class Classification(Annotation):
         super().__init__(images=images, categories=categories, annotations=annotations, info=info)
 
     @classmethod
-    def open(self, filename):
-        pass
+    def open(cls, filename, **kwargs):
+        annotations = []
+        extension = Path(filename).suffix.lower()
+        if extension in [".json"]:
+            with open(filename) as f:
+                annotations = json.load(f)
+        else:
+            df = pd.read_csv(filename, **kwargs)
+            for i, row in df.iterrows():
+                annotations.append(json.loads(row.to_json()))
+        return Classification(annotations=annotations)
 
     @classmethod
     def build(cls, images=None, categories=None, labels=None, pattern="*.*", **kwargs):
@@ -107,3 +116,4 @@ class Classification(Annotation):
             df = pd.DataFrame(data["annotations"])
             df.index.name = "image_id"
             df.to_csv(out_file, **kwargs)
+

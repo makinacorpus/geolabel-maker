@@ -30,15 +30,14 @@ The class ``Category`` wraps the ``GeoDataFrame`` class from ``geopandas`` and a
 # Basic imports
 import warnings
 from pathlib import Path
-from pyproj.crs import CRS
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
 # Geolabel Maker
-from geolabel_maker.base import GeoData, GeoCollection, BoundingBox
+from geolabel_maker.base import GeoBase, GeoData, GeoCollection, BoundingBox, CRS
 from geolabel_maker.vectors.color import Color
-from geolabel_maker.vectors.overpass import OverpassAPI
+from geolabel_maker.downloads import OverpassAPI
 from geolabel_maker.logger import logger
 
 

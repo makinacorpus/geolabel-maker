@@ -139,6 +139,7 @@ frontend/
 
 # Data
 data/
+reports/
 .*/
 *.pkl*
 *.csv
