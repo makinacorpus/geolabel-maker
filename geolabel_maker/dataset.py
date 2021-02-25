@@ -61,9 +61,9 @@ class Dataset(GeoBase):
     .. note::
         If a ``filename`` is provided,
         every processing steps are saved in this configuration file.
-        
+
     * :attr:`crs`: The coordinate reference system.
-    
+
     * :attr:`bounds`: The geographic extent shared by rasters and vectors.
 
     * :attr:`root` (str): Path to the root of the dataset.
@@ -88,7 +88,9 @@ class Dataset(GeoBase):
 
     """
 
-    def __init__(self, images=None, categories=None, labels=None, dir_images=None, dir_categories=None, dir_labels=None, dir_mosaics=None, dir_tiles=None, filename=None):
+    def __init__(self, images=None, categories=None, labels=None,
+                 dir_images=None, dir_categories=None, dir_labels=None,
+                 dir_mosaics=None, dir_tiles=None, filename=None):
         super().__init__()
         self.filename = str(Path(filename)) if filename else None
         self.dir_images = None if not dir_images else str(Path(dir_images))
@@ -199,20 +201,20 @@ class Dataset(GeoBase):
                     "dir_categories":  "categories",
                     "dir_labels":  "labels"
                 }
-                
+
             This configuration will look for all images saved in ``images``, vectors in ``categories`` 
             and label images (if any) in ``labels``.
-            
-        
+
+
             >>> dataset = Dataset.open("dataset.json")
-            
+
             Alternatively, you can load a dataset directly from a root folder.
             It will create a default configuration.
-            
+
             >>> dataset = Dataset.open("data/")
-            
+
             If you wan to control more precisely the loading process, you can provide a more detailed configuration:
-            
+
             .. code-block:: json
 
                 {
@@ -228,11 +230,11 @@ class Dataset(GeoBase):
                         "filename": "labels/raster.tif"
                     }]
                 }
-                
+
             .. note::
                 You can mix both format. 
                 Priority will be given to list of elements.
-                
+
             >>> dataset = Dataset.open("dataset.json")
         """
         assert isinstance(filename, (str, Path)), f"Could not open the `Dataset` from {type(filename)}."
@@ -318,7 +320,7 @@ class Dataset(GeoBase):
 
         Examples:
             If you provided credentials in ``config.json``, you can download data with:
-        
+
             >>> dataset = Dataset.download("config.json")
         """
 
@@ -374,14 +376,14 @@ class Dataset(GeoBase):
 
         Examples:
             If ``dataset.json`` is a configuration file, load the dataset with:
-            
+
             >>> dataset = Dataset.open("dataset.json")
-            
+
             Then, all the paths linking images and vectors are relative to the working directory, ``./`` in this case.
             To generate a configuration linking images from another directory, you can use the above method:
-            
+
             >>> config = dataset.to_dict(root="some/other/directory")
-            
+
             Then, all paths will be relative to ``some/other/directory``.
         """
         root = root or "."
@@ -433,20 +435,20 @@ class Dataset(GeoBase):
         Args:
             filename (str): Name of the configuration file to be saved.
             kwargs (dict): Other arguments from ``ConfigDataset.to_dict()`` method.
-            
+
         Returns:
             str: Path to the saved configuration file.
 
         Examples:
             If ``dataset.json`` is a configuration file, load the dataset with:
-            
+
             >>> dataset = Dataset.open("dataset.json")
-            
+
             Then, all the paths linking images and vectors are relative to the working directory, ``./`` in this case.
             To generate a configuration linking images from another directory, you can use the above method:
-            
+
             >>> config = dataset.save("some/other/directory/dataset.json")
-            
+
             Then, all paths will be relative to ``some/other/directory``.
         """
         self.filename = filename or self.filename or "dataset.json"
@@ -462,7 +464,7 @@ class Dataset(GeoBase):
         # Save and update the configuration file.
         with open(self.filename, "w") as f:
             json.dump(config, f, indent=4)
-        
+
         return self.filename
 
     def to_crs(self, crs, **kwargs):
@@ -481,16 +483,16 @@ class Dataset(GeoBase):
         Examples:
             If ``data`` is a directory containing images in ``images`` and vectors in ``categories`` directories,
             then load the dataset with:
-        
+
             >>> dataset = Dataset.open("data/")
-            
+
             Once loaded, convert all the dataset's elements to another CRS with:
-            
+
             >>> crs = "EPSG:4326"
             >>> out_dataset = dataset.to_crs(crs)
-            
+
             Notice that the resulted dataset is loaded in-memory:
-            
+
             >>> out_dataset.filename
                 None
         """
@@ -517,16 +519,16 @@ class Dataset(GeoBase):
         Examples:
             If ``data`` is a directory containing images in ``images`` and vectors in ``categories`` directories,
             then load the dataset with:
-        
+
             >>> dataset = Dataset.open("data")
-            
+
             Then, crop all its elements with:
-            
+
             >>> bbox = (1843045.92, 5173595.36, 1843056.48, 5173605.92)
             >>> out_dataset = dataset.crop(bbox)
-            
+
             Notice that the resulted dataset is loaded in-memory:
-            
+
             >>> out_dataset.filename
                 None
         """
@@ -598,13 +600,13 @@ class Dataset(GeoBase):
         Examples:
             If ``data`` is a directory containing images in ``images`` and vectors in ``categories`` directories,
             then load the dataset with:
-        
+
             >>> dataset = Dataset.open("data")
-        
+
             Generate virtual rasters with:
-        
+
             >>> dataset.generate_vrt(make_images=True, make_labels=True)
-            
+
             Notice that the argument ``make_labels`` is set to ``True``.
             To work, the dataset must have labels (generated with ``generate_labels``).
         """
@@ -653,22 +655,22 @@ class Dataset(GeoBase):
                 and the image mosaic under ``"{out_dir}/images"``.
                 Default to ``None``.
             kwargs (dict): Remaining arguments from ``Raster.generate_mosaic`` method.
-            
+
         Returns:
             str: The path to the output directory.
 
         Examples:
             If ``data`` is a directory containing images in ``images`` and vectors in ``categories`` directories,
             then load the dataset with:
-        
+
             >>> dataset = Dataset.open("data/")
-            
+
             Before creating a mosaic, the dataset must contains labels. If not, generate them with:
-            
+
             >>> dataset.generate_labels()
-            
+
             Then, generate mosaics for both images and labels:
-            
+
             >>> dataset.generate_mosaics(make_images=True, make_labels=True, zoom="18")
         """
         dir_mosaics = str(out_dir or self.dir_mosaics or Path(self.root) / "mosaics")
@@ -714,11 +716,11 @@ class Dataset(GeoBase):
         Examples:
             If ``data`` is a directory containing images in ``images`` and vectors in ``categories`` directories,
             then load the dataset with:
-        
+
             >>> dataset = Dataset.open("data/")
-            
+
             Before creating a mosaic, the dataset must contains labels. If not, generate them with:
-            
+
             >>> dataset.generate_labels()
 
             Then, generate tiles for both images and labels:
@@ -759,6 +761,7 @@ class Dataset(GeoBase):
         """
         if not axes or figsize:
             _, axes = plt.subplots(figsize=figsize)
+
         dataset_color = dataset_color or "red"
         image_color = image_color or "steelblue"
         category_color = category_color or "lightseagreen"

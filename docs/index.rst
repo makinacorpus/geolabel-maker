@@ -20,17 +20,6 @@ Generate your own ground truth from geo-referenced aerial images and vectors in 
     source/about
     source/install
     source/quick-start
-    source/developers
-
-
-.. toctree::
-    :maxdepth: 2
-    :caption: Tutorials
-
-    tutorials/rasters
-    tutorials/vectors   
-    tutorials/dataset    
-    tutorials/annotations
 
 
 .. toctree::

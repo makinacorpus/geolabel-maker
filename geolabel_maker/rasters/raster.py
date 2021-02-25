@@ -702,7 +702,20 @@ class RasterCollection(GeoCollection, RasterBase):
         return RasterCollection(*rasters)
 
     def save(self, out_dir):
-        raise NotImplementedError
+        """Save all the rasters in a given directory.
+
+        Args:
+            out_dir (str): Path to the output directory.
+
+        Returns:
+            RasterCollection: Collection of rasters loaded in memory.
+        """
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        for i, raster in enumerate(self._items):
+            out_file = raster.filename or Path(out_dir) / f"raster_{i}.tif"
+            raster.save(out_file)
+            self._items[i] = Raster.open(Path(out_dir) / out_file)
+        return str(out_dir)
 
     def append(self, raster):
         r"""Add a raster to the collection.

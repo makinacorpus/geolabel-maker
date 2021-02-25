@@ -25,7 +25,6 @@ They are mainly used for `COCO` annotations, as it requires to extract masks and
 # Basic imports
 import geopandas as gpd
 from shapely.geometry import Polygon, MultiPolygon
-from PIL import Image
 import numpy as np
 import cv2
 
@@ -34,48 +33,17 @@ from geolabel_maker.vectors import Category
 
 
 __all__ = [
-    "retrieve_masks",
     "find_polygons",
     "extract_categories"
 ]
 
-
-#! deprecated
-def retrieve_masks(label_image, colors):
-    """Create sub masks from a label image and their colors.
-
-    Args:
-        image (PIL.Image): Mask as a RGB image of shape :math:`(X, Y, 3)`.
-        colors (list): List of RGB colors used to map the different categories.
-
-    Returns:
-        dict: A dictionary of masks indexed by RGB colors.
-
-    Examples:
-        >>> from PIL import Image
-        >>> # Open a tile label (generated with `generate_tiles()` or `gdal2tiles()`)
-        >>> label_image = Image.open("42154.png")
-        >>> colors = [(255, 255, 255), (0, 150, 0)]
-        >>> masks = retrieve_masks(label_image, colors)
-        >>> type(masks[(255, 255, 255)])
-            PIL.Image
-    """
-    label_array = np.array(label_image)
-    # Initialize a dictionary of sub-masks indexed by RGB colors
-    masks = {}
-    for color in colors:
-        color_array = np.array(color)
-        mask_array = np.all(label_array == color_array, axis=-1)
-        masks[tuple(color)] = Image.fromarray(mask_array)
-    return masks
 
 
 def find_polygons(mask_array, preserve_topology=False, simplify_level=1.0):
     """Retrieve the polygons from a black and white raster image.
 
     Args:
-        mask_array (numpy.ndarray): Black and white mask image of shape :math:`(X, Y, 3)`, 
-            usually generated with the function ``retrieve_masks()``.
+        mask_array (numpy.ndarray): Black and white mask image of shape :math:`(X, Y, 3)`.
         preserve_topology (bool): If ``True``, preserve the topology of the polygon. Default to ``False``.
 
     Returns:
@@ -114,13 +82,9 @@ def find_polygons(mask_array, preserve_topology=False, simplify_level=1.0):
     return polygons
 
 
-def extract_categories(label_file, categories, **kwargs):
+def extract_categories(label=None, categories=None, **kwargs):
     r"""Retrieve the polygons for all tile labels.
     This method must be used once the tiles are generated (see ``generate_tiles`` method).
-
-    .. note::
-        You can use the ``categories`` from the ``Dataset``, or simply load them
-        with ``read_categories`` function.
 
     Args:
         label_file (str): Path to the label image.
@@ -135,21 +99,17 @@ def extract_categories(label_file, categories, **kwargs):
         >>> categories = extract_categories("tiles/labels/13/345/374.png", categories)
         >>> categories
             (Category(data=GeoDataFrame(34 rows, 1 column), name='vegetation', color=(0, 150, 0), 
-            Category(data=GeoDataFrame(234 rows, 1 column), name='buildings', color=(255, 255, 255)))
-
-    Examples:
-        >>> dataset = Dataset.open("data")
+             Category(data=GeoDataFrame(234 rows, 1 column), name='buildings', color=(255, 255, 255)))
     """
-    image = Image.open(str(label_file)).convert("RGB")
-    image_array = np.array(image)
-    color2name = {tuple(category.color): category.name for category in categories}
-    colors = color2name.keys()
+    assert label, "Label image must be provided"
+    
+    label_array = np.array(label)
     categories_extracted = []
-    for color in colors:
+    for category in categories:
         # Extract a mask of color `color` exactly
-        mask_array = cv2.inRange(image_array, color, color)
+        color = tuple(category.color)
+        mask_array = cv2.inRange(label_array, color, color)
         polygons = find_polygons(mask_array, **kwargs)
         data = gpd.GeoDataFrame({"geometry": polygons})
-        name = color2name[color]
-        categories_extracted.append(Category(data, name, color=color))
+        categories_extracted.append(Category(data, category.name, color=color))
     return categories_extracted

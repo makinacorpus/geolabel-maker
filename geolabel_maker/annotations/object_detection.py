@@ -12,13 +12,15 @@ from tqdm import tqdm
 from pathlib import Path
 import numpy as np
 from PIL import Image
+import json
 
 # Geolabel Maker
 from ._utils import extract_paths
 from .functional import extract_categories
 from geolabel_maker.vectors import Color
 from .annotation import Annotation
-from geolabel_maker.utils import relative_path
+from geolabel_maker.utils import relative_path, retrieve_path
+from ._utils import find_paths, find_colors
 
 
 class ObjectDetection(Annotation):
@@ -27,12 +29,53 @@ class ObjectDetection(Annotation):
         super().__init__(images, categories, annotations, info=info)
 
     @classmethod
-    def build(cls, images=None, categories=None, labels=None, pattern="*.*", root=None, is_crowd=False, **kwargs):
+    def open(cls, filename):
+        """Open object detection annotations. The file must be in the ``json`` format.
 
-        # Map the categories and their ids
-        category2id = {category.name: i for i, category in enumerate(categories)}
-        images_paths = extract_paths(images, pattern=pattern)
-        labels_paths = extract_paths(labels, pattern=pattern)
+        Args:
+            filename (str): Name of the file to read.
+
+        Returns:
+            ObjectDetection: Loaded annotations.
+            
+        Examples:
+            >>> annotations = ObjectDetection.open("objects.json")
+        """
+        with open(filename, "r") as f:
+            data = json.load(f)
+        images = data.get("images", None)
+        categories = data.get("categories", None)
+        annotations = data.get("annotations", None)
+        info = data.get("info", None)
+
+        root = Path(filename).parent
+        for image in images:
+            image["file_name"] = retrieve_path(image["file_name"], root)
+        for category in categories:
+            category["file_name"] = retrieve_path(category["file_name"], root)
+        for annotation in annotations:
+            annotation["image_name"] = retrieve_path(annotation["image_name"], root)
+
+        return ObjectDetection(images=images, categories=categories, annotations=annotations, info=info)
+
+    # TODO: build method is similar to COCO: re-factorize everything.
+    @classmethod
+    def build(cls, images=None, categories=None, labels=None,
+              dir_images=None, dir_labels=None, colors=None,
+              pattern="*.*", root=None, is_crowd=False, **kwargs):
+        r"""Generate object detection annotations from a couples of images and labels.
+
+        Args:
+            dataset (Dataset): The dataset containing the images and categories.
+            zoom (int, optional): Zoom level used to generate the annotations.
+            is_crowd (bool, optional): Defaults to ``False``.
+
+        Returns:
+            ObjectDetection: Build annotations.
+        """
+        images_paths = find_paths(files=images, in_dir=dir_images, pattern=pattern)
+        labels_paths = find_paths(files=labels, in_dir=dir_labels, pattern=pattern)
+        categories = find_colors(categories=categories, colors=colors)
 
         def get_annotations():
             # Retrieve the annotations (i.e. geometry / categories)
@@ -40,8 +83,8 @@ class ObjectDetection(Annotation):
             annotation_id = 0
             couple_labels = list(zip(images_paths, labels_paths))
             for image_id, (image_path, label_path) in enumerate(tqdm(couple_labels, desc="Build Annotations", leave=True, position=0)):
-                for category in extract_categories(label_path, categories, **kwargs):
-                    category_id = category2id[category.name]
+                label = Image.open(label_path).convert("RGB")
+                for category_id, category in enumerate(extract_categories(label, categories, **kwargs)):
                     for _, row in category.data.iterrows():
                         polygon = row.geometry
                         # Get annotation elements
@@ -64,8 +107,7 @@ class ObjectDetection(Annotation):
         def get_categories():
             # Create an empty categories' dictionary
             detect_categories = []
-            for category in tqdm(categories, desc="Build Categories", leave=True, position=0):
-                category_id = category2id[category.name]
+            for category_id, category in tqdm(enumerate(categories), desc="Build Categories", leave=True, position=0):
                 detect_categories.append({
                     "id": category_id,
                     "name": str(category.name),
@@ -77,7 +119,7 @@ class ObjectDetection(Annotation):
         def get_images():
             # Retrieve image paths / metadata
             detect_images = []
-            for image_id, image_path in enumerate(tqdm(images_paths, desc="Build Images", leave=True, position=0)):
+            for image_id, image_path in tqdm(enumerate(images_paths), desc="Build Images", leave=True, position=0):
                 image = Image.open(image_path)
                 width, height = image.size
                 # Create image description
@@ -95,3 +137,21 @@ class ObjectDetection(Annotation):
         detect_annotations = get_annotations()
 
         return ObjectDetection(detect_images, detect_categories, detect_annotations)
+
+    def save(self, out_file):
+        """Save the object detection annotations.
+
+        Args:
+            out_file (str): Name of the annotation file. Available formats are ``json``.
+
+        Examples:
+            >>> annotations = ObjectDetection.build(
+            ...     dir_images="data/mosaics/images", 
+            ...     dir_labels="data/mosaics/labels", 
+            ...     categories=dataset.categories
+            ... )
+            >>> annotations.save("coco.json")
+        """
+        root = str(Path(out_file).parent)
+        with open(out_file, "w") as f:
+            json.dump(self.to_dict(root=root), f, indent=4)

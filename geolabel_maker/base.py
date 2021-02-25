@@ -410,14 +410,19 @@ class GeoCollection(GeoBase):
         Returns:
             GeoCollection: The collection with projected data.
         """
-        collection = self.__class__()
-        for value in tqdm(self._items, desc="Projection", leave=True, position=0):
-            if not value.crs or CRS(value.crs) != CRS(crs):
-                value = value.to_crs(crs, **kwargs)
-            collection.append(value)
-        return collection
+        out_collection = self.__class__()
+        for data in tqdm(self._items, desc="Projection", leave=True, position=0):
+            try:
+                if not data.crs or CRS(data.crs) != CRS(crs):
+                    data = data.to_crs(crs, **kwargs)
+            except Exception as error:
+                logger.error(f"Could not change CRS '{data.filename}': {error}")
+                continue
+            finally:
+                out_collection.append(data)
+        return out_collection
 
-    def crop(self, bbox, **kwargs):
+    def crop(self, *args, **kwargs):
         """Crop all values from a bounding box.
 
         Args:
@@ -426,15 +431,16 @@ class GeoCollection(GeoBase):
         Returns:
             GeoCollection: The collection with cropped data.
         """
-        collection = self.__class__()
-        for value in tqdm(self._items, desc="Cropping", leave=True, position=0):
+        out_collection = self.__class__()
+        for data in tqdm(self._items, desc="Cropping", leave=True, position=0):
             try:
-                value = value.crop(bbox, **kwargs)
-            except Exception:
+                out_data = data.crop(*args, **kwargs)
+            except Exception as error:
+                logger.error(f"Could not rescale raster '{data.filename}': {error}")
                 continue
             finally:
-                collection.append(value)
-        return collection
+                out_collection.append(out_data)
+        return out_collection
 
     def plot_bounds(self, axes=None, figsize=None, label=None, **kwargs):
         """Plot the geographic extent of the collection.

@@ -8,20 +8,21 @@
 
 # Basic imports
 from tqdm import tqdm
-from copy import deepcopy
 from pathlib import Path
 import json
 from PIL import Image, ImageDraw
 from shapely.geometry import Polygon
 import numpy as np
 import random
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 # Geolabel Maker
 from .annotation import Annotation
-from ._utils import extract_paths
 from .functional import extract_categories
 from geolabel_maker.vectors import Color
-from geolabel_maker.utils import relative_path, retrieve_path
+from geolabel_maker.utils import retrieve_path
+from ._utils import find_paths, find_colors
 
 
 class COCO(Annotation):
@@ -49,7 +50,7 @@ class COCO(Annotation):
             filename (str): Name of the file to read.
 
         Returns:
-            COCO
+            COCO: Loaded annotations.
             
         Examples:
             >>> annotations = COCO.open("coco.json")
@@ -71,16 +72,12 @@ class COCO(Annotation):
 
         return COCO(images=images, categories=categories, annotations=annotations, info=info)
 
-    # TODO: change args images: add dir_images (to be more clear)
-    # TODO: add requirements images or dir_images / categories or dir_categories
+    # TODO: build method is similar to ObjectDetection: re-factorize everything.
     @classmethod
     def build(cls, images=None, categories=None, labels=None,
+              dir_images=None, dir_labels=None, colors=None,
               pattern="*.*", root=None, is_crowd=False, **kwargs):
-        r"""Generate a ``COCO`` annotation from a ``Dataset``.
-
-        .. seealso::
-            The provided dataset must contains a set of georeferenced images and categories (vectorized geometries).
-            See ``Dataset`` for further details.
+        r"""Generate a COCO annotation from a couples of images and labels.
 
         Args:
             dataset (Dataset): The dataset containing the images and categories.
@@ -88,23 +85,20 @@ class COCO(Annotation):
             is_crowd (bool, optional): Defaults to ``False``.
 
         Returns:
-            COCO
+            COCO: Build annotations.
         """
-        # Map the categories and their ids
-        category2id = {category.name: i for i, category in enumerate(categories)}
-        images_paths = extract_paths(images, pattern=pattern)
-        labels_paths = extract_paths(labels, pattern=pattern)
+        images_paths = find_paths(files=images, in_dir=dir_images, pattern=pattern)
+        labels_paths = find_paths(files=labels, in_dir=dir_labels, pattern=pattern)
+        categories = find_colors(categories=categories, colors=colors)
 
-        # TODO: Remove get_ functions outside as it is redundant with other annotations 
-        # TODO: Put them as functions in _utils.py
         def get_annotations():
             # Retrieve the annotations (i.e. geometry / categories)
             coco_annotations = []
             annotation_id = 0
             couple_labels = list(zip(images_paths, labels_paths))
             for image_id, (image_path, label_path) in enumerate(tqdm(couple_labels, desc="Build Annotations", leave=True, position=0)):
-                for category in extract_categories(label_path, categories, **kwargs):
-                    category_id = category2id[category.name]
+                label = Image.open(label_path).convert("RGB")
+                for category_id, category in enumerate(extract_categories(label, categories, **kwargs)):
                     for _, row in category.data.iterrows():
                         polygon = row.geometry
                         # Get annotation elements
@@ -131,8 +125,7 @@ class COCO(Annotation):
         def get_categories():
             # Create an empty categories' dictionary
             coco_categories = []
-            for category in tqdm(categories, desc="Build Categories", leave=True, position=0):
-                category_id = category2id[category.name]
+            for category_id, category in tqdm(enumerate(categories), desc="Build Categories", leave=True, position=0):
                 coco_categories.append({
                     "id": category_id,
                     "name": str(category.name),
@@ -145,7 +138,7 @@ class COCO(Annotation):
         def get_images():
             # Retrieve image paths / metadata
             coco_images = []
-            for image_id, image_path in enumerate(tqdm(images_paths, desc="Build Images", leave=True, position=0)):
+            for image_id, image_path in tqdm(enumerate(images_paths), desc="Build Images", leave=True, position=0):
                 image = Image.open(image_path)
                 width, height = image.size
                 # Create image description
@@ -165,13 +158,17 @@ class COCO(Annotation):
         return COCO(coco_images, coco_categories, coco_annotations)
 
     def save(self, out_file):
-        """Save the `COCO` annotation in a `JSON` format.
+        """Save the COCO annotations.
 
         Args:
-            out_file (str): Name of the annotation file.
+            out_file (str): Name of the annotation file. Available formats are ``json``.
 
         Examples:
-            >>> annotations = COCO.build(images="data/mosaics/images", labels="data/mosaics/labels", categories=dataset.categories)
+            >>> annotations = COCO.build(
+            ...     dir_images="data/mosaics/images", 
+            ...     dir_labels="data/mosaics/labels", 
+            ...     categories=dataset.categories
+            ... )
             >>> annotations.save("coco.json")
         """
         root = str(Path(out_file).parent)
@@ -214,23 +211,41 @@ class COCO(Annotation):
             if annotation["image_id"] == image_id:
                 masks.append(annotation)
         return masks
+    
+    def get_category(self, category_id):
+        """Get a category from its id.
 
-    def show(self, image_id=None, colors=None, blend_percentage=0.7):
+        Args:
+            category_id (int): ID of the category.
+
+        Returns:
+            dict: Corresponding category.
+        """
+        for category in self.categories:
+            if category["id"] == category_id:
+                return category
+        return None
+
+    # TODO: change colors to {category_name: color}
+    def plot(self, axes=None, figsize=None, image_id=None, colors=None, opacity=0.7):
         """Show the superposition of the segmentation map (labels) on an image.
 
         Args:
+            axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             image_id (int, optional): ID of the image to be displayed. 
                 If ``None``, will display a random image. Defaults to ``None``.
             colors (dict, optional): Dictionary of colors indexed by categories' ID. 
                 If ``None``, will display each label in a random color. Defaults to ``None``.
-            blend_percentage (float, optional): Blending perecentage. Defaults to 0.7.
+            opacity (float, optional): Blending perecentage. Defaults to 0.7.
+            kwargs (dict): Other arguments from `matplotlib`.
 
         Returns:
-            PIL.Image
+            matplotlib.AxesSubplot: The axes of the figure.
 
         Examples:
             >>> annotations = COCO.open("coco.json")
-            >>> annotations.show(19)
+            >>> annotations.plot()
         """
         # Create a map of colors / categories
         colors = colors or {}
@@ -244,6 +259,7 @@ class COCO(Annotation):
             image_id = random.choice([image["id"] for image in self.images])
         image = self.get_image(image_id)
         masks = self.get_masks(image_id)
+        
         for mask in masks:
             image_mask = image.copy()
             draw = ImageDraw.Draw(image)
@@ -253,8 +269,21 @@ class COCO(Annotation):
             polygon = Polygon(np.column_stack((x, y)))
             color = colors[mask["category_id"]]
             draw.polygon(list(polygon.exterior.coords), fill=color)
-            image = Image.blend(image_mask, image, blend_percentage)
-        return image
+            image = Image.blend(image_mask, image, opacity)
+            
+        # Create matplotlib axes
+        if not axes or figsize:
+            _, axes = plt.subplots(figsize=figsize)
+            
+        axes.imshow(image)
+        
+        # Add the legend
+        handles = [mpatches.Patch(facecolor=color, label=self.get_category(category_id)["name"]) for category_id, color in colors.items()]
+        axes.legend(loc=1, handles=handles, frameon=True)
+        
+        plt.title(f"image_id n°{image_id}")
+        plt.axis("off")
+        return axes
 
     def __repr__(self):
         return f"COCO(images={len(self.images)}, categories={len(self.categories)}, annotations={len(self.annotations)})"

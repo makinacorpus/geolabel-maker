@@ -9,59 +9,6 @@ Make sure you installed it without any errors.
    See `this section <install.html>`__ to install ``geolabel-maker``.
 
 
-Set Up
-======
-
-To create your labels and annotations for segmentation, object-detection or classification, 
-you will need a ``data/`` folder containing the following elements:
-
-* ``images/`` : path to the folder containing the images to be labeled
-* ``categories/`` : a JSON file with an unique id for each, the description of expected categories with path to vector label file, and color as RGB triplet.
-* ``categories.json`` : a JSON file used to map the vectors (saved in ``categories/``) to their color and names.
-
-Example of ``categories.json``:
-
-.. code-block::
-
-   {
-      "category_1": {
-         "id": 1,
-         "file": "categories/category1.json",
-         "color": [0, 150, 0]
-      },
-      ...,
-      "category_9": {
-         "id": 9,
-         "file": "categories/category9.json",
-         "color": [255, 255, 255]
-      }
-   }
-
-The root folder ``data/`` should follow this template:
-
-.. code-block::
-
-   data
-   ├── categories
-   │   ├── category1.json
-   │   ├── ...
-   │   └── category9.json
-   ├── images
-   │   ├── satellite1.tif
-   │   ├── ...
-   │   └── satellite99.tif
-   └── categories.json
-
-.. note::
-   The ``data/`` folder is used by ``geolabel-maker`` to store files in cache for the next operation.
-
-.. warning::
-   If you add images, categories while creating an annotations file, 
-   you may break the process.
-   Create a new ``data/`` root if you modified its content, 
-   or clean the previous root folder from cached/generated files.
-
-
 Workflow
 ========
 
@@ -83,7 +30,8 @@ These labels will be used as masks to extract polygons from the satellite images
       from geolabel_maker import Dataset
 
       # Open the dataset from the root
-      dataset = Dataset.open(root="data")
+      dataset = Dataset.open("data")
+
       # Create labels from geometries and raster files
       dataset.generate_labels()
 
@@ -91,7 +39,8 @@ These labels will be used as masks to extract polygons from the satellite images
 
    .. code-block::
 
-      geolabel_maker make_labels  --root  Path to the folder containing images and categories sub-folders
+      geolabel_maker make_labels  --config  (config or root required) Path to the configuration file used to create the dataset
+                                  --root  (config or root required) Alternatively, the root of the dataset
 
 
 .. note::
@@ -110,7 +59,7 @@ These labels will be used as masks to extract polygons from the satellite images
 
       .. code-block::
 
-         geolabel_maker make_rasters --root  Path to the folder containing images and categories sub-folders
+         geolabel_maker make_labels --root  Path to the folder containing images and categories sub-folders
 
 
 Generate tiles
@@ -129,7 +78,8 @@ Generate tiles from the satellite images and labels.
 
    .. code-block::
 
-      geolabel_maker make_tiles --root  Path to the folder containing images and categories sub-folders
+      geolabel_maker make_tiles --config  (config or root required) Path to the configuration file used to create the dataset
+                                --root  (config or root required) Alternatively, the root of the dataset
                                 --zoom  (optional) Zoom interval e.g. 14-20
 
 Generate annotations
@@ -144,7 +94,12 @@ Generate your annotations file at the zoom of your choice.
       from geolabel_maker.annotations import COCO
 
       # Create a COCO annotations
-      annotation = COCO.from_dataset(dataset, zoom=17)
+      annotation = annotation = COCO.build(
+         dir_images="mosaics/images/18",
+         dir_labels="mosaics/labels/18",
+         categories=dataset.categories
+      )
+
       # Save the annotations
       annotation.save("coco.json")
 
@@ -152,9 +107,11 @@ Generate your annotations file at the zoom of your choice.
 
    .. code-block::
 
-      geolabel_maker make_annotations --root  Path to the folder containing images and categories sub-folders
-                                      --zoom  Zoom level used e.g. 17
-                                      --type  Type of annotation e.g. coco
+      geolabel_maker make_annotations --config  (config or root required) Path to the configuration file used to create the dataset
+                                      --root  (config or root required) Alternatively, the root of the dataset
+                                      --dir_images  (optional) Directory containing satellite images
+                                      --dir_labels  (optional) Directory containing label images
+                                      --type  (optional) Type of annotation e.g. coco
                                       --file  (optional) Output file e.g. coco.json
 
 
@@ -167,21 +124,46 @@ Set Up
 Create a folder ``data/`` in your project folder.
 Then, create the subfolders ``images/`` and ``categories/``.
 Add the categories from `geolabel-maker repository <https://github.com/makinacorpus/geolabel-maker/tree/master/data/categories>`__.
-Create the following ``categories.json`` and save it in the directory ``data/``:
+Create the following ``dataset.json`` and save it in the directory ``data/``:
 
 .. code-block::
 
    {
-      "vegetation": {
-         "id": 1,
-         "file": "categories/vegetation.json",
-         "color": [0, 150, 0]
-      },
-      "buildings": {
-         "id": 2,
-         "file": "categories/buildings.json",
-         "color": [255, 255, 255]
-      }
+      "dir_images": "images",
+      "dir_categories": "categories",
+      "dir_labels": "labels",
+      "images": [
+         {
+               "id": 0,
+               "filename": "1843_5173_08_CC46.tif"
+         },
+         {
+               "id": 1,
+               "filename": "1844_5173_08_CC46.tif"
+         }
+      ],
+      "categories": [
+         {
+               "id": 0,
+               "name": "buildings",
+               "color": [
+                  32,
+                  160,
+                  138
+               ],
+               "filename": "buildings.json"
+         },
+         {
+               "id": 1,
+               "name": "vegetation",
+               "color": [
+                  151,
+                  243,
+                  39
+               ],
+               "filename": "vegetation.json"
+         }
+      ]
    }
 
 
@@ -202,7 +184,7 @@ Your tree structure should be:
    ├── images
    │   ├── 1843_5174_08_CC46.tif
    │   └── 1844_5173_08_CC46.tif   
-   └── categories.json
+   └── dataset.json
 
 
 Workflow
@@ -218,16 +200,23 @@ Then, to create your annotations run the commands:
       from geolabel_maker.annotations import COCO
 
       # Open the dataset from the root
-      dataset = Dataset.open("data")
+      dataset = Dataset.open("data/dataset.json")
+
       # Create labels from geometries and raster files
       dataset.generate_labels()
-      # Generate tiles from images and labels
-      dataset.generate_tiles(zoom="17-20")
 
-      # Create a COCO annotations
-      annotation = COCO.from_dataset(dataset, zoom=17)
+      # Generate mosaics from images and labels
+      dataset.generate_mosaics(zoom="18")
+
+      # Create COCO annotations
+      annotations = COCO.build(
+         dir_images="data/mosaics/images/18",
+         dir_labels="data/mosaics/labels/18",
+         categories=dataset.categories
+      )
+
       # Save the annotations
-      annotation.save("coco.json")
+      annotations.save("coco.json")
 
 .. tabbed:: Command Lines
 
@@ -235,6 +224,6 @@ Then, to create your annotations run the commands:
 
       geolabel_maker make_labels --root data
 
-      geolabel_maker make_tiles --root data --zoom 17-20
+      geolabel_maker make_mosaics --root data --zoom 18
 
-      geolabel_maker make_annotations --root data --zoom 17 --type coco --file coco.json
+      geolabel_maker make_annotations --root data --type coco --file coco.json

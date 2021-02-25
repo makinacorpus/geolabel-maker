@@ -241,8 +241,9 @@ class Category(GeoData):
             >>> category = Category.open("buildings.json", name="buildings", color=(255, 255, 255))
             >>> out_category = category.to_crs(""EPSG:4326"")
         """
-        data = self.data.to_crs(crs, **kwargs)
-        out_category = Category(data, self.name, self.color)
+        out_data = self.data.to_crs(crs, **kwargs)
+        
+        out_category = Category(out_data, self.name, self.color)
         return out_category
 
     def crop(self, bbox):
@@ -275,9 +276,9 @@ class Category(GeoData):
         Xmax = min(Xmax, XCmax)
         Ymin = max(Ymin, YCmin)
         Ymax = min(Ymax, YCmax)
-        sub_data = self.data.cx[Xmin:Xmax, Ymin:Ymax]
+        out_data = self.data.cx[Xmin:Xmax, Ymin:Ymax]
 
-        return Category(sub_data, self.name, color=self.color, filename=self.filename)
+        return Category(out_data, self.name, color=self.color, filename=self.filename)
 
     def plot(self, axes=None, figsize=None, **kwargs):
         """Plot a category.
@@ -337,8 +338,21 @@ class CategoryCollection(GeoCollection):
             categories.append(Category.open(filename, **kwargs))
         return CategoryCollection(*categories)
 
-    def save(self):
-        raise NotImplementedError
+    def save(self, out_dir):
+        """Save all the rasters in a given directory.
+
+        Args:
+            out_dir (str): Path to the output directory.
+
+        Returns:
+            CategoryCollection: Collection of categories loaded in memory.
+        """
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        for i, category in enumerate(self._items):
+            out_file = category.filename or Path(out_dir) / f"{category.name}.json"
+            category.save(out_file)
+            self._items[i] = Category(category.data, category.name, category.color, filename=out_file)
+        return str(out_dir)
 
     def _make_unique_colors(self):
         """Make sure the categories have unique colors."""
@@ -431,7 +445,7 @@ class CategoryCollection(GeoCollection):
         for category in self:
             yield category.name
 
-    def crop(self, bbox):
+    def crop(self, *args, **kwargs):
         """Crop all categories from a bounding box.
 
         .. seealso::
@@ -452,15 +466,7 @@ class CategoryCollection(GeoCollection):
             >>> out_categories = categories.crop((1843000, 5173000, 1845000, 5174000))
 
         """
-        categories = CategoryCollection()
-        for category in self:
-            try:
-                category_cropped = category.crop(bbox)
-                if category_cropped and not category_cropped.data.empty:
-                    categories.append(category.crop(bbox))
-            except Exception as error:
-                pass
-        return categories
+        super().crop(*args, **kwargs)
 
     def plot(self, axes=None, figsize=None, **kwargs):
         """Plot the data.

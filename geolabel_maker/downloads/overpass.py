@@ -51,7 +51,7 @@ class OverpassAPI(Downloader):
         url = "http://overpass-api.de/api/interpreter"
         super().__init__(url)
 
-    def download(self, bbox, selector='"building"', timeout=700, out_file=None):
+    def download(self, bbox, selector="building", timeout=700, out_file=None):
         """Download OSM data from the API. 
         A ``selector`` can be used to retrieve specific areas / regions of interests.
 
@@ -73,8 +73,8 @@ class OverpassAPI(Downloader):
         lon_min, lat_min, lon_max, lat_max = bbox
         query = f"""
             [out:json][timeout:{timeout}];
-            (relation[{selector}]({lon_min},{lat_min},{lon_max},{lat_max});
-            way[{selector}]({lon_min},{lat_min},{lon_max},{lat_max});
+            (relation[{selector}]({lat_min},{lon_min},{lat_max},{lon_max});
+            way[{selector}]({lat_min},{lon_min},{lat_max},{lon_max});
             );
             out body;
             >;
@@ -100,10 +100,9 @@ class OverpassAPI(Downloader):
         features = osmtogeojson.process_osm_json(json_data)
 
         if out_file is None:
-            date = int(datetime.now().timestamp())
             selector_unicode = re.sub("[^a-zA-Z_-]", "_", selector)
-            out_file = f"{selector_unicode}-{date}.geojson"
-        elif not Path(out_file).suffix in [".json", ".geojson"]:
+            out_file = f"{selector_unicode}_{int(lon_min)}_{int(lat_min)}_{int(lon_max)}_{int(lat_max)}.geojson"
+        elif not Path(out_file).suffix.lower() in [".json", ".geojson"]:
             out_file = f"{out_file}.json"
 
         # Save

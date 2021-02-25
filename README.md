@@ -14,7 +14,6 @@
 [![Docs](https://img.shields.io/readthedocs/geolabel-maker)]()
 [![Website](https://img.shields.io/static/v1?label=blog&message=up&color=brightgreen)](https://makina-corpus.com/blog/metier/2020/extraction-dobjets-pour-la-cartographie-par-deep-learning-creation-dune-verite-terrain)
 
-
 </div>
 
 <p align="center"> 
@@ -71,13 +70,13 @@ Once you have geo-referenced rasters and vectors, you are ready to build your ow
 
 ![annotations](docs/images/annotations.png)
 
-The final step is to generate you annotations file. This python package lets you create three kinds of annotations: 
-- **Classification**, to map images with one category;
-- **Object Detection**, to extract object by their bbox in the images (and their corresponding masks);
-- **Segmentation**, to extract object by their segmentation in the images (and their corresponding masks).
+The final step is to generate you annotations file. This python package lets you create three kinds of annotations:
+
+-   **Classification**, to map images with one category;
+-   **Object Detection**, to extract object by their bbox in the images (and their corresponding masks);
+-   **Segmentation**, to extract object by their segmentation in the images (and their corresponding masks).
 
 See this [example on how to generate annotations]() for further details.
-
 
 ### Supported formats
 
@@ -98,7 +97,6 @@ We use packages based on GDAL drivers.
 
 A command-line interface is proposed with 6 available
 actions.
-
 
 **0. `download`: Download rasters or vectors**
 
@@ -177,22 +175,21 @@ annotation.save("coco.json")
 
 ## Tutorials
 
-* 1 - [Download data with Geolabel Maker](notebooks/Use_geolabel_maker.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/makinacorpus/geolabel-maker/blob/master/notebooks/Download%20data%20with%20Geolabel%20Maker.ipynb)
+-   1 - [Download data with Geolabel Maker](notebooks/Download%20data%20with%20Geolabel%20Maker.ipynb) &nbsp; [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/makinacorpus/geolabel-maker/blob/master/notebooks/Download%20data%20with%20Geolabel%20Maker.ipynb)
 
-  This tutorial will guide you on how to download imagery and geometries from different API ([Sentinel Hub](https://www.sentinel-hub.com/), [MapBox](https://www.mapbox.com/) and [Open Street Map](https://www.openstreetmap.org/)).
+    This tutorial will guide you on how to download imagery and geometries from different API ([Sentinel Hub](https://www.sentinel-hub.com/), [MapBox](https://www.mapbox.com/) and [Open Street Map](https://www.openstreetmap.org/)).
 
-* 2 - [Generate datasets with Geolabel Maker](notebooks/Use_geolabel_maker.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/makinacorpus/geolabel-maker/blob/master/notebooks/Generate%20datasets%20with%20Geolabel%20%Maker.ipynb)
+-   2 - [Generate a dataset with Geolabel Maker](notebooks/Generate%20a%20dataset%20with%20Geolabel%20%Maker.ipynb) &nbsp; [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/makinacorpus/geolabel-maker/blob/master/notebooks/Generate%20a%20dataset%20with%20Geolabel%20%Maker.ipynb)
 
-  This tutorial explains the process to build your own ground truth on a minimal set-up.
+    This tutorial explains the process to build your own ground truth on a minimal set-up.
 
-* 3 - [Advanced data manipulation with Geolabel Maker](notebooks/Use_geolabel_maker.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/makinacorpus/geolabel-maker/blob/master/notebooks/Generate%20datasets%20with%20Geolabel%20%Maker.ipynb)
+-   3 - [Advanced data manipulation with Geolabel Maker](notebooks/Advanced%20data%20manipulation%20with%20Geolabel%20%Maker.ipynb) &nbsp; [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/makinacorpus/geolabel-maker/blob/master/notebooks/Advanced%20data%20manipulation%20with%20Geolabel%20%Maker.ipynb)
 
-  In addition to the previous tutorial, this tutorial covers all methods and interactions that are useful for an in-depth understanding of ``geolabel-maker``.
+    In addition to the previous tutorial, this tutorial covers all methods and interactions that are useful for an in-depth understanding of `geolabel-maker`.
 
-* 4 - [Check annotations with Geolabel Maker](notebooks/Check_coco_annotations.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/makinacorpus/geolabel-maker/blob/master/notebooks/Check%20annotations%20with%20Geolabel%20Maker.ipynb)
+-   4 - [Check annotations with Geolabel Maker](notebooks/Check%20annotations%20with%20Geolabel%20Maker.ipynb) &nbsp; [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/makinacorpus/geolabel-maker/blob/master/notebooks/Check%20annotations%20with%20Geolabel%20Maker.ipynb)
 
-  Finally, this tutorial allows you to explore your final annotations file.
-
+    Finally, this tutorial allows you to explore your final annotations file.
 
 ## Documentation
 
@@ -230,6 +227,7 @@ pip install sphinx_panels
 ```
 
 Convert the notebooks and add them to the documentation:
+
 ```
 jupyter nbconvert <notebook_file> --to rst
 ```
@@ -300,7 +298,7 @@ from shapely import speedups
 speedups.disable()
 ```
 
-Or set `DISABLE_SPEEDUPS = True` in the `geolabel_maker/__init__.py` file. 
+Or set `DISABLE_SPEEDUPS = True` in the `geolabel_maker/__init__.py` file.
 
 </details>
 
