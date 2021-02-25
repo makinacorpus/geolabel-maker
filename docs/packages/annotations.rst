@@ -16,7 +16,7 @@ Annotations
    ~functional.extract_categories
 
 
-annotation
+Annotation
 ==========
 
 .. automodule:: geolabel_maker.annotations.annotation
@@ -24,14 +24,14 @@ annotation
     :inherited-members:
 
 
-coco
+COCO
 ====
 
 .. automodule:: geolabel_maker.annotations.coco
     :members:
     :inherited-members:
 
-classification
+Classification
 ==============
 
 .. automodule:: geolabel_maker.annotations.classification
@@ -39,7 +39,7 @@ classification
     :inherited-members:
 
 
-object detection
+Object Detection
 ================
 
 .. automodule:: geolabel_maker.annotations.object_detection

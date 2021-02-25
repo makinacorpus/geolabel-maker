@@ -13,7 +13,7 @@ Rasters
    ~utils.merge_masks
 
 
-raster
+Raster
 ======
 
 .. automodule:: geolabel_maker.rasters.raster

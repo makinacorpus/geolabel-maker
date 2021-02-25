@@ -12,7 +12,7 @@ Vectors
    ~color.Color
 
 
-category
+Category
 ========
 
 .. automodule:: geolabel_maker.vectors.category
@@ -20,7 +20,7 @@ category
     :inherited-members:
 
 
-color
+Color
 =====
 
 .. automodule:: geolabel_maker.vectors.color

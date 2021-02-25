@@ -266,8 +266,7 @@ class GeoData(GeoBase):
 class GeoCollection(GeoBase):
     """An abstract class used to store a collection of ``Data``.
 
-    * :attr:`crs` (CRS): CRS projection of all elements. 
-        If the elements are in different CRS, it will show a warning.
+    * :attr:`crs` (CRS): CRS projection of all elements. If the elements are in different CRS, it will show a warning.
 
     * :attr:`bounds` (BoundingBox): The geographic extent of all data.
 
@@ -403,10 +402,10 @@ class GeoCollection(GeoBase):
         return self.__class__(self._items.copy())
 
     def to_crs(self, crs, **kwargs):
-        """Project all values of the collection to `CRS`.
+        """Change the CRS of the collection's items.
 
         Args:
-            crs (CRS): Destination `CRS`.
+            crs (CRS): Destination CRS.
 
         Returns:
             GeoCollection: The collection with projected data.

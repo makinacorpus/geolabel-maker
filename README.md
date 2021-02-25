@@ -8,7 +8,7 @@
 <div align="center">
 
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
-[![PyPi](https://img.shields.io/pypi/pyversions/geolabel-maker)](https://pypi.org/project/geolabel-maker/)
+[![Python](https://img.shields.io/pypi/pyversions/geolabel-maker)](https://pypi.org/project/geolabel-maker/)
 [![PyPi](https://img.shields.io/pypi/v/geolabel-maker)](https://pypi.org/project/geolabel-maker/)
 [![License](https://img.shields.io/github/license/makinacorpus/geolabel-maker)](/LICENSE)
 [![Docs](https://img.shields.io/readthedocs/geolabel-maker)]()
@@ -18,7 +18,7 @@
 </div>
 
 <p align="center"> 
-  This tool is provided to help you in your <b>data preparation for geospatial artificial intelligence</b>. Generate your own ground truth from geo-referenced aerial images and vectors in a few lines of code.
+  This tool is provided to help you in your <b>data preparation for geospatial artificial intelligence</b>. Generates your own ground truth from geo-referenced aerial images and vectors in a few lines of code.
 </p>
 
 ## Table of Contents
@@ -26,7 +26,7 @@
 -   [About](#about)
 -   [Installation](#installation)
 -   [Usage](#usage)
--   [Examples](#examples)
+-   [Tutorials](#tutorials)
 -   [Documentation](#documentation)
 -   [For developers](#for-developers)
 -   [Contributors](#contributors)
@@ -35,20 +35,20 @@
 ## About
 
 With `geolabel-maker`, you will be able to combine satellite or aerial imagery with
-vector spatial data to create your own ground-truth dataset. This Python package can
+vector data to create your own ground-truth dataset. This Python package can
 generate your final dataset in various formats for deep-learning models. See [outputs](#outputs) for more details.
 
 It is designed to link up these 4 needed steps :
 
-1. Download satellite images and vector geometries;
-2. Create labels from geometries and raster files;
-3. Generate tiles from the satellite images and labels;
-4. Create an annotation file (`JSON`, `TXT`, `CSV`) for object detection, segmentation or classification.
+1. Download and process satellite imagery and vector geometries;
+2. Create labels from rasters and geometries;
+3. Generate tiles from the satellite images and generated labels;
+4. Create an annotation file (`COCO`, `JSON`, `TXT`, `CSV`) for object detection, segmentation or classification.
 
 ## Installation
 
-![Python](https://img.shields.io/static/v1?label=Python&message=3.6&color=blue)
-![GDAL](https://img.shields.io/static/v1?label=GDAL&message=3.1.4&color=blue)
+![Python](https://img.shields.io/static/v1?label=Python&message=3&color=blue)
+![GDAL](https://img.shields.io/static/v1?label=GDAL&message=3.0.0&color=blue)
 
 See [requirements.txt](requirements.txt) for the list of the packages used and their version. See these [common issues](#common-issues) if you struggles to install some packages.
 
@@ -62,18 +62,19 @@ pip install geolabel-maker
 
 ![data](docs/images/data.png)
 
-Before to generate your dataset, you will need to provide geo-referenced satellite `images` (i.e. rasters) and `categories` (i.e. vectors). See this [example on how to download data]() for further details.
+Before to generate your dataset, you will need to provide geo-referenced satellite `images` (i.e. rasters) and `categories` (i.e. vectors). Geolabel Maker provides tools to download imagery from [Sentinel](https://www.sentinel-hub.com/) or [MapBox](https://www.mapbox.com/) and vectors from [Open Street Map](https://www.openstreetmap.org/).
+See this [example on how to download data](notebooks/Download%20data%20with%20Geolabel%20Maker.ipynb) for further details.
 
 ![dataset](docs/images/dataset.png)
 
-Once you have geo-referenced rasters and vectors, you are ready to build your own dataset. List the different categories (e.g. buildings, vegetation) in `categories.json` that will be used as masks. You will need to create tiles for the images and labels (i.e. rasterized vectors) to be able to generate your annotations file. See this [example on how to generate a dataset]() for further details.
+Once you have geo-referenced rasters and vectors, you are ready to build your own dataset. Geolabel Maker lets you generate labels in different dimensions and resolution. In addition, you can generate tiles in [Slippy Map format](https://wiki.openstreetmap.org/wiki/Slippy_Map) or divide bigger images into a mosaic. See this [example on how to generate a dataset](notebooks/Generate%20a%20dataset%20with%20Geolabel%20Maker.ipynb) for further details.
 
 ![annotations](docs/images/annotations.png)
 
 The final step is to generate you annotations file. This python package lets you create three kinds of annotations: 
-- [Classification](), to map images with one category;
-- [Object Detection](), to extract object by their bbox in the images (and their corresponding masks);
-- [Segmentation](), to extract object by their segmentation in the images (and their corresponding masks).
+- **Classification**, to map images with one category;
+- **Object Detection**, to extract object by their bbox in the images (and their corresponding masks);
+- **Segmentation**, to extract object by their segmentation in the images (and their corresponding masks).
 
 See this [example on how to generate annotations]() for further details.
 
@@ -93,34 +94,58 @@ We use packages based on GDAL drivers.
     -   `GPKG`,
     -   etc.
 
-### Using the command-line interface
+### Command-line interface
 
-A command-line interface is proposed with 4 available
-actions (`download`, `make_labels`, `make_tiles`, `make_annotations`).
+A command-line interface is proposed with 6 available
+actions.
 
-**1. Create labels from geometries and raster files**
 
-```
-geolabel_maker make_labels  --root  Path to the folder containing images and categories sub-folders
-```
-
-**2. Generate tiles from the images and labels**
+**0. `download`: Download rasters or vectors**
 
 ```
-geolabel_maker make_tiles --root  Path to the folder containing images and categories sub-folders
+geolabel_maker download  --config  Path to the configuration file containing your credentials
+```
+
+**1. `make_labels`: Create labels from geometries and raster files**
+
+```
+geolabel_maker make_labels  --config  Path to the configuration file used to create the dataset
+```
+
+**2. `make_mosaics`: Generate mosaics from the images and labels**
+
+```
+geolabel_maker make_mosaics --config  Path to the configuration file used to create the dataset
+                            --zoom  (optional) Zoom interval e.g. 14-20
+```
+
+**2. `make_tiles` Generate tiles from the images and labels**
+
+```
+geolabel_maker make_tiles --config  Path to the configuration file used to create the dataset
                           --zoom  (optional) Zoom interval e.g. 14-20
 ```
 
-**3. Create an annotation file in the format of your choice**
+**3. `make_annotations`: Create an annotations file**
 
 ```
-geolabel_maker make_annotations --root  Path to the folder containing images and categories sub-folders
-                                --zoom  Zoom level used e.g. 17
+geolabel_maker make_annotations --config  Path to the configuration file used to create the dataset
+                                --dir_images  Directory containing satellite images
+                                --dir_labels  Directory containing label images
                                 --type  Type of annotation e.g. coco
                                 --file  (optional) Output file e.g. coco.json
 ```
 
-### Importing the package in Python code
+**`make_all`: Run everything**
+
+```
+geolabel_maker make_all --config  Path to the configuration file used to create the dataset
+                        --zoom  Zoom level used e.g. 17
+                        --type  Type of annotation e.g. coco
+                        --file  (optional) Output file e.
+```
+
+### Python API
 
 ```python
 from geolabel_maker import Dataset
@@ -131,31 +156,35 @@ dataset = Dataset.open("data")
 # Create labels from geometries and raster files
 dataset.generate_labels()
 # Generate tiles from images and labels
-dataset.generate_tiles(zoom="14-20")
+dataset.generate_mosaics(zoom="18", out_dir="mosaics")
 
 # Create a COCO annotations
-annotation = COCO.from_dataset(dataset, zoom=17)
+annotation = COCO.build(
+    dir_images="mosaics/images",
+    dir_labels="mosaics/labels",
+    categories=dataset.categories
+)
 # Save the annotations
 annotation.save("coco.json")
 ```
 
-## Examples
+## Tutorials
 
-The `data/` folder contains geometries (in `data/categories/`) from Lyon, published as open data in the website [https://data.grandlyon.com](https://data.grandlyon.com).
-It contains also an example of a `JSON` file describing categories used to create labels.
+* 1 - [Download data with Geolabel Maker](notebooks/Use_geolabel_maker.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/makinacorpus/geolabel-maker/blob/master/notebooks/Download%20data%20with%20Geolabel%20Maker.ipynb)
 
-This folder doesn't contain images because this type of file is too big to be supported in Github.
-To follow our example, just download these two files and put them in the folder `data/images/`:
+  This tutorial will guide you on how to download imagery and geometries from different API ([Sentinel Hub](https://www.sentinel-hub.com/), [MapBox](https://www.mapbox.com/) and [Open Street Map](https://www.openstreetmap.org/).
 
--   [1843_5173_08_CC46.tif](https://download.data.grandlyon.com/files/grandlyon/imagerie/ortho2018/ortho/GeoTiff_YcBcR/1km_8cm_CC46/1843_5173_08_CC46.tif)
--   [1844_5173_08_CC46.tif](https://download.data.grandlyon.com/files/grandlyon/imagerie/ortho2018/ortho/GeoTiff_YcBcR/1km_8cm_CC46/1844_5173_08_CC46.tif)
+* 2 - [Generate datasets with Geolabel Maker](notebooks/Use_geolabel_maker.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/makinacorpus/geolabel-maker/blob/master/notebooks/Generate%20datasets%20with%20Geolabel%20%Maker.ipynb)
 
-### Notebooks
+  This tutorial explains the process to build your own ground truth on a minimal set-up.
 
-Some Jupyter notebooks (in French) are available :
+* 3 - [Advanced data manipulation with Geolabel Maker](notebooks/Use_geolabel_maker.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/makinacorpus/geolabel-maker/blob/master/notebooks/Generate%20datasets%20with%20Geolabel%20%Maker.ipynb)
 
--   [Use_geolabel_maker.ipynb](notebooks/Use_geolabel_maker.ipynb) explains the process to build your ground truth.
--   [Check_coco_annotations.ipynb](notebooks/Check_coco_annotations.ipynb) allows to explore your final annotations file.
+  In addition to the previous tutorial, this tutorial covers all methods and interactions that are useful for an in-depth understanding of ``geolabel-maker``.
+
+* 4 - [Check annotations with Geolabel Maker](notebooks/Check_coco_annotations.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/makinacorpus/geolabel-maker/blob/master/notebooks/Check%20annotations%20with%20Geolabel%20Maker.ipynb)
+
+  Finally, this tutorial allows you to explore your final annotations file.
 
 
 ## Documentation

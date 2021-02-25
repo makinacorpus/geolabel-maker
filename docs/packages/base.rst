@@ -11,8 +11,6 @@ Base
    ~base.GeoData
    ~base.GeoCollection
 
-base
-====
 
 .. automodule:: geolabel_maker.base
     :members:

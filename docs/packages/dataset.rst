@@ -10,9 +10,6 @@ Dataset
    ~dataset.Dataset
 
 
-dataset
-=======
-
 .. automodule:: geolabel_maker.dataset
     :members:
     :inherited-members:

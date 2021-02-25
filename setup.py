@@ -38,7 +38,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "geolabels = geolabel_maker.geolabels:main.start",
+            "geolabel_maker = geolabel_maker.geolabels:main.start",
         ]
     },
     python_requires=">=3.6",

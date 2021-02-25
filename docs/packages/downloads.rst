@@ -13,14 +13,14 @@ Downloads
    ~overpass.OverpassAPI
 
 
-downloader
+Downloader
 ==========
 
 .. automodule:: geolabel_maker.downloads.downloader
     :members:
 
 
-mapbox
+MapBx
 ======
 
 .. automodule:: geolabel_maker.downloads.mapbox
@@ -28,15 +28,15 @@ mapbox
     :inherited-members:
 
 
-sentinelhub
-===========
+Sentinel Hub
+============
 
 .. automodule:: geolabel_maker.downloads.sentinelhub
     :members:
     :inherited-members:
 
 
-overpass
+Overpass
 ========
 
 .. automodule:: geolabel_maker.downloads.overpass
