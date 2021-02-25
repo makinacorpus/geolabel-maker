@@ -56,7 +56,6 @@ class MapBoxAPI(Downloader):
     """
 
     def __init__(self, access_token):
-        super().__init__()
         self.access_token = access_token
         url = "https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}{res}.{format}?access_token={access_token}"    
         super().__init__(url)
