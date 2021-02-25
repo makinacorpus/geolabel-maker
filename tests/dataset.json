@@ -1,0 +1,31 @@
+{
+    "dir_images": "checkpoints\\dataset\\data\\images",
+    "dir_categories": "checkpoints\\dataset\\data\\categories",
+    "dir_labels": "checkpoints\\dataset\\data\\labels",
+    "dir_mosaics": "checkpoints\\dataset\\data\\mosaics",
+    "dir_tiles": "checkpoints\\dataset\\data\\tiles",
+    "images": [
+        {
+            "id": 0,
+            "filename": "None"
+        }
+    ],
+    "categories": [
+        {
+            "id": 0,
+            "name": "buildings",
+            "color": [
+                211,
+                211,
+                211
+            ],
+            "filename": "buildings.json"
+        }
+    ],
+    "labels": [
+        {
+            "id": 0,
+            "filename": "None"
+        }
+    ]
+}

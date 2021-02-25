@@ -21,7 +21,6 @@ import logging
 
 # GLobal variables
 FORMATTER = logging.Formatter("%(asctime)s :: %(name)s :: [%(levelname)-7s] :: %(filename)s:%(lineno)s :: %(funcName)s() :: %(message)s")
-# "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 
 def setup_logger(name, logfile, level=logging.INFO):
 

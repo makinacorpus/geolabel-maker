@@ -150,16 +150,19 @@ class Category(GeoData):
             color (tuple, optional): Color in the format :math:`(R, G, B)`. Defaults to None.
 
         Returns:
-            Category
+            Category: The loaded category.
 
         Examples:
+            If ``buildings.json`` is a geometry available from the disk, create a category with:
+        
             >>> from geolabel_maker.vectors import Category
-            >>> category = Category.open("categories/buildings.json", "buildings", (255, 255, 255))
+            >>> category = Category.open("buildings.json", "buildings", (255, 255, 255))
         """
         data = gpd.read_file(str(filename))
         name = name or Path(filename).stem
         return Category(data, name, color=color, filename=str(filename))
 
+    # TODO: Remove it to force the user retrieve geometries directly from the API.
     @classmethod
     def download(cls, bbox, **kwargs):
         """Download a geometry using the `Open Street Map` API.
@@ -170,7 +173,7 @@ class Category(GeoData):
             kwargs (dict): Arguments used in the ``OverpassAPI`` download method.
 
         Returns:
-            Category
+            Category: The downloaded category.
         """
         api = OverpassAPI()
         color = kwargs.pop("color", None)
@@ -195,7 +198,7 @@ class Category(GeoData):
             kwargs (dict): Rest of the arguments from ``GeoDataFrame.from_postgis`` method.
 
         Returns:
-            Category
+            Category: The category from PostGis.
 
         Examples:
             >>> from geolabel_maker.vectors import Category
@@ -213,8 +216,12 @@ class Category(GeoData):
 
         Args:
             out_file (str): Name of the output file.
+            
+        Returns:
+            str: Path to the saved file.
         """
         self.data.to_file(out_file, driver="GeoJSON")
+        return str(out_file)
 
     def to_crs(self, crs, **kwargs):
         r"""Project the category from its initial `CRS` to another one.
@@ -226,14 +233,20 @@ class Category(GeoData):
             crs (str, pyproj.crs.CRS): The destination `CRS`.
 
         Returns:
-            Category
+            Category: The projected category.
+            
+        Examples:
+            If ``buildings.json`` is a geometry available from the disk, change its CRS with:
+            
+            >>> category = Category.open("buildings.json", name="buildings", color=(255, 255, 255))
+            >>> out_category = category.to_crs(""EPSG:4326"")
         """
         data = self.data.to_crs(crs, **kwargs)
         out_category = Category(data, self.name, self.color)
         return out_category
 
     def crop(self, bbox):
-        r"""Get the geometries which are in a bounding box.
+        r"""Crop a category within a bounding box.
 
         .. note::
             The bounding box coordinates should be in the same system as the geometries.
@@ -243,12 +256,13 @@ class Category(GeoData):
                 in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
 
         Returns:
-            list: The geometries of the tif file's geographic extent.
+            Category: The cropped category.
 
         Examples:
-            >>> from geolabel_maker.vectors import Category
-            >>> category = Category.open("categories/buildings.json", name="buildings", color=(255, 255, 255))
-            >>> category_cropped = category.crop((1843000, 5173000, 1845000, 5174000))
+            If ``buildings.json`` is a geometry available from the disk, crop it with:
+        
+            >>> category = Category.open("buildings.json", name="buildings", color=(255, 255, 255))
+            >>> out_category = category.crop((1843000, 5173000, 1845000, 5174000))
         """
         # Create a polygon from the bbox
         Xmin, Ymin, Xmax, Ymax = bbox
@@ -269,12 +283,12 @@ class Category(GeoData):
         """Plot a category.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes used to show the category. Defaults to ``None``.
+            axes (matplotlib.AxesSubplot, optional): Axes of the figure the category. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
 
         Returns:
-            matplotlib.AxesSubplot
+            matplotlib.AxesSubplot: The axes of the figure.
         """
         color = self.color.to_hex()
         axes = self.data.plot(ax=axes, figsize=figsize, color=color, **kwargs)
@@ -290,15 +304,15 @@ class Category(GeoData):
 
 class CategoryCollection(GeoCollection):
     r"""
-    Defines a collection of ``Category``.
+    Defines a collection of category.
     This class behaves similarly as a ``list``, excepts it is made only of ``Category``.
 
     .. note::
-        The ``Category`` within the ``CategoryCollection`` have unique colors.
+        The categories have unique colors.
 
     .. warning::
-        If you initialize a ``CategoryCollection`` from categories with shared colors,
-        the duplicated colors will be replaced with random ones.
+        If you initialize a ``CategoryCollection`` from categories with duplicated colors,
+        the duplicated ones will be replaced with random colors.
 
     """
 
@@ -313,6 +327,9 @@ class CategoryCollection(GeoCollection):
             CategoryCollection
 
         Examples:
+            If ``buildings.json`` and ``vegetation.json`` are vectors available from the disk, 
+            open them with:
+            
             >>> categories = CategoryCollection.open("buildings.json", "vegetation.json")
         """
         categories = []
@@ -341,9 +358,15 @@ class CategoryCollection(GeoCollection):
             category (Category): The category to add.
 
         Examples:
+            If ``buildings.json`` is a vectors available from the disk, 
+            add it to a collection with:
+
             >>> collection = CategoryCollection()
             >>> category = Category.open("buildings.json")
             >>> collection.append(category)
+            
+            Check if the category is successfully aded:
+            
             >>> collection
                 CategoryCollection(
                   (0): Category(filename='buildings.json', name='buildings', color=(234, 85, 40))
@@ -360,9 +383,15 @@ class CategoryCollection(GeoCollection):
             categories (list): List of categories to add.
 
         Examples:
+            If ``buildings.json`` and ``vegetation.json`` are vectors available from the disk, 
+            add them to a collection with:
+        
             >>> collection = CategoryCollection()
             >>> categories = [Category.open("buildings.json"), Category.open("vegetation.json")]
             >>> collection.extend(categories)
+            
+            Check if the categories are successfully aded:
+            
             >>> collection
                 CategoryCollection(
                   (0): Category(filename='buildings.json', name='buildings', color=(234, 85, 40))
@@ -413,7 +442,15 @@ class CategoryCollection(GeoCollection):
                 in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.                
 
         Returns:
-            CategoryCollection
+            CategoryCollection: The cropped categories.
+            
+        Examples:
+            If ``buildings.json`` and ``vegetation.json`` are vectors available from the disk, 
+            open them with:
+            
+            >>> categories = CategoryCollection.open("buildings.json", "vegetation.json")
+            >>> out_categories = categories.crop((1843000, 5173000, 1845000, 5174000))
+
         """
         categories = CategoryCollection()
         for category in self:
@@ -426,16 +463,16 @@ class CategoryCollection(GeoCollection):
         return categories
 
     def plot(self, axes=None, figsize=None, **kwargs):
-        """Plot the the data.
+        """Plot the data.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes used to show. Defaults to ``None``.
-            figsize (tuple, optional): Size of the graph. Defaults to ``None``.
+            axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             label (str, optional): Legend for the collection. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
 
         Returns:
-            matplotlib.AxesSubplot
+            matplotlib.AxesSubplot: The axes of the figure.
         """
         if not axes or figsize:
             _, axes = plt.subplots(figsize=figsize)

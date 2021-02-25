@@ -20,6 +20,7 @@ Generate your own ground truth from geo-referenced aerial images and vectors in 
     source/about
     source/install
     source/quick-start
+    source/developers
 
 
 .. toctree::
@@ -28,16 +29,21 @@ Generate your own ground truth from geo-referenced aerial images and vectors in 
 
     tutorials/rasters
     tutorials/vectors   
-    tutorials/Download_Data
     tutorials/dataset    
     tutorials/annotations
 
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 1
     :caption: Package
 
-    packages/modules
+    packages/geolabel_maker
+    packages/base
+    packages/dataset
+    packages/rasters
+    packages/vectors
+    packages/annotations
+    packages/downloads
 
 
 Indices and tables

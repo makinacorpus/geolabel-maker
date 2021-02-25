@@ -45,7 +45,7 @@ def merge_masks(masks):
             and a colored mask (a mask has only one color).
 
     Returns:
-        numpy.ndarray
+        numpy.ndarray: The merged masks, with the same shape as the input ones.
     """
     out_image = Image.fromarray(masks[0].astype("uint8"))
     if len(masks) > 1:

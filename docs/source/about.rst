@@ -49,8 +49,4 @@ The final step is to generate you annotations file.
 This python package lets you create three kinds of annotations: 
 
 
-* `Classification <>`_\ , to map images with one category;
-* `Object Detection <>`_\ , to extract object by their bbox in the images (and their corresponding masks);
-* `Segmentation <>`_\ , to extract object by their segmentation in the images (and their corresponding masks).
-
 See this `example on how to generate annotations <../examples/annotations.html>`_ for further details.

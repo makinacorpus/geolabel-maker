@@ -20,7 +20,13 @@ def relative_path(path, root=None):
         root (str, optional): Root path. Defaults to ``None``.
 
     Returns:
-        str
+        str: The relative path ``path`` from ``root``.
+        
+    Examples:
+        >>> path = "some/other/directory/dataset.json"
+        >>> root = "some/other"
+        >>> relative_path(path, root=root)
+            "directory/dataset.json"
     """
     if not path:
         return None
@@ -32,6 +38,7 @@ def relative_path(path, root=None):
 
 def retrieve_path(path, root=None):
     """Retrieve a path from a root directory.
+    This method is the inverse of ``relative_paths``.
 
     Args:
         path (str): Path to retrieve.
@@ -39,7 +46,13 @@ def retrieve_path(path, root=None):
             Defaults to ``None``.
 
     Returns:
-        str
+        str: The relative path ``path`` from the working directory.
+        
+    Examples:
+        >>> path = "directory/dataset.json"
+        >>> root = "some/other"
+        >>> retrieve_path(path, root=root)
+            "some/other/directory/dataset.json"
     """
     root = root or "."
     if not path:

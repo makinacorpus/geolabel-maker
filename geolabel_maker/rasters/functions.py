@@ -36,10 +36,12 @@ import gdal2tiles
 
 __all__ = [
     "generate_tiles",
-    "generate_vrt"
+    "generate_vrt",
+    "merge"
 ]
 
 
+#TODO: Move it to Raster
 def generate_tiles(in_file, out_dir, **kwargs):
     r"""Create tiles from a raster file (using GDAL)
 
@@ -50,14 +52,19 @@ def generate_tiles(in_file, out_dir, **kwargs):
     Args:
         in_file (str): Name of the raster file used to generate tiles.
         out_dir (str, optional): Path to the directory where the tiles will be saved.
+        
+    Returns:
+        str: Path to the output directory
 
     Examples:
         >>> generate_tiles("raster.tif", out_dir="tiles")
     """
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     gdal2tiles.generate_tiles(str(in_file), str(out_dir), **kwargs)
+    return str(out_dir)
 
 
+#TODO: Move it to RasterCollection
 def generate_vrt(in_files, out_file):
     r"""Builds a virtual raster from a list of rasters.
 
@@ -74,9 +81,10 @@ def generate_vrt(in_files, out_file):
     in_files = list(map(str, in_files))
     ds = gdal.BuildVRT(str(out_file), in_files)
     ds.FlushCache()
-    return out_file
+    return str(out_file)
 
 
+#TODO: Move it to RasterCollection
 def merge(in_files, out_file, driver="GTiff", compress="jpeg", photometric="ycbcr", tiled=True):
     r"""Merge multiple raster files with `GDAL`.
 

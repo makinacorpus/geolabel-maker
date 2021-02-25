@@ -15,7 +15,18 @@ This module handles georeferenced raster image (usually ``.tif`` image).
     from geolabel_maker.rasters import Raster
     
     raster = Raster.open("tile.tif")
-
+    
+    # Crop the raster
+    out_raster = raster.crop((43, 2, 44, 3))
+    
+    # Change its CRS
+    out_raster = raster.to_crs("EPSG:4326")
+    
+    # Generate mosaics
+    raster.generate_mosaics()
+    
+    # Generate tiles
+    raster.generate_tiles()
 """
 
 
@@ -125,27 +136,27 @@ def _check_raster(element):
 class RasterBase(GeoBase):
     r"""
     Defines a shared structure for ``Raster`` and ``RasterCollection``.
-    
+
     """
-    
+
     @abstractmethod
     def rescale(self, factor):
         raise NotImplementedError
-    
+
     @abstractmethod
     def zoom(self, zoom):
         raise NotImplementedError
-    
+
     @abstractmethod
     def mask(self, categories):
         raise NotImplementedError
-    
+
     @abstractmethod
     def generate_tiles(self, out_dir="tiles", **kwargs):
         raise NotImplementedError
-    
+
     @abstractmethod
-    def generate_mosaic(self, zoom=None, width=256, height=256, is_full=True, out_dir="mosaic"):
+    def generate_mosaics(self, zoom=None, width=256, height=256, is_full=True, out_dir="mosaic"):
         raise NotImplementedError
 
 
@@ -183,14 +194,22 @@ class Raster(GeoData, RasterBase):
             filename (str): The path to the image file.
 
         Returns:
-            Category
+            Raster: The loaded raster.
 
         Examples:
-            >>> raster = Raster.open("images/tile.tif")
+            If ``tile.tif`` is a raster available from the disk, load it with:
+        
+            >>> raster = Raster.open("tile.tif")
+            
+            Check if the raster is successfully loaded:
+            
+            >>> raster
+                Raster(filename='tile.tif')
         """
         with rasterio.open(filename) as data:
             return Raster(data, filename=str(filename))
 
+    # TODO: remove this method. The user should download data from tje API directly.
     @classmethod
     def download(cls, platform, bbox, **kwargs):
         r"""Download a collection of rasters from a bounding box.
@@ -205,7 +224,7 @@ class Raster(GeoData, RasterBase):
             kwargs (dict): Remaining arguments used to connect to the API.
 
         Returns:
-            RasterCollection
+            RasterCollection: The downloaded rasters.
         """
         # Download Sentinel images
         if platform.lower() == "sentinelhub":
@@ -235,19 +254,25 @@ class Raster(GeoData, RasterBase):
 
         Returns:
             Raster
-            
+
         Examples:
+            To create an in-memory raster, you can first create an array (i.e. the rasters' pixels)
+            and then defines its CRS and transformation.
+
             >>> import numpy as np
             >>> from rasterio.coords import CRS
             >>> from rasterio.transform import Affine
             >>> raster_array = np.zeros((3, 256, 256))
             >>> crs = CRS.from_epsg(3946)
             >>> transform = Affine(0.08, 0.0, 1843040.96, 0.0, -0.08, 5173610.88)
+
+            Once you defined your parameters, create a raster with:
+
             >>> raster = Raster.from_array(array, crs=crs, transform=transform)
             >>> raster
                 Raster(bounds=(1843040.96, 5173590.399999999, 1843061.44, 5173610.88), crs=EPSG:3946)
-                
-            Note that the created raster does not have a ``filename``: it means the raster is
+
+            Notice that the created raster does not have a ``filename``: it means the raster is
             stored in the memory.
         """
         assert len(array.shape) >= 2, f"The provided array is not a matrix. Got a shape of {array.shape}."
@@ -274,22 +299,22 @@ class Raster(GeoData, RasterBase):
 
         Returns:
             rasterio.DatasetBase
-            
+
         Examples:
-            Read the metadata of a georeferenced raster:
-            
+            If ``tile.tif`` is a raster available from the disk, open it with:
+
             >>> raster = Raster.open("tile.tif")
             >>> raster.data
                 <closed DatasetReader name='tile.tif' mode='r'>
-            
+
             Notice that the dataset reader is closed. That means the data itself is not loaded,
             and can not be loaded. 
             To load it, simply use the ``to_rasterio`` method to open the dataset:
-            
+
             >>> raster_data = raster.to_rasterio()
             >>> raster_data
                 <open DatasetReader name='tile.tif' mode='r'>
-            
+
             You can now extract data with ``rasterio`` API.
         """
         out_profile = self.data.meta.copy()
@@ -306,15 +331,24 @@ class Raster(GeoData, RasterBase):
             window (rasterio.Window, optional): Output window. Defaults to ``None``.
             profile (dict): Profile parameters from ``rasterio``.
 
+        Returns:
+            str: Path to the saved raster.
+
         Examples:
+            If ``tile.tif`` is a raster available from the disk, 
+            you can save it to another location with:
+
             >>> raster = Raster.open("tile.tif")
             >>> raster.save("tile2.tif")
+
+            Note that this method also works for in-memory rasters.
         """
         out_profile = self.data.meta.copy()
         out_profile.update({**profile})
         with rasterio.open(str(out_file), "w", **out_profile) as dst:
             raster_data = self.to_rasterio()
             dst.write(raster_data.read(window=window))
+        return str(out_file)
 
     def rescale(self, factor, resampling="bilinear"):
         r"""Rescale the geo-referenced image. The result is the rescaled data and 
@@ -329,9 +363,12 @@ class Raster(GeoData, RasterBase):
                 Options available are from ``rasterio.enums.Resampling``. Default to ``"bilinear"``.
 
         Returns:
-            Raster
+            Raster: The rescaled raster.
 
         Examples:
+            If ``tile.tif`` is a raster available from the disk, 
+            you can rescale it by a given factor with:
+
             >>> raster = Raster.open("tile.tif")
             >>> raster.data.shape
                 (3, 256, 256)
@@ -372,12 +409,18 @@ class Raster(GeoData, RasterBase):
             zoom (int): The zoom level.
 
         Returns:
-            Raster
+            Raster: The zoomed raster.
 
         Examples:
+            If ``tile.tif`` is a raster available from the disk, 
+            you can change its "zoom" level with:
+
             >>> raster = Raster.open("tile.tif")
-            >>> raster = raster.zoom(18)
-            >>> raster.filename
+            >>> out_raster = raster.zoom(18)
+            
+            The zoomed raster is loaded in-memory:
+            
+            >>> out_raster.filename
                 None
         """
         zoom = int(zoom)
@@ -397,12 +440,15 @@ class Raster(GeoData, RasterBase):
             crs (str, pyproj.crs.CRS): The destination `CRS`.
 
         Returns:
-            Raster
-            
+            Raster: The projected raster.
+
         Examples:
+            If ``tile.tif`` is a raster available from the disk, 
+            you can project it in a different CRS with:
+
             >>> raster = Raster.open("tile.tif")
             >>> crs = "EPSG:4326"
-            >>> raster_proj = raster.to_crs(crs)
+            >>> out_raster = raster.to_crs(crs)
         """
         raster_data = self.to_rasterio()
         transform, width, height = calculate_default_transform(
@@ -443,12 +489,14 @@ class Raster(GeoData, RasterBase):
                 in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
 
         Returns:
-            Raster
-            
+            Raster: The cropped raster.
+
         Examples:
+            If ``tile.tif`` is a raster available from the disk, crop it with:
+
             >>> raster = Raster.open("tile.tif")
             >>> bbox = (1843045.92, 5173595.36, 1843056.48, 5173605.92)
-            >>> raster.crop(bbox)
+            >>> out_raster = raster.crop(bbox)
         """
         # Open the dataset if its closed
         raster_data = self.to_rasterio()
@@ -475,12 +523,15 @@ class Raster(GeoData, RasterBase):
             categories (CategoryCollection): A list of categories, with distinct colors.
 
         Returns:
-            Raster
-            
+            Raster: The label corresponding to the rasterized categories.
+
         Examples:
+            If ``tile.tif`` is a raster and ``buildings.json``, ``vegetation.json`` are geometries
+            available from the disk, generate masks (or labels) with:
+
             >>> raster = Raster.open("tile.tif")
             >>> categories = CategoryCollection.open("buildings.json", "vegetation.json")
-            >>> label = raster.mask(categories)
+            >>> out_raster = raster.mask(categories)
         """
         masks = []
         out_transform = None
@@ -528,14 +579,20 @@ class Raster(GeoData, RasterBase):
         Args:
             out_dir (str, optional): Path to the directory where the tiles will be saved.
 
+        Returns:
+            str: Path to the output directory.
+
         Examples:
-            >>> raster = Raster.open("raster.tif")
+            If ``tile.tif`` is a raster available from the disk, generate tiles with:
+
+            >>> raster = Raster.open("tile.tif")
             >>> raster.generate_tiles(out_dir="tiles")
         """
         Path(out_dir).mkdir(parents=True, exist_ok=True)
         gdal2tiles.generate_tiles(self.filename, out_dir, **kwargs)
+        return str(out_dir)
 
-    def generate_mosaic(self, zoom=None, width=256, height=256, is_full=True, out_dir="mosaic"):
+    def generate_mosaics(self, zoom=None, width=256, height=256, is_full=True, out_dir="mosaic"):
         r"""Generate a mosaic from the raster. 
         A mosaic is a division of the main raster into 'windows'.
         This method does not create slippy tiles.
@@ -549,9 +606,14 @@ class Raster(GeoData, RasterBase):
             height (int, optional): The height of the window. Defaults to ``256``.
             out_dir (str, optional): Path to the directory where the windows are saved. Defaults to ``"mosaic"``.
 
+        Returns:
+            str: Path to the output directory.
+
         Examples:
-            >>> raster = Raster.open("raster.tif")
-            >>> raster.generate_mosaic(width=256, height=256, out_dir="mosaic")
+            If ``tile.tif`` is a raster available from the disk, generate mosaics with:
+
+            >>> raster = Raster.open("tile.tif")
+            >>> raster.generate_mosaics(width=256, height=256, out_dir="mosaic")
         """
         Path(out_dir).mkdir(parents=True, exist_ok=True)
         out_raster = self.zoom(zoom) if zoom else self
@@ -576,18 +638,18 @@ class Raster(GeoData, RasterBase):
             })
             out_path = Path(out_dir) / f"{Path(self.filename).stem}-tile_{window.col_off}x{window.row_off}.tif"
             out_raster.save(out_path, window=window, **out_profile)
-        return out_dir
+        return str(out_dir)
 
     def plot(self, axes=None, figsize=None, **kwargs):
         r"""Plot a raster.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes used to show the raster. Defaults to ``None``.
+            axes (matplotlib.AxesSubplot, optional): Axes of the figure the raster. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
 
         Returns:
-            matplotlib.AxesSubplot
+            matplotlib.AxesSubplot: Axes of the figure.
         """
         if not axes or figsize:
             _, axes = plt.subplots(figsize=figsize)
@@ -602,7 +664,7 @@ class Raster(GeoData, RasterBase):
 
 class RasterCollection(GeoCollection, RasterBase):
     r"""
-    Defines a collection of ``Raster``.
+    Defines a collection of raster.
     This class behaves similarly as a ``list``, excepts it is made only of ``Raster``.
 
     """
@@ -612,6 +674,28 @@ class RasterCollection(GeoCollection, RasterBase):
 
     @classmethod
     def open(cls, *filenames, **kwargs):
+        r"""Open multiple rasters.
+
+        Args:
+            filenames (list): List of filenames.
+            kwargs (dict): Optional arguments that will be used to open each raster.
+
+        Returns:
+            RasterCollection: The loaded collection of rasters.
+
+        Examples:
+            If ``tile1.tif`` and ``tile2.tif`` are rasters available from the disk, then:
+
+            >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif")
+            
+            Check if the rasters are successfully loaded:
+            
+            >>> rasters
+                RasterCollection(
+                  (0): Raster(filename='tile1.tif')
+                  (1): Raster(filename='tile2.tif')
+                )
+        """
         rasters = []
         for filename in filenames:
             rasters.append(Raster.open(filename, **kwargs))
@@ -621,16 +705,21 @@ class RasterCollection(GeoCollection, RasterBase):
         raise NotImplementedError
 
     def append(self, raster):
-        r"""Add a ``Raster`` to the collection.
+        r"""Add a raster to the collection.
 
         Args:
             raster (Raster): The raster to add.
 
         Examples:
-            >>> collection = RasterCollection()
+            If ``tile.tif`` is a raster available from the disk, then:
+
+            >>> rasters = RasterCollection()
             >>> raster = Raster.open("tile.tif")
-            >>> collection.append(raster)
-            >>> collection
+            >>> rasters.append(raster)
+            
+            Check if the raster is successfully added:
+            
+            >>> rasters
                 RasterCollection(
                   (0): Raster(filename='tile.tif')
                 )
@@ -639,16 +728,21 @@ class RasterCollection(GeoCollection, RasterBase):
         self._items.append(raster)
 
     def extend(self, rasters):
-        r"""Add multiple ``Raster`` to the collection.
+        r"""Add multiple raster to the collection.
 
         Args:
             rasters (list): List of raster to add.
 
         Examples:
-            >>> collection = RasterCollection()
-            >>> rasters = [Raster.open("tile1.tif"), Raster.open("tile2.tif")]
-            >>> collection.extend(rasters)
-            >>> collection
+            If ``tile1.tif`` and ``tile2.tif`` are rasters available from the disk, then:
+
+            >>> rasters = RasterCollection()
+            >>> rasters_list = [Raster.open("tile1.tif"), Raster.open("tile2.tif")]
+            >>> rasters.extend(rasters_list)
+            
+            Check if the rasters are successfully added:
+            
+            >>> rasters
                 RasterCollection(
                   (0): Raster(filename='tile1.tif')
                   (1): Raster(filename='tile2.tif')
@@ -657,7 +751,7 @@ class RasterCollection(GeoCollection, RasterBase):
         self._items.extend(rasters)
 
     def insert(self, index, raster):
-        """Insert a ``Raster`` at a specific index.
+        """Insert a raster at a specific index.
 
         Args:
             index (int): Index.
@@ -678,11 +772,14 @@ class RasterCollection(GeoCollection, RasterBase):
 
         Returns:
             RasterCollection
-            
+
         Examples:
+            If ``tile1.tif`` and ``tile2.tif`` are rasters available from the disk, 
+            then to crop both of them use:
+
             >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif")
             >>> bbox = (1843045.92, 5173595.36, 1843056.48, 5173605.92)
-            >>> rasters.crop(bbox)
+            >>> out_rasters = rasters.crop(bbox)
         """
         out_rasters = RasterCollection()
         for raster in self._items:
@@ -704,11 +801,14 @@ class RasterCollection(GeoCollection, RasterBase):
 
         Returns:
             RasterCollection
-            
+
         Examples:
+            If ``tile1.tif`` and ``tile2.tif`` are rasters available from the disk, 
+            then to increase by two their resolution use:
+
             >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif")
             >>> factor = 2
-            >>> rasters.rescale(factor)
+            >>> out_rasters = rasters.rescale(factor)
         """
         out_rasters = RasterCollection()
         for raster in self._items:
@@ -730,11 +830,14 @@ class RasterCollection(GeoCollection, RasterBase):
 
         Returns:
             RasterCollection
-            
+
         Examples:
+            If ``tile1.tif`` and ``tile2.tif`` are rasters available from the disk, 
+            then to "zoom" at a specific level use:
+
             >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif")
             >>> zoom_level = 2
-            >>> rasters.zoom(zoom_level)
+            >>> out_rasters = rasters.zoom(zoom_level)
         """
         out_rasters = RasterCollection()
         for raster in self._items:
@@ -751,23 +854,27 @@ class RasterCollection(GeoCollection, RasterBase):
             See ``Raster.mask()`` method for further details.
 
         Args:
-            args (list): List of mandatory arguments from ``Raster.zoom()`` method.                
-            kwargs (dict): Dictionary of optional arguments from ``Raster.zoom()`` method.                    
+            args (list): List of mandatory arguments from ``Raster.mask()`` method.                
+            kwargs (dict): Dictionary of optional arguments from ``Raster.mask()`` method.                    
 
         Returns:
             RasterCollection
-            
+
         Examples:
+            If ``tile1.tif`` and ``tile2.tif`` are rasters
+            and ``buildings.json`` and ``vegetation.json`` are geometries available from the disk,
+            you can generate masks (or labels) with:
+
             >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif")
             >>> categories = CategoryCollection.open("buildings.json", "vegetation.json")
-            >>> rasters.zoom(zoom_level)
+            >>> out_rasters = rasters.mask(categories)
         """
         out_rasters = RasterCollection()
         for raster in self._items:
             try:
-                out_rasters.append(raster.zoom(*args, **kwargs))
+                out_rasters.append(raster.mask(*args, **kwargs))
             except Exception as error:
-                logger.error(f"Could not zoom raster '{raster.filename}': {error}")
+                logger.error(f"Could not mask raster '{raster.filename}': {error}")
         return out_rasters
 
     #! It is not possible to create VRT from in memory rasters.
@@ -781,6 +888,9 @@ class RasterCollection(GeoCollection, RasterBase):
             str: Path to the VRT file.
 
         Examples:
+            If ``tile1.tif`` and ``tile2.tif`` are rasters available from the disk, 
+            then create a virtual raster with:
+
             >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif")
             >>> rasters.generate_vrt("tiles.vrt")
         """
@@ -794,7 +904,7 @@ class RasterCollection(GeoCollection, RasterBase):
         out_file = generate_vrt(raster_files, str(out_file))
         return out_file
 
-    def generate_mosaic(self, **kwargs):
+    def generate_mosaics(self, **kwargs):
         """Generate a mosaic from the rasters. 
         A mosaic is a division of the main raster into 'windows'.
         This method does not create slippy tiles.
@@ -809,11 +919,16 @@ class RasterCollection(GeoCollection, RasterBase):
             out_dir (str, optional): Path to the directory where the windows are saved. Defaults to ``"mosaic"``.
 
         Examples:
+            If ``tile1.tif`` and ``tile2.tif`` are rasters available from the disk, 
+            then generate a mosaic of sub-images of shape :math:`(256, 256)` with:
+
             >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif")
-            >>> rasters.generate_mosaic(width=256, height=256, out_dir="mosaic")
+            >>> rasters.generate_mosaics(width=256, height=256, out_dir="mosaic")
         """
+        out_dir = None
         for raster in tqdm(self._items, desc="Generating Mosaics", leave=True, position=0):
-            raster.generate_mosaic(**kwargs)
+            out_dir = raster.generate_mosaics(**kwargs)
+        return str(out_dir)
 
     def generate_tiles(self, out_dir="tiles", **kwargs):
         r"""Create tiles from rasters (using GDAL).
@@ -823,15 +938,18 @@ class RasterCollection(GeoCollection, RasterBase):
             it will be created.
 
         Args:
-            out_dir (str, optional): Path to the directory where the tiles will be saved.
+            kwargs (dict): Optional arguments.
 
         Examples:
-            >>> raster = Raster.open("raster.tif")
-            >>> raster.generate_tiles(out_dir="tiles")
+            If ``tile1.tif`` and ``tile2.tif`` are rasters available from the disk, 
+            then generate tiles of shape :math:`(256, 256)` with:
+
+            >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif")
+            >>> rasters.generate_tiles(out_dir="tiles")
         """
         # Create a virtual raster of all the files
         rasters_vrt = self.generate_vrt(".raster-collection.vrt")
-        Path(out_dir).mkdir(parents=True, exist_ok=True)
-        generate_tiles(rasters_vrt, out_dir, **kwargs)
+        out_dir = generate_tiles(rasters_vrt, out_dir=out_dir, **kwargs)
         # Remove the virtual raster
         Path(rasters_vrt).unlink()
+        return str(out_dir)

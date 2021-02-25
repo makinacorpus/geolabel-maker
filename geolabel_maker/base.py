@@ -22,7 +22,7 @@ import numpy as np
 from shapely.geometry import box
 import matplotlib.pyplot as plt
 import pyproj.crs
-import rasterio.crs
+import rasterio
 import osgeo.osr as osr
 
 # Geolabel Maker
@@ -60,16 +60,50 @@ class BoundingBox:
 
 
 class CRS(pyproj.crs.CRS):
-    """Wraps ``pyproj.crs.CRS`` to add custom methods."""
+    r"""
+    Defines a Coordinate Reference System (CRS) from ``pyproj`` implementation.
+    This class is mainly used to homogenize CRS representations from ``rasterio`` and ``geopandas``.
+
+    .. seealso::
+        Visit the source implementation on `readthedocs <https://pyproj4.github.io/pyproj/dev/api/crs/crs.html>`__.
+
+    """
 
     def __init__(self, projparams, **kwargs):
         # If initialized from a rasterio.crs.CRS, convert it to pyproj.crs.CRS
-        if isinstance(projparams, rasterio.crs.CRS):   
-            srs = osr.SpatialReference()
-            srs.SetFromUserInput(projparams.to_wkt())
-            epsg = srs.GetAttrValue("AUTHORITY", 1)
-            projparams = int(epsg)
         super().__init__(projparams=projparams, **kwargs)
+
+    def from_rasterio(cls, crs):
+        r"""Create a crs from a ``rasterio.crs.CRS`` objetc.
+
+        Args:
+            crs (rasterio.crs.CRS): Rasterio crs.
+
+        Returns:
+            CRS: CRS in the ``pyproj`` format.
+
+        Examples:
+            Get a ``rasterio`` CRS objet:
+
+            >>> import rasterio
+            >>> raster = rasterio.open("tile.tif")
+            >>> raster_crs
+                CRS.from_wkt('LOCAL_CS["RGF93 / CC46",UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","3946"]]')
+
+            Then, convert it to a ``CRS`` object with the above method:
+
+            >>> crs = CRS.from_rasterio(raster_crs)
+        """
+        # In case the dataset reader is provided
+        if isinstance(crs, rasterio.DatasetReader):
+            crs = crs.crs
+
+        # Extract the EPSG. This method ensure that the CRS is correctly converted
+        # on all operating systems (Linux, Windows etc.)
+        srs = osr.SpatialReference()
+        srs.SetFromUserInput(crs.to_wkt())
+        epsg = srs.GetAttrValue("AUTHORITY", 1)
+        return CRS.from_epsg(epsg)
 
     def __repr__(self):
         return super().__repr__()
@@ -98,17 +132,40 @@ class GeoBase(ABC):
     @classmethod
     @abstractmethod
     def open(cls, filename, **kwargs):
-        """Open the data from a file."""
+        """Open the data from a file.
+        
+        Args:
+            filename (str): Name of the file to load.
+            kwargs (dict): Remaining options.
+            
+        Returns:
+            GeoBase: The loaded geo data.
+        """
         raise NotImplementedError(f"This method is currently not supported.")
 
     @abstractmethod
     def save(self, out_file):
-        """Save the data to the disk."""
+        """Save the data to the disk.
+        
+        Args:
+            out_file (str): Name of the output file.
+            
+        Returns:
+            str: Path to the output file.
+        """
         raise NotImplementedError(f"This method is currently not supported.")
 
     @abstractmethod
     def to_crs(self, crs, **kwargs):
-        """Project the geo data in another system."""
+        """Project the geo data in another system.
+        
+        Args:
+            crs (CRS): The destination coordinate  reference system.
+            kwargs (dict): Remaining options.
+            
+        Returns:
+            GeoBase: The projected data.
+        """
         raise NotImplementedError(f"This method is currently not supported.")
 
     @abstractmethod
@@ -121,6 +178,9 @@ class GeoBase(ABC):
         Args:
             bbox (tuple): Bounding box used to crop the rasters,
                 in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
+                
+        Returns:
+            GeoBase: The cropped geo data.
         """
         raise NotImplementedError(f"This method is currently not supported.")
 
@@ -128,8 +188,8 @@ class GeoBase(ABC):
         """Plot the geographic extent of the data.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes used to show. Defaults to ``None``.
-            figsize (tuple, optional): Size of the graph. Defaults to ``None``.
+            axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             label (str, optional): Legend for the collection. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
 
@@ -149,8 +209,8 @@ class GeoBase(ABC):
         """Plot the the data.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes used to show. Defaults to ``None``.
-            figsize (tuple, optional): Size of the graph. Defaults to ``None``.
+            axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             label (str, optional): Legend for the collection. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
 
@@ -234,11 +294,13 @@ class GeoCollection(GeoBase):
         for value in self._items:
             if crs is None:
                 crs = CRS(value.crs)
+            # If the CRS are differents, raise a warning and return
             elif value.crs and crs and CRS(value.crs) != crs:
                 error_msg = f"The CRS values of the {self.__class__.__name__} are different: " \
                             f"got EPSG:{CRS(value.crs).to_epsg()} != EPSG:{crs.to_epsg()}."
                 warnings.warn(error_msg, RuntimeWarning)
                 logger.warning(error_msg)
+                return crs
         return crs
 
     @property
@@ -348,12 +410,6 @@ class GeoCollection(GeoBase):
 
         Returns:
             GeoCollection: The collection with projected data.
-
-        Examples:
-            Load a ``RasterCollection`` or ``CategoryCollection`` as ``collection``.
-            Then, you can convert all its elements into another ``CRS`` with:
-
-            >>> collection.to_crs("EPSG:4326")
         """
         collection = self.__class__()
         for value in tqdm(self._items, desc="Projection", leave=True, position=0):
@@ -370,13 +426,6 @@ class GeoCollection(GeoBase):
 
         Returns:
             GeoCollection: The collection with cropped data.
-
-        Examples:
-            Load a ``RasterCollection`` or ``CategoryCollection`` as ``collection``.
-            Then, you can crop all its elements into a smaller sub set with:
-
-            >>> bbox = (1843045.92, 5173595.36, 1843056.48, 5173605.92)
-            >>> collection.crop(bbox)
         """
         collection = self.__class__()
         for value in tqdm(self._items, desc="Cropping", leave=True, position=0):
@@ -392,19 +441,13 @@ class GeoCollection(GeoBase):
         """Plot the geographic extent of the collection.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes used to show. Defaults to ``None``.
-            figsize (tuple, optional): Size of the graph. Defaults to ``None``.
+            axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             label (str, optional): Legend for the collection. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
 
         Returns:
             matplotlib.AxesSubplot: Axes of the figure.
-
-        Examples:
-            Load a ``RasterCollection`` or ``CategoryCollection`` as ``collection``.
-            Then, you can plot its geographic extent:
-
-            >>> collection.plot_bounds()
         """
         if not axes or figsize:
             _, axes = plt.subplots(figsize=figsize)
@@ -421,19 +464,13 @@ class GeoCollection(GeoBase):
         """Plot the the data.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes used to show. Defaults to ``None``.
-            figsize (tuple, optional): Size of the graph. Defaults to ``None``.
+            axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             label (str, optional): Legend for the collection. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
 
         Returns:
             matplotlib.AxesSubplot: Axes of the figure.
-
-        Examples:
-            Load a ``RasterCollection`` or ``CategoryCollection`` as ``collection``.
-            Then, you can plot its content:
-
-            >>> collection.plot()
         """
         return self.plot_bounds(axes=axes, figsize=figsize, label=label, **kwargs)
 

@@ -44,7 +44,7 @@ class ClassificationTests(unittest.TestCase):
         assert classif.info is not None, "Info section is unknown"
 
     def test_03_save(self):
-        classif = Classification.open(ROOT / "coco.json")
+        classif = Classification.open(ROOT / "classification.txt")
         tmp_file = "test_03_save.tmp.txt"
         classif.save(ROOT / tmp_file)
         classif_tmp = classif.open(ROOT / tmp_file)

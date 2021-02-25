@@ -7,6 +7,30 @@
 # Copyright (c) 2021, Makina Corpus
 
 
+r"""
+This module handle color conversion and manipulation.
+
+.. code-block:: python
+
+    from geolabel_maker.vectors import Color
+    
+    # Create a RGB color
+    color = Color(red=200, green=23, blue=156)
+    
+    # Create a color from another format
+    color = Color.get("green")
+    color = Color.get((0, 255, 0))
+    color = Color.get("#fcfcfc")
+    # etc...
+    
+    # Convert a color to RGB
+    rgb = color.to_rgb()
+    
+    # Convert a color to hex
+    hex = color.to_hex()
+"""
+
+
 # Basic imports
 from PIL import ImageColor
 import random
@@ -22,7 +46,7 @@ __all__ = [
 
 
 class Color:
-    """
+    r"""
     Defines colors in the format :math:`(R, G, B)`. The values must be in the range :math:`[0, 255]`.
     This class is mainly used to store and process colors from other formats (e.g. string, name etc).
 
@@ -51,17 +75,17 @@ class Color:
 
     @classmethod
     def get(cls, element):
-        """Create a ``Color`` object from different input types. 
+        """Create a color object from different input types. 
         The accepted formats are name, hexvalues, or RGBA.
         
         .. seealso::
             This method relies on ``PIL.ImageColor.getcolor()`` method.
 
         Args:
-            element (any): The object used to create the ``Color``.
+            element (any): The object used to create the color.
 
         Returns:
-            Color
+            Color: The color in RGB format.
             
         Examples:
             >>> color = Color.get("green")
@@ -99,14 +123,14 @@ class Color:
 
     @classmethod
     def random(cls):
-        """Generate a random ``Color``.
+        """Generate a random color.
         
         .. seealso::
             This method relies on ``random`` package. To control the generated colors,
             please refer to ``random.seed()`` function.
 
         Returns:
-            Color
+            Color: The random color.
         """
         red = random.randint(0, 255)
         green = random.randint(0, 255)
@@ -114,9 +138,19 @@ class Color:
         return Color(red, green, blue)
 
     def to_rgb(self):
+        """Convert the color to a tuple of RGB values.
+
+        Returns:
+            tuple: The red, green and blue values.
+        """
         return (self.red, self.green, self.blue)
 
     def to_hex(self):
+        """Convert a color to a hex format.
+
+        Returns:
+            str: The color in a hex representation.
+        """
         return f"#{self.red:02x}{self.green:02x}{self.blue:02x}"
 
     def __iter__(self):
