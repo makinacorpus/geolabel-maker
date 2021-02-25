@@ -232,7 +232,8 @@ class MapBoxAPI(Downloader):
                         self.download_tile(x, y, zoom, high_res=high_res, out_file=tile_image)
                         # Georeference the image
                         if out_format.lower() in ["tif", "tiff"]:
-                            tile_geotiff = self.georeference(x, y, zoom, tile_image, tile_image.with_suffix(f".{out_format}"))
+                            out_file = Path(tile_image).with_suffix(f".{out_format}")
+                            tile_geotiff = self.georeference(x, y, zoom, tile_image, out_file)
                             mosaic_files.append(tile_geotiff)
                         # Remove the slippy image
                         if not slippy_maps:
