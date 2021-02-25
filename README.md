@@ -163,7 +163,7 @@ dataset.generate_labels()
 # Generate mosaics from images and labels
 dataset.generate_mosaics(zoom="18", out_dir="mosaics")
 # Generate tiles from images and labels
-dataset.generate_tiles(zoom="18", out_dir="mosaics")
+dataset.generate_tiles(zoom="18", out_dir="tiles")
 
 # Create a COCO annotations
 annotation = COCO.build(
