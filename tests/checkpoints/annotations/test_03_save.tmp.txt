@@ -1,0 +1,10 @@
+image_id,image_id,image_name,buildings,vegetation
+0,0,images\tile_256-4864-tile_0x0.tif,0,1
+1,1,images\tile_256-5120-tile_0x0.tif,1,1
+2,2,images\tile_256-5376-tile_0x0.tif,1,0
+3,3,images\tile_512-4864-tile_0x0.tif,1,1
+4,4,images\tile_512-5120-tile_0x0.tif,1,0
+5,5,images\tile_512-5376-tile_0x0.tif,1,0
+6,6,images\tile_768-4864-tile_0x0.tif,1,0
+7,7,images\tile_768-5120-tile_0x0.tif,1,0
+8,8,images\tile_768-5376-tile_0x0.tif,1,0

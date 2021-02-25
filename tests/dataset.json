@@ -8,38 +8,6 @@
         {
             "id": 0,
             "filename": "None"
-        },
-        {
-            "id": 1,
-            "filename": "None"
-        },
-        {
-            "id": 2,
-            "filename": "None"
-        },
-        {
-            "id": 3,
-            "filename": "None"
-        },
-        {
-            "id": 4,
-            "filename": "None"
-        },
-        {
-            "id": 5,
-            "filename": "None"
-        },
-        {
-            "id": 6,
-            "filename": "None"
-        },
-        {
-            "id": 7,
-            "filename": "None"
-        },
-        {
-            "id": 8,
-            "filename": "None"
         }
     ],
     "categories": [
@@ -67,38 +35,6 @@
     "labels": [
         {
             "id": 0,
-            "filename": "None"
-        },
-        {
-            "id": 1,
-            "filename": "None"
-        },
-        {
-            "id": 2,
-            "filename": "None"
-        },
-        {
-            "id": 3,
-            "filename": "None"
-        },
-        {
-            "id": 4,
-            "filename": "None"
-        },
-        {
-            "id": 5,
-            "filename": "None"
-        },
-        {
-            "id": 6,
-            "filename": "None"
-        },
-        {
-            "id": 7,
-            "filename": "None"
-        },
-        {
-            "id": 8,
             "filename": "None"
         }
     ]

@@ -466,7 +466,7 @@ class CategoryCollection(GeoCollection):
             >>> out_categories = categories.crop((1843000, 5173000, 1845000, 5174000))
 
         """
-        super().crop(*args, **kwargs)
+        return super().crop(*args, **kwargs)
 
     def plot(self, axes=None, figsize=None, **kwargs):
         """Plot the data.
