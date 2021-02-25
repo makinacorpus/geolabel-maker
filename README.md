@@ -109,40 +109,45 @@ geolabel_maker download  --config  Path to the configuration file containing you
 **1. `make_labels`: Create labels from geometries and raster files**
 
 ```
-geolabel_maker make_labels  --config  Path to the configuration file used to create the dataset
+geolabel_maker make_labels  --config  (config or root required) Path to the configuration file used to create the dataset
+                            --root  (config or root required) Alternatively, the root of the dataset
 ```
 
 **2. `make_mosaics`: Generate mosaics from the images and labels**
 
 ```
-geolabel_maker make_mosaics --config  Path to the configuration file used to create the dataset
+geolabel_maker make_mosaics --config  (config or root required) Path to the configuration file used to create the dataset
+                            --root  (config or root required) Alternatively, the root of the dataset
                             --zoom  (optional) Zoom interval e.g. 14-20
 ```
 
 **2. `make_tiles` Generate tiles from the images and labels**
 
 ```
-geolabel_maker make_tiles --config  Path to the configuration file used to create the dataset
+geolabel_maker make_tiles --config  (config or root required) Path to the configuration file used to create the dataset
+                          --root  (config or root required) Alternatively, the root of the dataset
                           --zoom  (optional) Zoom interval e.g. 14-20
 ```
 
 **3. `make_annotations`: Create an annotations file**
 
 ```
-geolabel_maker make_annotations --config  Path to the configuration file used to create the dataset
-                                --dir_images  Directory containing satellite images
-                                --dir_labels  Directory containing label images
-                                --type  Type of annotation e.g. coco
+geolabel_maker make_annotations --config  (config or root required) Path to the configuration file used to create the dataset
+                                --root  (config or root required) Alternatively, the root of the dataset
+                                --dir_images  (optional) Directory containing satellite images
+                                --dir_labels  (optional) Directory containing label images
+                                --type  (optional) Type of annotation e.g. coco
                                 --file  (optional) Output file e.g. coco.json
 ```
 
 **`make_all`: Run everything**
 
 ```
-geolabel_maker make_all --config  Path to the configuration file used to create the dataset
-                        --zoom  Zoom level used e.g. 17
-                        --type  Type of annotation e.g. coco
-                        --file  (optional) Output file e.
+geolabel_maker make_all --config  (config or root required) Path to the configuration file used to create the dataset
+                        --root  (config or root required) Alternatively, the root of the dataset
+                        --zoom  (optional) Zoom level used e.g. 17
+                        --type  (optional) Type of annotation e.g. coco
+                        --file  (optional) Output file e.g coco.json
 ```
 
 ### Python API
@@ -155,8 +160,10 @@ from geolabel_maker.annotations import COCO
 dataset = Dataset.open("data")
 # Create labels from geometries and raster files
 dataset.generate_labels()
-# Generate tiles from images and labels
+# Generate mosaics from images and labels
 dataset.generate_mosaics(zoom="18", out_dir="mosaics")
+# Generate tiles from images and labels
+dataset.generate_tiles(zoom="18", out_dir="mosaics")
 
 # Create a COCO annotations
 annotation = COCO.build(
@@ -172,7 +179,7 @@ annotation.save("coco.json")
 
 * 1 - [Download data with Geolabel Maker](notebooks/Use_geolabel_maker.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/makinacorpus/geolabel-maker/blob/master/notebooks/Download%20data%20with%20Geolabel%20Maker.ipynb)
 
-  This tutorial will guide you on how to download imagery and geometries from different API ([Sentinel Hub](https://www.sentinel-hub.com/), [MapBox](https://www.mapbox.com/) and [Open Street Map](https://www.openstreetmap.org/).
+  This tutorial will guide you on how to download imagery and geometries from different API ([Sentinel Hub](https://www.sentinel-hub.com/), [MapBox](https://www.mapbox.com/) and [Open Street Map](https://www.openstreetmap.org/)).
 
 * 2 - [Generate datasets with Geolabel Maker](notebooks/Use_geolabel_maker.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/makinacorpus/geolabel-maker/blob/master/notebooks/Generate%20datasets%20with%20Geolabel%20%Maker.ipynb)
 
