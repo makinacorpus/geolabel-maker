@@ -87,8 +87,8 @@ def extract_categories(label=None, categories=None, **kwargs):
     This method must be used once the tiles are generated (see ``generate_tiles`` method).
 
     Args:
-        label_file (str): Path to the label image.
-        categories (list): List of ``Category``.
+        label (PIL.Image): PIL Image of the label.
+        categories (list): List of categories.
         **kwargs (optional): See ``geolabel_maker.functional.find_polygons`` method arguments.
 
     Returns:
@@ -103,7 +103,7 @@ def extract_categories(label=None, categories=None, **kwargs):
     """
     assert label, "Label image must be provided"
     
-    label_array = np.array(label)
+    label_array = np.array(label.convert("RGB"))
     categories_extracted = []
     for category in categories:
         # Extract a mask of color `color` exactly
@@ -113,3 +113,18 @@ def extract_categories(label=None, categories=None, **kwargs):
         data = gpd.GeoDataFrame({"geometry": polygons})
         categories_extracted.append(Category(data, category.name, color=color))
     return categories_extracted
+
+
+def has_color(label, color):
+    """Check if a label image has a specific color.
+
+    Args:
+        label (PIL.Image): PIL Image of the label.
+        color (tuple): RGB color.
+
+    Returns:
+        bool: True if the label image has the specified color.
+    """
+    array = np.array(label.convert("RGB"))
+    red, green, blue = tuple(color)
+    return np.where((array[:,:,0] == red) & (array[:,:,1] == green) & (array[:,:,2] == blue), True, False).any()

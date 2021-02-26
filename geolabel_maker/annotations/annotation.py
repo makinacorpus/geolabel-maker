@@ -45,11 +45,11 @@ class Annotation(ABC):
         annotations = deepcopy(self.annotations)
         
         for image in images:
-            image["file_name"] = relative_path(image["file_name"], root)
+            image["file_name"] = relative_path(image.get("file_name", None), root)
         for category in categories:
-            category["file_name"] = relative_path(category["file_name"], root)
+            category["file_name"] = relative_path(category.get("file_name", None), root)
         for annotation in annotations:
-            annotation["image_name"] = relative_path(annotation["image_name"], root)                    
+            annotation["image_name"] = relative_path(annotation.get("image_name", None), root)                    
                 
         return {
             "info": self.info,

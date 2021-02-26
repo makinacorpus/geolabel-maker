@@ -50,11 +50,11 @@ class ObjectDetection(Annotation):
 
         root = Path(filename).parent
         for image in images:
-            image["file_name"] = retrieve_path(image["file_name"], root)
+            image["file_name"] = retrieve_path(image.get("file_name", None), root)
         for category in categories:
-            category["file_name"] = retrieve_path(category["file_name"], root)
+            category["file_name"] = retrieve_path(category.get("file_name", None), root)
         for annotation in annotations:
-            annotation["image_name"] = retrieve_path(annotation["image_name"], root)
+            annotation["image_name"] = retrieve_path(annotation.get("image_name", None), root)       
 
         return ObjectDetection(images=images, categories=categories, annotations=annotations, info=info)
 

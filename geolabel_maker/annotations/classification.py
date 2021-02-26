@@ -16,9 +16,9 @@ from PIL import Image
 import json
 
 # Geolabel Maker
-from .functional import extract_categories
+from .functional import has_color
 from .annotation import Annotation
-from geolabel_maker.utils import relative_path, retrieve_path
+from geolabel_maker.utils import retrieve_path
 from ._utils import find_paths, find_colors
 
 
@@ -48,25 +48,51 @@ class Classification(Annotation):
 
         Returns:
             Classification: Loaded annotations.
-            
+
         Examples:
             >>> annotations = Classification.open("classification.txt")
         """
         annotations = []
+        categories = []
+        images = []
         extension = Path(filename).suffix.lower()
+        # Open from a JSON file
         if extension in [".json"]:
             with open(filename) as f:
                 annotations = json.load(f)
+        # Open from csv, txt etc.
         else:
+            images_paths = []
             df = pd.read_csv(filename, **kwargs)
             for i, row in df.iterrows():
-                annotations.append(json.loads(row.to_json()))
-        return Classification(annotations=annotations)
+                annotation = json.loads(row.to_json())
+                annotations.append(annotation)
+                image_name = annotation.pop("image_name")
+                annotation.pop("image_id")
+                if not image_name in images_paths:
+                    images_paths.append(image_name)
+
+            # Update the images and categories from the annotations
+            for image_id, image_path in enumerate(images_paths):
+                images.append({"id": image_id, "file_name": image_path})
+            for category_id, category_name in enumerate(annotation.keys()):
+                categories.append({"id": category_id, "name": category_name})
+
+        # Update the paths
+        root = Path(filename).parent
+        for image in images:
+            image["file_name"] = retrieve_path(image.get("file_name", None), root)
+        for category in categories:
+            category["file_name"] = retrieve_path(category.get("file_name", None), root)
+        for annotation in annotations:
+            annotation["image_name"] = retrieve_path(annotation.get("image_name", None), root)
+
+        return Classification(images=images, categories=categories, annotations=annotations)
 
     @classmethod
     def build(cls, images=None, categories=None, labels=None,
               dir_images=None, dir_labels=None, colors=None,
-              pattern="*.*", root=None, is_crowd=False, **kwargs):
+              pattern="*.*", **kwargs):
         r"""Generate classification annotations from couples of images and labels.
 
         Args:
@@ -91,10 +117,9 @@ class Classification(Annotation):
                 }
                 annotation.update({category.name: 0 for category in categories})
                 label_image = Image.open(label_path).convert("RGB")
-                label_colors = [stat[1] for stat in label_image.getcolors()]
                 for category in categories:
                     visible = False
-                    if tuple(category.color) in label_colors:
+                    if has_color(label_image, category.color):
                         visible = True
                     annotation.update({
                         category.name: int(visible)
@@ -103,28 +128,19 @@ class Classification(Annotation):
             return class_annotations
 
         def get_categories():
-            # Create an empty categories' dictionary
             class_categories = []
             for category_id, category in tqdm(enumerate(categories), desc="Build Categories", leave=True, position=0):
                 class_categories.append({
                     "id": category_id,
-                    "name": str(category.name),
-                    "color": list(category.color),
-                    "file_name": str(category.filename)
+                    "name": str(category.name)
                 })
             return class_categories
 
         def get_images():
-            # Retrieve image paths / metadata
             class_images = []
             for image_id, image_path in tqdm(enumerate(images_paths), desc="Build Images", leave=True, position=0):
-                image = Image.open(image_path)
-                width, height = image.size
-                # Create image description
                 class_images.append({
                     "id": image_id,
-                    "width": width,
-                    "height": height,
                     "file_name": str(image_path)
                 })
             return class_images
@@ -163,4 +179,3 @@ class Classification(Annotation):
             df = pd.DataFrame(data["annotations"])
             df.index.name = "image_id"
             df.to_csv(out_file, **kwargs)
-
