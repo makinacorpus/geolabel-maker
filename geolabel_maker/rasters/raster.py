@@ -179,7 +179,7 @@ class Raster(GeoData, RasterBase):
 
     @property
     def crs(self):
-        return CRS(self.data.crs)
+        return CRS.from_rasterio(self.data.crs)
 
     @property
     def bounds(self):

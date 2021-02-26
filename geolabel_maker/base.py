@@ -73,6 +73,7 @@ class CRS(pyproj.crs.CRS):
         # If initialized from a rasterio.crs.CRS, convert it to pyproj.crs.CRS
         super().__init__(projparams=projparams, **kwargs)
 
+    @classmethod
     def from_rasterio(cls, crs):
         r"""Create a crs from a ``rasterio.crs.CRS`` objetc.
 

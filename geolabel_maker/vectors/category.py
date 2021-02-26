@@ -125,7 +125,7 @@ class Category(GeoData):
                         f"Maybe its in geographic coordinates, or try using `to_crs()` method."
             warnings.warn(error_msg, RuntimeWarning)
             logger.warning(error_msg)
-            return None
+            return None 
 
     @property
     def bounds(self):

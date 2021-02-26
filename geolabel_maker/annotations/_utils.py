@@ -45,19 +45,22 @@ def find_paths(files=None, in_dir=None, pattern="*"):
     assert files or in_dir, "Files or an input directory must be provided."
     
     # First, retrieve paths from a directory
+    paths = []
     if in_dir and Path(in_dir).is_dir():
-        return list(Path(in_dir).rglob(pattern))
+        paths = list(Path(in_dir).rglob(pattern))
     
     # Then from a list or collection
     elif files:
         if isinstance(files, (Raster, Category)):
-            return [Path(files.filename)]
+            paths = [Path(files.filename)]
         elif isinstance(files, (RasterCollection, CategoryCollection)):
-            return [Path(data.filename) for data in files]
+            paths = [Path(data.filename) for data in files]
         elif isinstance(files, (tuple, list, GeneratorType)):
-            return files
+            paths = files
         else:
             raise ValueError(f"Unrecognized type {type(files).__name__}")
+    paths.sort()
+    return paths
 
 
 def find_colors(categories=None, colors=None):
