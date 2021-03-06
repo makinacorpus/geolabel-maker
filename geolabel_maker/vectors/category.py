@@ -125,7 +125,7 @@ class Category(GeoData):
                         f"Maybe its in geographic coordinates, or try using `to_crs()` method."
             warnings.warn(error_msg, RuntimeWarning)
             logger.warning(error_msg)
-            return None 
+            return None
 
     @property
     def bounds(self):
@@ -154,7 +154,7 @@ class Category(GeoData):
 
         Examples:
             If ``buildings.json`` is a geometry available from the disk, create a category with:
-        
+
             >>> from geolabel_maker.vectors import Category
             >>> category = Category.open("buildings.json", "buildings", (255, 255, 255))
         """
@@ -216,14 +216,31 @@ class Category(GeoData):
 
         Args:
             out_file (str): Name of the output file.
-            
+
         Returns:
             str: Path to the saved file.
         """
         self.data.to_file(out_file, driver="GeoJSON")
         return str(out_file)
 
-    def to_crs(self, crs, **kwargs):
+    def overwrite(self, category):
+        """Overwrite the current category by another.
+
+        .. note::
+            This operation will not modify the values in place,
+            but will overwrite the raster saved on the disk.
+
+        Args:
+            category (Category): The category to be saved.
+
+        Returns:
+            Category: The saved category.
+        """
+        category.save(self.filename)
+        category._filename = self.filename
+        return category
+
+    def to_crs(self, crs=None, overwrite=False, **kwargs):
         r"""Project the category from its initial `CRS` to another one.
 
         .. note::
@@ -234,19 +251,23 @@ class Category(GeoData):
 
         Returns:
             Category: The projected category.
-            
+
         Examples:
             If ``buildings.json`` is a geometry available from the disk, change its CRS with:
-            
+
             >>> category = Category.open("buildings.json", name="buildings", color=(255, 255, 255))
             >>> out_category = category.to_crs(""EPSG:4326"")
         """
-        out_data = self.data.to_crs(crs, **kwargs)
-        
+        out_data = self.data.to_crs(crs=crs, **kwargs)
         out_category = Category(out_data, self.name, self.color)
+
+        # Overwrite if required
+        if overwrite:
+            return self.overwrite(out_category)
+
         return out_category
 
-    def crop(self, bbox):
+    def crop(self, bbox, overwrite=False):
         r"""Crop a category within a bounding box.
 
         .. note::
@@ -261,7 +282,7 @@ class Category(GeoData):
 
         Examples:
             If ``buildings.json`` is a geometry available from the disk, crop it with:
-        
+
             >>> category = Category.open("buildings.json", name="buildings", color=(255, 255, 255))
             >>> out_category = category.crop((1843000, 5173000, 1845000, 5174000))
         """
@@ -278,7 +299,14 @@ class Category(GeoData):
         Ymax = min(Ymax, YCmax)
         out_data = self.data.cx[Xmin:Xmax, Ymin:Ymax]
 
-        return Category(out_data, self.name, color=self.color, filename=self.filename)
+        # Create the output category
+        out_category = Category(out_data, self.name, color=self.color)
+
+        # Overwrite if required
+        if overwrite:
+            return self.overwrite(out_category)
+
+        return out_category
 
     def plot(self, axes=None, figsize=None, **kwargs):
         """Plot a category.
@@ -317,6 +345,8 @@ class CategoryCollection(GeoCollection):
 
     """
 
+    __inner_class__ = Category
+
     def __init__(self, *categories):
         super().__init__(*categories)
 
@@ -330,15 +360,12 @@ class CategoryCollection(GeoCollection):
         Examples:
             If ``buildings.json`` and ``vegetation.json`` are vectors available from the disk, 
             open them with:
-            
+
             >>> categories = CategoryCollection.open("buildings.json", "vegetation.json")
         """
-        categories = []
-        for filename in filenames:
-            categories.append(Category.open(filename, **kwargs))
-        return CategoryCollection(*categories)
+        return super().open(*filenames, **kwargs)
 
-    def save(self, out_dir):
+    def save(self, out_dir, in_place=True):
         """Save all the rasters in a given directory.
 
         Args:
@@ -348,10 +375,14 @@ class CategoryCollection(GeoCollection):
             CategoryCollection: Collection of categories loaded in memory.
         """
         Path(out_dir).mkdir(parents=True, exist_ok=True)
+
         for i, category in enumerate(self._items):
-            out_file = category.filename or Path(out_dir) / f"{category.name}.json"
+            out_name = Path(category.filename).name if category.filename else f"{category.name}.json"
+            out_file = Path(out_dir) / out_name
             category.save(out_file)
-            self._items[i] = Category(category.data, category.name, category.color, filename=out_file)
+            # Update the collection
+            if in_place:
+                self._items[i] = Category(category.data, category.name, category.color, filename=out_file)
         return str(out_dir)
 
     def _make_unique_colors(self):
@@ -378,9 +409,9 @@ class CategoryCollection(GeoCollection):
             >>> collection = CategoryCollection()
             >>> category = Category.open("buildings.json")
             >>> collection.append(category)
-            
+
             Check if the category is successfully aded:
-            
+
             >>> collection
                 CategoryCollection(
                   (0): Category(filename='buildings.json', name='buildings', color=(234, 85, 40))
@@ -399,13 +430,13 @@ class CategoryCollection(GeoCollection):
         Examples:
             If ``buildings.json`` and ``vegetation.json`` are vectors available from the disk, 
             add them to a collection with:
-        
+
             >>> collection = CategoryCollection()
             >>> categories = [Category.open("buildings.json"), Category.open("vegetation.json")]
             >>> collection.extend(categories)
-            
+
             Check if the categories are successfully aded:
-            
+
             >>> collection
                 CategoryCollection(
                   (0): Category(filename='buildings.json', name='buildings', color=(234, 85, 40))
@@ -457,11 +488,11 @@ class CategoryCollection(GeoCollection):
 
         Returns:
             CategoryCollection: The cropped categories.
-            
+
         Examples:
             If ``buildings.json`` and ``vegetation.json`` are vectors available from the disk, 
             open them with:
-            
+
             >>> categories = CategoryCollection.open("buildings.json", "vegetation.json")
             >>> out_categories = categories.crop((1843000, 5173000, 1845000, 5174000))
 

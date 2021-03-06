@@ -48,23 +48,24 @@ class ClassificationTests(unittest.TestCase):
         tmp_file = "test_03_save.tmp.txt"
         classif.save(ROOT / tmp_file)
         classif_tmp = classif.open(ROOT / tmp_file)
-        assert classif_tmp.annotations.__dict__ == classif.annotations.__dict__, "Corrupted annotations"
+        assert classif_tmp.annotations == classif.annotations, "Corrupted annotations"
         Path(ROOT / tmp_file).unlink()
 
     def test_04_build(self):
         categories = [Category.open(ROOT_CATEGORIES / "buildings.json", color="lightgray"),
                       Category.open(ROOT_CATEGORIES / "vegetation.json", color="green")]
         classif = Classification.build(
-            images=ROOT / "images",
+            dir_images=ROOT / "images",
+            dir_labels=ROOT / "labels",
             categories=categories,
-            labels=ROOT / "labels",
             pattern="*.tif"
         )
         assert len(classif.annotations) == 9, "Number of annotations is incorrect"
         assert classif.info is not None, "Info section is unknown"
         # Check that the build is correct
         classif_checkpoint = classif.open(ROOT / "classification.txt")
-        assert classif.categories == classif_checkpoint.categories, "The annotations are different"
+        print(classif.annotations, classif_checkpoint.annotations)
+        assert classif.annotations == classif_checkpoint.annotations, "The annotations are different"
 
 
 class ObjectDetectionTests(unittest.TestCase):
@@ -110,9 +111,9 @@ class COCOTests(unittest.TestCase):
         categories = [Category.open(ROOT_CATEGORIES / "buildings.json", color="lightgray"),
                       Category.open(ROOT_CATEGORIES / "vegetation.json", color="green")]
         coco = COCO.build(
-            images=ROOT / "images",
+            dir_images=ROOT / "images",
+            dir_labels=ROOT / "labels",
             categories=categories,
-            labels=ROOT / "labels",
             pattern="*.tif"
         )
         assert len(coco.images) == 9, "Number of images is incorrect"
@@ -123,9 +124,9 @@ class COCOTests(unittest.TestCase):
         coco_checkpoint = COCO.open(ROOT / "coco.json")
         assert coco.categories == coco_checkpoint.categories, "The annotations are different"
 
-    def test_05_show(self):
+    def test_05_plot(self):
         coco = COCO.open(ROOT / "coco.json")
-        coco.show()
+        coco.plot()
 
 
 if __name__ == '__main__':

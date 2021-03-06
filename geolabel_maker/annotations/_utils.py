@@ -18,7 +18,6 @@ import numpy as np
 # Geolabel Maker
 from geolabel_maker.rasters import Raster, RasterCollection
 from geolabel_maker.vectors import Category, CategoryCollection
-from .functional import extract_categories
 
 
 def extract_paths(element, pattern="*.*"):

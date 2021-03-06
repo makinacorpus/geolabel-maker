@@ -8,7 +8,6 @@
 
 
 # Basic imports
-from copy import deepcopy
 from tqdm import tqdm
 from pathlib import Path
 import pandas as pd
@@ -32,7 +31,7 @@ class Classification(Annotation):
 
     * :attr:`categories` (list): List of dictionaries containing the description of the categories used.
 
-    * :attr:`annotations` (list): List of dictionaries containing the segmentation of an object associated to an image.
+    * :attr:`annotations` (list): List of dictionaries indicating if a category is visible in an image.
 
     """
 
@@ -59,16 +58,20 @@ class Classification(Annotation):
         # Open from a JSON file
         if extension in [".json"]:
             with open(filename) as f:
-                annotations = json.load(f)
+                data = json.load(f)
+                images = data.get("images", None)
+                categories = data.get("categories", None)
+                annotations = data.get("annotations", None)
         # Open from csv, txt etc.
         else:
             images_paths = []
             df = pd.read_csv(filename, **kwargs)
-            for i, row in df.iterrows():
+            for annotation_id, row in df.iterrows():
                 annotation = json.loads(row.to_json())
                 annotations.append(annotation)
-                image_name = annotation.pop("image_name")
+                image_name = annotation.get("image_name", None)
                 annotation.pop("image_id")
+                annotation["id"] = annotation_id
                 if not image_name in images_paths:
                     images_paths.append(image_name)
 
@@ -111,9 +114,10 @@ class Classification(Annotation):
         def get_annotations():
             class_annotations = []
             couple_labels = list(zip(images_paths, labels_paths))
-            for image_path, label_path in tqdm(couple_labels, desc="Build Annotations", leave=True, position=0):
+            for annotation_id, (image_path, label_path) in tqdm(enumerate(couple_labels), desc="Build Annotations", leave=True, position=0):
                 annotation = {
-                    "image_name": str(image_path)
+                    "image_name": str(image_path),
+                    "id": annotation_id
                 }
                 annotation.update({category.name: 0 for category in categories})
                 label_image = Image.open(label_path).convert("RGB")

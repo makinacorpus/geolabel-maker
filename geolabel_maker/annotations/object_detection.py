@@ -24,6 +24,17 @@ from ._utils import find_paths, find_colors
 
 
 class ObjectDetection(Annotation):
+    r"""Defines annotations for object detection application. 
+
+    * :attr:`info` (dict, optional): Description of the annotation (metadata).
+
+    * :attr:`images` (list): List of dictionaries containing metadata for the images in context.
+
+    * :attr:`categories` (list): List of dictionaries containing the description of the categories used.
+
+    * :attr:`annotations` (list): List of dictionaries containing the localization of an object associated to an image.
+
+    """
 
     def __init__(self, images, categories, annotations, info=None):
         super().__init__(images, categories, annotations, info=info)

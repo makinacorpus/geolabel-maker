@@ -134,11 +134,11 @@ class GeoBase(ABC):
     @abstractmethod
     def open(cls, filename, **kwargs):
         """Open the data from a file.
-        
+
         Args:
             filename (str): Name of the file to load.
             kwargs (dict): Remaining options.
-            
+
         Returns:
             GeoBase: The loaded geo data.
         """
@@ -147,10 +147,10 @@ class GeoBase(ABC):
     @abstractmethod
     def save(self, out_file):
         """Save the data to the disk.
-        
+
         Args:
             out_file (str): Name of the output file.
-            
+
         Returns:
             str: Path to the output file.
         """
@@ -159,11 +159,11 @@ class GeoBase(ABC):
     @abstractmethod
     def to_crs(self, crs, **kwargs):
         """Project the geo data in another system.
-        
+
         Args:
             crs (CRS): The destination coordinate  reference system.
             kwargs (dict): Remaining options.
-            
+
         Returns:
             GeoBase: The projected data.
         """
@@ -179,7 +179,7 @@ class GeoBase(ABC):
         Args:
             bbox (tuple): Bounding box used to crop the rasters,
                 in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
-                
+
         Returns:
             GeoBase: The cropped geo data.
         """
@@ -273,18 +273,20 @@ class GeoCollection(GeoBase):
 
     """
 
+    __inner_class__ = GeoData
+
     def __init__(self, *items):
         super().__init__()
         self._items = []
         if not items:
             items = []
-        elif isinstance(items, GeoData):
+        elif isinstance(items, self.__inner_class__):
             items = [items]
         elif isinstance(items, (list, tuple)) and len(items) == 1:
             item = items[0]
             if not item:
                 items = []
-            elif isinstance(item, (list, tuple, GeoCollection)):
+            elif isinstance(item, (list, tuple, self.__class__)):
                 items = item
         self.extend(items)
 
@@ -319,6 +321,24 @@ class GeoCollection(GeoBase):
         right = np.max(bounds_array[:, 2])
         top = np.max(bounds_array[:, 3])
         return BoundingBox(left, bottom, right, top)
+
+    @classmethod
+    def open(cls, *filenames, **kwargs):
+        collection = []
+        for filename in tqdm(filenames, desc="Opening", leave=True, position=0):
+            if not Path(filename).is_file():
+                raise ValueError(f"{filename} is not a a file.")
+
+            collection.append(cls.__inner_class__.open(filename, **kwargs))
+        return cls(*collection)
+
+    @classmethod
+    def from_dir(cls, in_dir, pattern="*", **kwargs):
+        if not Path(in_dir).is_dir():
+            raise ValueError(f"{in_dir} is not a directory.")
+
+        filenames = list(Path(in_dir).rglob(pattern=pattern))
+        return cls.open(*filenames, **kwargs)
 
     @abstractmethod
     def append(self, value):

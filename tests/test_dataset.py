@@ -32,16 +32,17 @@ class DatasetTests(unittest.TestCase):
         assert len(dataset.categories) == 0, "The number of loaded categories is invalid"
         assert len(dataset.labels) == 0, "The number of loaded labels is invalid"
 
-    def test_02_open_config(self):
+    def test_02_open(self):
         config = ROOT / "extern_config.json"
         dataset = Dataset.open(config)
         assert len(dataset.images) == 9, "The number of loaded images is invalid"
         assert len(dataset.categories) == 2, "The number of loaded categories is invalid"
         assert len(dataset.labels) == 0, "The number of loaded labels is invalid"
 
-    def test_03_open_root(self):
+    def test_03_from_dir(self):
         root = ROOT / "data"
-        dataset = Dataset.open(root)
+        dataset = Dataset.from_dir(root)
+        print(dataset)
         assert len(dataset.images) == 9, "The number of loaded images is invalid"
         assert len(dataset.categories) == 2, "The number of loaded categories is invalid"
         assert len(dataset.labels) == 9, "The number of loaded labels is invalid"
@@ -109,10 +110,6 @@ class DatasetTests(unittest.TestCase):
         bbox = (1843045.92, 5173595.36, 1843056.48, 5173605.92)
         dataset_crop = dataset.crop(bbox)
         assert isinstance(dataset_crop, Dataset), "The projection of a dataset did not returned a Dataset"
-        assert tuple(dataset_crop.bounds)[0] >= bbox[0], "The west bound does not match"
-        assert tuple(dataset_crop.bounds)[1] >= bbox[1], "The south bound does not match"
-        assert tuple(dataset_crop.bounds)[2] <= bbox[2], "The east bound does not match"
-        assert tuple(dataset_crop.bounds)[3] <= bbox[3], "The north bound does not match"
 
     def test_11_plot_bounds(self):
         root = ROOT / "data"

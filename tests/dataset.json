@@ -19,7 +19,7 @@
                 211,
                 211
             ],
-            "filename": "buildings.json"
+            "filename": "None"
         },
         {
             "id": 1,
@@ -29,7 +29,7 @@
                 128,
                 0
             ],
-            "filename": "vegetation.json"
+            "filename": "None"
         }
     ],
     "labels": [

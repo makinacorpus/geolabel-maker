@@ -33,6 +33,7 @@ This module handles georeferenced raster image (usually ``.tif`` image).
 # Basic imports
 from abc import abstractmethod
 from tqdm import tqdm
+import warnings
 from itertools import product
 from pathlib import Path
 import json
@@ -147,6 +148,7 @@ class RasterBase(GeoBase):
     def zoom(self, zoom):
         raise NotImplementedError
 
+    # TODO: remove it and make it a function in dataset.py
     @abstractmethod
     def mask(self, categories):
         raise NotImplementedError
@@ -198,11 +200,11 @@ class Raster(GeoData, RasterBase):
 
         Examples:
             If ``tile.tif`` is a raster available from the disk, load it with:
-        
+
             >>> raster = Raster.open("tile.tif")
-            
+
             Check if the raster is successfully loaded:
-            
+
             >>> raster
                 Raster(filename='tile.tif')
         """
@@ -241,7 +243,7 @@ class Raster(GeoData, RasterBase):
             return RasterCollection.open(*files)
 
     @classmethod
-    def from_array(cls, array, filename=None, **profile):
+    def from_array(cls, array, **profile):
         r"""Create a ``Raster`` from a numpy array. 
         This method requires a profile (see `rasterio documentation <https://rasterio.readthedocs.io/en/latest/topics/profiles.html>`__).
 
@@ -276,6 +278,7 @@ class Raster(GeoData, RasterBase):
             stored in the memory.
         """
         assert len(array.shape) >= 2, f"The provided array is not a matrix. Got a shape of {array.shape}."
+
         out_profile = {"driver": "GTiff", **profile}
         out_profile.update({
             "count": array.shape[-3] if len(array.shape) > 2 else 1,
@@ -283,18 +286,19 @@ class Raster(GeoData, RasterBase):
             "width": array.shape[-1],
             "dtype": str(array.dtype)
         })
-
         memfile = MemoryFile()
+
         out_data = memfile.open(**out_profile)
         out_data.write(array)
-        return Raster(out_data, filename=filename)
+
+        return Raster(out_data)
 
     @classmethod
     def from_postgis(cls, *args, **kwargs):
         r"""Load a raster image from a `PostgreSQL` database."""
         raise NotImplementedError
 
-    def to_rasterio(self, **profile):
+    def rasterio(self, **profile):
         """Convert the inner data in an **opened** rasterio dataset.
 
         Returns:
@@ -309,9 +313,9 @@ class Raster(GeoData, RasterBase):
 
             Notice that the dataset reader is closed. That means the data itself is not loaded,
             and can not be loaded. 
-            To load it, simply use the ``to_rasterio`` method to open the dataset:
+            To load it, simply use the ``rasterio`` method to open the dataset:
 
-            >>> raster_data = raster.to_rasterio()
+            >>> raster_data = raster.rasterio()
             >>> raster_data
                 <open DatasetReader name='tile.tif' mode='r'>
 
@@ -345,12 +349,39 @@ class Raster(GeoData, RasterBase):
         """
         out_profile = self.data.meta.copy()
         out_profile.update({**profile})
+
         with rasterio.open(str(out_file), "w", **out_profile) as dst:
-            raster_data = self.to_rasterio()
+            raster_data = self.rasterio()
             dst.write(raster_data.read(window=window))
+
         return str(out_file)
 
-    def rescale(self, factor, resampling="bilinear"):
+    def overwrite(self, raster, **profile):
+        """Overwrite the current raster with the a new one. 
+        
+        .. note::
+            This operation will not modify the values in place,
+            but will overwrite the raster saved on the disk.
+
+        Args:
+            raster (Raster): Raster to save.
+            profile (dict): Remaining arguments used to save the raster (e.g. compression level, photommetric etc.).
+
+        Raises:
+            RuntimeError: If the current raster does not have a filename or was generated from a ``rasterio.io.DatasetWriter``,
+                this error will be raised as it is impossible to overwrite on the disk a raster loaded only in-memory.
+
+        Returns:
+            Raster: The saved raster.
+        """
+        if self.filename is None or isinstance(self.data, rasterio.io.DatasetWriter):
+            raise RuntimeError(f"Could not overwrite a raster that does not have a filename or " \
+                                "was generated from a DatasetWriter.")
+
+        raster.save(self.filename, **profile)
+        return Raster.open(self.filename)
+
+    def rescale(self, factor, resampling="bilinear", overwrite=False):
         r"""Rescale the geo-referenced image. The result is the rescaled data and 
         the associated transformation.
 
@@ -376,7 +407,7 @@ class Raster(GeoData, RasterBase):
             >>> out_raster.data.shape
                 (3, 512, 512)
         """
-        raster_data = self.to_rasterio()
+        raster_data = self.rasterio()
         out_count = raster_data.count
         out_height = int(raster_data.height * factor)
         out_width = int(raster_data.width * factor)
@@ -386,16 +417,25 @@ class Raster(GeoData, RasterBase):
             (raster_data.width / out_data.shape[-1]),
             (raster_data.height / out_data.shape[-2])
         )
-        out_profile = raster_data.profile.copy()
-        out_profile.update({
+        out_meta = raster_data.meta.copy()
+        out_meta.update({
             "count": out_count,
             "width": out_width,
             "height": out_height,
             "transform": out_transform
         })
-        return self.from_array(out_data, **out_profile)
+        raster = self.from_array(out_data, **out_meta)
 
-    def zoom(self, zoom, **kwargs):
+        # Write to the disk if overwrite
+        if overwrite:
+            out_profile = raster_data.profile.copy()
+            out_profile.update(**out_meta)
+            raster_data.close()
+            return self.overwrite(raster, **out_profile)
+
+        return raster
+
+    def zoom(self, zoom, overwrite=False, **kwargs):
         r"""Rescale the raster on a `zoom` level. 
         The levels used are from `Open Street Map <https://wiki.openstreetmap.org/wiki/Zoom_levels>`__.
 
@@ -407,6 +447,7 @@ class Raster(GeoData, RasterBase):
 
         Args:
             zoom (int): The zoom level.
+            kwargs (dict): Remaining arguments from :func:`~raster.Raster.rescale` method.
 
         Returns:
             Raster: The zoomed raster.
@@ -417,9 +458,9 @@ class Raster(GeoData, RasterBase):
 
             >>> raster = Raster.open("tile.tif")
             >>> out_raster = raster.zoom(18)
-            
+
             The zoomed raster is loaded in-memory:
-            
+
             >>> out_raster.filename
                 None
         """
@@ -428,9 +469,9 @@ class Raster(GeoData, RasterBase):
         x_factor = x_res / ZOOM2RES[zoom]
         y_factor = y_res / ZOOM2RES[zoom]
         factor = min(x_factor, y_factor)
-        return self.rescale(factor, **kwargs)
+        return self.rescale(factor, overwrite=overwrite, **kwargs)
 
-    def to_crs(self, crs, **profile):
+    def to_crs(self, crs, overwrite=False):
         r"""Project the raster from its initial `CRS` to another one.
 
         .. note::
@@ -450,21 +491,20 @@ class Raster(GeoData, RasterBase):
             >>> crs = "EPSG:4326"
             >>> out_raster = raster.to_crs(crs)
         """
-        raster_data = self.to_rasterio()
+        raster_data = self.rasterio()
         transform, width, height = calculate_default_transform(
             raster_data.crs, crs, raster_data.width, raster_data.height, *raster_data.bounds
         )
-        out_profile = raster_data.profile.copy()
-        out_profile.update({
+        out_meta = raster_data.meta.copy()
+        out_meta.update({
             "crs": crs,
             "transform": transform,
             "width": width,
-            "height": height,
-            **profile
+            "height": height
         })
 
         memfile = MemoryFile()
-        out_data = memfile.open(**out_profile)
+        out_data = memfile.open(**out_meta)
 
         for i in range(1, raster_data.count + 1):
             reproject(
@@ -476,7 +516,16 @@ class Raster(GeoData, RasterBase):
                 dst_crs=crs
             )
 
-        return Raster(out_data)
+        raster = Raster(out_data)
+
+        # Write to the disk if overwrite
+        if overwrite:
+            out_profile = raster_data.profile.copy()
+            out_profile.update(**out_meta)
+            raster_data.close()
+            return self.overwrite(raster, **out_profile)
+
+        return raster
 
     def crop(self, bbox):
         r"""Crop a raster from a bounding box.
@@ -499,7 +548,7 @@ class Raster(GeoData, RasterBase):
             >>> out_raster = raster.crop(bbox)
         """
         # Open the dataset if its closed
-        raster_data = self.to_rasterio()
+        raster_data = self.rasterio()
 
         # Format the bounding box in a format understood by rasterio
         df_bounds = gpd.GeoDataFrame({"geometry": box(*bbox)}, index=[0], crs=raster_data.crs)
@@ -507,7 +556,7 @@ class Raster(GeoData, RasterBase):
 
         # Crop the raster
         out_array, out_transform = rasterio.mask.mask(raster_data, shapes=[shape], crop=True)
-        out_profile = raster_data.profile.copy()
+        out_profile = raster_data.meta.copy()
         out_profile.update({
             "height": out_array.shape[1],
             "width": out_array.shape[2],
@@ -516,6 +565,7 @@ class Raster(GeoData, RasterBase):
 
         return self.from_array(out_array, **out_profile)
 
+    # TODO: remove it and make it a function in dataset.py
     def mask(self, categories):
         """Mask the raster from a set of geometries.
 
@@ -544,7 +594,7 @@ class Raster(GeoData, RasterBase):
             if not category_cropped.data.empty:
                 # Create a raster from the geometries
                 mask, out_transform = rasterio.mask.mask(
-                    self.to_rasterio(),
+                    self.rasterio(),
                     list(category_cropped.data.geometry),
                     crop=False
                 )
@@ -627,7 +677,8 @@ class Raster(GeoData, RasterBase):
             if is_full and (window.height != height or window.width != width):
                 continue
             out_transform = rasterio.windows.transform(window, out_raster.data.transform)
-            out_profile = out_raster.data.  meta.copy()
+            out_profile = out_raster.data.meta.copy()
+            # TODO: remove photometric and leave only meta
             out_profile.update({
                 "driver": "GTiff",
                 "height": window.height,
@@ -636,7 +687,7 @@ class Raster(GeoData, RasterBase):
                 "count": 3,
                 "photometric": "RGB",
             })
-            out_path = Path(out_dir) / f"{Path(self.filename).stem}-tile_{window.col_off}x{window.row_off}.tif"
+            out_path = Path(out_dir) / f"{Path(self.filename).stem}-tile_{window.row_off}x{window.col_off}.tif"
             out_raster.save(out_path, window=window, **out_profile)
         return str(out_dir)
 
@@ -653,7 +704,7 @@ class Raster(GeoData, RasterBase):
         """
         if not axes or figsize:
             _, axes = plt.subplots(figsize=figsize)
-        raster_data = self.to_rasterio()
+        raster_data = self.rasterio()
         array = raster_data.read().transpose(1, 2, 0)
         axes.imshow(array, **kwargs)
         return axes
@@ -668,6 +719,8 @@ class RasterCollection(GeoCollection, RasterBase):
     This class behaves similarly as a ``list``, excepts it is made only of ``Raster``.
 
     """
+
+    __inner_class__ = Raster
 
     def __init__(self, *rasters):
         GeoCollection.__init__(self, *rasters)
@@ -687,25 +740,25 @@ class RasterCollection(GeoCollection, RasterBase):
             If ``tile1.tif`` and ``tile2.tif`` are rasters available from the disk, then:
 
             >>> rasters = RasterCollection.open("tile1.tif", "tile2.tif")
-            
+
             Check if the rasters are successfully loaded:
-            
+
             >>> rasters
                 RasterCollection(
                   (0): Raster(filename='tile1.tif')
                   (1): Raster(filename='tile2.tif')
                 )
         """
-        rasters = []
-        for filename in filenames:
-            rasters.append(Raster.open(filename, **kwargs))
-        return RasterCollection(*rasters)
+        return super().open(*filenames, **kwargs)
 
-    def save(self, out_dir):
+    def save(self, out_dir, in_place=True):
         """Save all the rasters in a given directory.
 
         Args:
             out_dir (str): Path to the output directory.
+            in_place (bool): If ``True``, it will update the items of the collection
+                with the saved element. This is useful if an object at index :math:`i` is in-memory:
+                the new item at :math:`i` will then link to the saved element.
 
         Returns:
             RasterCollection: Collection of rasters loaded in memory.
@@ -714,7 +767,9 @@ class RasterCollection(GeoCollection, RasterBase):
         for i, raster in enumerate(self._items):
             out_file = raster.filename or Path(out_dir) / f"raster_{i}.tif"
             raster.save(out_file)
-            self._items[i] = Raster.open(Path(out_dir) / out_file)
+            # Update the collection if needed
+            if in_place:
+                self._items[i] = Raster.open(Path(out_dir) / out_file)
         return str(out_dir)
 
     def append(self, raster):
@@ -729,9 +784,9 @@ class RasterCollection(GeoCollection, RasterBase):
             >>> rasters = RasterCollection()
             >>> raster = Raster.open("tile.tif")
             >>> rasters.append(raster)
-            
+
             Check if the raster is successfully added:
-            
+
             >>> rasters
                 RasterCollection(
                   (0): Raster(filename='tile.tif')
@@ -752,9 +807,9 @@ class RasterCollection(GeoCollection, RasterBase):
             >>> rasters = RasterCollection()
             >>> rasters_list = [Raster.open("tile1.tif"), Raster.open("tile2.tif")]
             >>> rasters.extend(rasters_list)
-            
+
             Check if the rasters are successfully added:
-            
+
             >>> rasters
                 RasterCollection(
                   (0): Raster(filename='tile1.tif')
@@ -795,7 +850,7 @@ class RasterCollection(GeoCollection, RasterBase):
             >>> out_rasters = rasters.crop(bbox)
         """
         out_rasters = RasterCollection()
-        for raster in self._items:
+        for raster in tqdm(self._items, desc="Croping", leave=True, position=0):
             try:
                 out_rasters.append(raster.crop(*args, **kwargs))
             except Exception as error:
@@ -824,7 +879,7 @@ class RasterCollection(GeoCollection, RasterBase):
             >>> out_rasters = rasters.rescale(factor)
         """
         out_rasters = RasterCollection()
-        for raster in self._items:
+        for raster in tqdm(self._items, desc="Rescaling", leave=True, position=0):
             try:
                 out_rasters.append(raster.rescale(*args, **kwargs))
             except Exception as error:
@@ -853,13 +908,14 @@ class RasterCollection(GeoCollection, RasterBase):
             >>> out_rasters = rasters.zoom(zoom_level)
         """
         out_rasters = RasterCollection()
-        for raster in self._items:
+        for raster in tqdm(self._items, desc=f"Zooming", leave=True, position=0):
             try:
                 out_rasters.append(raster.zoom(*args, **kwargs))
             except Exception as error:
                 logger.error(f"Could not zoom raster '{raster.filename}': {error}")
         return out_rasters
 
+    # TODO: remove it and make it a function in dataset.py
     def mask(self, *args, **kwargs):
         """Mask all rasters in respect of a scale factor.
 
@@ -871,7 +927,7 @@ class RasterCollection(GeoCollection, RasterBase):
             kwargs (dict): Dictionary of optional arguments from ``Raster.mask()`` method.                    
 
         Returns:
-            RasterCollection
+            RasterCollection: The masked collections
 
         Examples:
             If ``tile1.tif`` and ``tile2.tif`` are rasters
@@ -883,7 +939,7 @@ class RasterCollection(GeoCollection, RasterBase):
             >>> out_rasters = rasters.mask(categories)
         """
         out_rasters = RasterCollection()
-        for raster in self._items:
+        for raster in tqdm(self._items, desc="Generating Masks", leave=True, position=0):
             try:
                 out_rasters.append(raster.mask(*args, **kwargs))
             except Exception as error:
@@ -908,7 +964,7 @@ class RasterCollection(GeoCollection, RasterBase):
             >>> rasters.generate_vrt("tiles.vrt")
         """
         raster_files = []
-        for raster in self._items:
+        for raster in tqdm(self._items, desc="Generating VRT", leave=True, position=0):
             if not isinstance(raster.data, rasterio.DatasetReader):
                 raise ValueError(f"Could not access the raster {raster.data.name} from the disk. "
                                  "This error may be raised if the raster was loaded from a temporary file. "
@@ -931,6 +987,9 @@ class RasterCollection(GeoCollection, RasterBase):
             height (int, optional): The height of the window. Defaults to ``256``.
             out_dir (str, optional): Path to the directory where the windows are saved. Defaults to ``"mosaic"``.
 
+        Returns:
+            str: Path to the output directory
+
         Examples:
             If ``tile1.tif`` and ``tile2.tif`` are rasters available from the disk, 
             then generate a mosaic of sub-images of shape :math:`(256, 256)` with:
@@ -952,6 +1011,9 @@ class RasterCollection(GeoCollection, RasterBase):
 
         Args:
             kwargs (dict): Optional arguments.
+
+        Returns:
+            str: Path to the output directory
 
         Examples:
             If ``tile1.tif`` and ``tile2.tif`` are rasters available from the disk, 

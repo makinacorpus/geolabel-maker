@@ -38,6 +38,7 @@ import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 from shapely.geometry import box
+import rasterio.mask
 from PIL import Image
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -45,6 +46,7 @@ import matplotlib.patches as mpatches
 # Geolabel Maker
 from geolabel_maker.base import BoundingBox, CRS, GeoBase
 from geolabel_maker.rasters import Raster, RasterCollection
+from geolabel_maker.rasters.utils import color_mask, merge_masks
 from geolabel_maker.vectors import Category, CategoryCollection
 from geolabel_maker.utils import retrieve_path, relative_path
 from geolabel_maker.logger import logger
@@ -205,13 +207,7 @@ class Dataset(GeoBase):
             This configuration will look for all images saved in ``images``, vectors in ``categories`` 
             and label images (if any) in ``labels``.
 
-
             >>> dataset = Dataset.open("dataset.json")
-
-            Alternatively, you can load a dataset directly from a root folder.
-            It will create a default configuration.
-
-            >>> dataset = Dataset.open("data/")
 
             If you wan to control more precisely the loading process, you can provide a more detailed configuration:
 
@@ -232,23 +228,13 @@ class Dataset(GeoBase):
                 }
 
             .. note::
-                You can mix both format. 
-                Priority will be given to list of elements.
+                You can mix both format (using directories or list of files). 
+                Priority will be given to list of files.
 
             >>> dataset = Dataset.open("dataset.json")
         """
-        assert isinstance(filename, (str, Path)), f"Could not open the `Dataset` from {type(filename)}."
-        # Load from a root directory
-        if Path(filename).is_dir():
-            filename = Path(filename) / "dataset.json"
-            # Create a default configuration file if it does not exist.
-            if not filename.exists():
-                with open(filename, "w") as f:
-                    json.dump({
-                        "dir_images": "images",
-                        "dir_categories": "categories",
-                        "dir_labels": "labels"
-                    }, f, indent=4)
+        if not Path(filename).is_file():
+            raise ValueError(f"Could not read the dataset from configuration file {filename}.")
 
         logger.info(f"Reading the configuration at {filename}")
         # Load the configuration file.
@@ -306,6 +292,42 @@ class Dataset(GeoBase):
         return Dataset(images=images, categories=categories, labels=labels,
                        dir_images=dir_images, dir_categories=dir_categories, dir_labels=dir_labels,
                        dir_mosaics=dir_mosaics, dir_tiles=dir_tiles, filename=filename)
+
+    @classmethod
+    def from_dir(cls, in_dir):
+        r"""Load a dataset from a root directory.
+
+        .. note:: 
+            If a configuration file named ``dataset.json`` exists in the root directory,
+            it will be loaded.
+
+        Args:
+            in_dir (str): Path to the root directory.
+
+        Returns:
+            Dataset: The loaded dataset.
+
+        Examples:
+            You can load a dataset directly from a root folder.
+            It will create a default configuration.
+
+            >>> dataset = Dataset.open("data/")
+        """
+        if not Path(in_dir).is_dir():
+            raise ValueError(f"Could not open the `Dataset` from directory {in_dir}.")
+
+        # Load from a root directory
+        filename = Path(in_dir) / "dataset.json"
+        # Create a default configuration file if it does not exist.
+        if not filename.exists():
+            with open(filename, "w") as f:
+                json.dump({
+                    "dir_images": "images",
+                    "dir_categories": "categories",
+                    "dir_labels": "labels"
+                }, f, indent=4)
+
+        return cls.open(filename)
 
     @classmethod
     def download(cls, filename):
@@ -539,6 +561,30 @@ class Dataset(GeoBase):
                        dir_images=self.dir_images, dir_categories=self.dir_categories, dir_labels=self.dir_labels,
                        dir_mosaics=self.dir_mosaics, dir_tiles=self.dir_tiles, filename=None)
 
+    def generate_label(self, image_idx, out_file=None):
+        r"""Generate label corresponding to one image. 
+        The label associated to an image in respect of the categories 
+        is a ``.tif`` image containing all geometries 
+        within the geographic extents from the origin image.
+
+        Args:
+            out_dir (str, optional): Output directory where the file will be saved. 
+                If ``None``, the file will be saved in ``"{root}/labels"``.
+                Default to ``None``.
+
+        Returns:
+            str: Path to the created label.
+
+        Examples:
+            >>> dataset = Dataset.open("data/")
+            >>> dataset.generate_label(0)
+        """
+        image = self.images[image_idx]
+        label = image.mask(self.categories)
+        out_file = out_file or Path(image.filename).parent / f"{Path(image.filename).stem}-label.tif" or f"image-{image_idx}-label.tif"
+        label.save(out_file)
+        return str(out_file)
+
     def generate_labels(self, out_dir=None):
         r"""Generate labels from a set of ``images`` and ``categories``. 
         The label associated to an image in respect of the categories 
@@ -572,10 +618,9 @@ class Dataset(GeoBase):
         Path(dir_labels).mkdir(parents=True, exist_ok=True)
 
         # Generate and load the labels
-        for image in tqdm(self.images, desc="Generating Labels", leave=True, position=0):
-            label = image.mask(self.categories)
+        for image_idx, image in tqdm(enumerate(self.images), desc="Generating Labels", leave=True, position=0):
             label_path = Path(dir_labels) / f"{Path(image.filename).stem}-label.tif"
-            label.save(label_path)
+            self.generate_label(image_idx, out_file=label_path)
             self.labels.append(Raster.open(label_path))
 
         self.dir_labels = dir_labels
