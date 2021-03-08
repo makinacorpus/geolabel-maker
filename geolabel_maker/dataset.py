@@ -589,19 +589,15 @@ class Dataset(GeoBase):
             >>> dataset.generate_label(0)
         """
         image = self.images[image_idx]
-        # Zoom the image
-        if zoom:
-            image = image.zoom(zoom)
         # Generate the mask
         label = image.mask(self.categories)
         out_file = out_file or Path(image.filename).parent / f"{Path(image.filename).stem}-label.tif" or f"image-{image_idx}-label.tif"
         label.save(out_file)
-        # Close the rasters
-        if zoom: image.data.close()
+        # Close the label
         label.data.close()
         return str(out_file)
 
-    def generate_labels(self, zoom=None, out_dir=None):
+    def generate_labels(self, out_dir=None):
         r"""Generate labels from a set of ``images`` and ``categories``. 
         The label associated to an image in respect of the categories 
         is a ``.tif`` image containing all geometries 
@@ -630,14 +626,13 @@ class Dataset(GeoBase):
         """
         # Clean previously generated labels
         self.labels = []
-        zoom_name = str(zoom or "original")
         dir_labels = str(out_dir or self.dir_labels or Path(self.root) / "labels")
-        (Path(dir_labels) / zoom_name).mkdir(parents=True, exist_ok=True)
+        Path(dir_labels).mkdir(parents=True, exist_ok=True)
 
         # Generate and load the labels
         for image_idx, image in enumerate(tqdm(self.images, desc="Generating Labels", leave=True, position=0)):
-            label_path = Path(dir_labels) / zoom_name / f"{Path(image.filename).stem}-label.tif"
-            self.generate_label(image_idx, zoom=zoom, out_file=label_path)
+            label_path = Path(dir_labels) / f"{Path(image.filename).stem}-label.tif"
+            self.generate_label(image_idx, out_file=label_path)
             self.labels.append(Raster.open(label_path))
 
         self.dir_labels = dir_labels

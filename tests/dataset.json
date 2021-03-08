@@ -2,8 +2,6 @@
     "dir_images": "checkpoints\\dataset\\data\\images",
     "dir_categories": "checkpoints\\dataset\\data\\categories",
     "dir_labels": "checkpoints\\dataset\\data\\labels",
-    "dir_mosaics": "checkpoints\\dataset\\data\\mosaics",
-    "dir_tiles": "checkpoints\\dataset\\data\\tiles",
     "images": [
         {
             "id": 0,
@@ -15,9 +13,9 @@
             "id": 0,
             "name": "buildings",
             "color": [
-                225,
-                143,
-                172
+                99,
+                87,
+                126
             ],
             "filename": "None"
         },
@@ -25,9 +23,9 @@
             "id": 1,
             "name": "vegetation",
             "color": [
-                190,
-                202,
-                57
+                205,
+                218,
+                188
             ],
             "filename": "None"
         }
