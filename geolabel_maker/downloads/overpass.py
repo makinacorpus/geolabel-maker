@@ -25,9 +25,9 @@ It is part of the `Open Street Map` API, but for large queries and requests.
 import re
 import requests
 from pathlib import Path
-from datetime import datetime
 from osmtogeojson import osmtogeojson
 import geopandas as gpd
+from shapely.geometry import Polygon
 
 # Geolabel Maker
 from geolabel_maker.logger import logger
@@ -70,6 +70,8 @@ class OverpassAPI(Downloader):
             >>> api = OverpassAPI()
             >>> api.download((48.0, 2.0, 48.1, 2.1), selector="building", out_file="buildings.json")
         """
+        logger.info(f"Downloading geometries for selector '{selector}'.")
+
         lon_min, lat_min, lon_max, lat_max = bbox
         query = f"""
             [out:json][timeout:{timeout}];
@@ -81,7 +83,7 @@ class OverpassAPI(Downloader):
             out skel qt;
         """
         query_string = re.sub(" +", "", query.replace("\n", " "))
-        logger.info(f"Making a query to overpass: {query_string}")
+        logger.debug(f"Making a query to overpass: '{query_string}'.")
 
         # Connect to Overpass API
         response = requests.get(
@@ -90,13 +92,12 @@ class OverpassAPI(Downloader):
         )
         json_data = response.json()
 
-        # Remove tags
         # TODO: only delete unwanted tags.
         for element in json_data['elements']:
             element.pop('tags', None)
 
         # Return the response as a geojson dict
-        logger.info("Converting the features to GeoJSON.")
+        logger.debug("Converting the features to GeoJSON.")
         features = osmtogeojson.process_osm_json(json_data)
 
         if out_file is None:
@@ -108,10 +109,13 @@ class OverpassAPI(Downloader):
         # Save
         df = gpd.GeoDataFrame.from_features(features)
         if df.empty:
-            logger.info(f"The data is empty. Skipping the saving process.")
+            logger.debug(f"The data is empty. Skipping the saving process.")
             return None
+        # Removing geometries other than polygons
+        logger.debug("Removing geometries other than 'Polygon'.")
+        df = df[df["geometry"].apply(lambda x: isinstance(x, Polygon))]
+        # Saving
         Path(out_file).parent.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Saving the data at '{out_file}'.")
         df.to_file(out_file, driver="GeoJSON")
-        logger.info("OSM geometries successfully saved.")
+        logger.debug(f"OSM geometries successfully saved at {out_file}.")
         return out_file

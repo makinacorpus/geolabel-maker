@@ -59,6 +59,22 @@ class BoundingBox:
         return f"BoundingBox(left={self.left}, bottom={self.bottom}, right={self.right}, top={self.top})"
 
 
+def to_crs(element):
+    r"""Convert an element to a Coordinate Reference System (CRS).
+
+    Args:
+        element (Any): An object describing a coordinate reference system.
+
+    Returns:
+        CRS: The associated CRS.
+    """
+    if isinstance(element, rasterio.crs.CRS):
+        return CRS.from_rasterio(element)
+    elif isinstance(element, CRS):
+        return element
+    return CRS(element)
+
+
 class CRS(pyproj.crs.CRS):
     r"""
     Defines a Coordinate Reference System (CRS) from ``pyproj`` implementation.
@@ -70,7 +86,6 @@ class CRS(pyproj.crs.CRS):
     """
 
     def __init__(self, projparams, **kwargs):
-        # If initialized from a rasterio.crs.CRS, convert it to pyproj.crs.CRS
         super().__init__(projparams=projparams, **kwargs)
 
     @classmethod
@@ -105,6 +120,12 @@ class CRS(pyproj.crs.CRS):
         srs.SetFromUserInput(crs.to_wkt())
         epsg = srs.GetAttrValue("AUTHORITY", 1)
         return CRS.from_epsg(epsg)
+
+    def __eq__(self, crs):
+        crs = to_crs(crs)
+        if crs.to_epsg() == self.to_epsg():
+            return True
+        return False
 
     def __repr__(self):
         return super().__repr__()
@@ -185,11 +206,11 @@ class GeoBase(ABC):
         """
         raise NotImplementedError(f"This method is currently not supported.")
 
-    def plot_bounds(self, axes=None, figsize=None, label=None, **kwargs):
+    def plot_bounds(self, ax=None, figsize=None, label=None, **kwargs):
         """Plot the geographic extent of the data.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             label (str, optional): Legend for the collection. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
@@ -197,20 +218,23 @@ class GeoBase(ABC):
         Returns:
             matplotlib.AxesSubplot: Axes of the figure.
         """
-        x, y = box(*self.bounds).exterior.xy
-        if not axes or figsize:
-            _, axes = plt.subplots(figsize=figsize)
-        axes.plot(x, y, label=label, **kwargs)
-        if label:
-            axes.legend(loc=1, frameon=True)
-        plt.title(f"Bounds of the {self.__class__.__name__}")
-        return axes
+        if not ax or figsize:
+            _, ax = plt.subplots(figsize=figsize)
 
-    def plot(self, axes=None, figsize=None, label=None, **kwargs):
+        x, y = box(*self.bounds).exterior.xy
+        ax.plot(x, y, label=label, **kwargs)
+
+        if label:
+            ax.legend(loc=1, frameon=True)
+
+        plt.title(f"Bounds of the {self.__class__.__name__}")
+        return ax
+
+    def plot(self, ax=None, figsize=None, label=None, **kwargs):
         """Plot the the data.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             label (str, optional): Legend for the collection. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
@@ -218,7 +242,7 @@ class GeoBase(ABC):
         Returns:
             matplotlib.AxesSubplot: Axes of the figure.
         """
-        return self.plot_bounds(axes=axes, figsize=figsize, label=label, **kwargs)
+        return self.plot_bounds(ax=ax, figsize=figsize, label=label, **kwargs)
 
     def inner_repr(self):
         """Inner representation of the data."""
@@ -334,22 +358,28 @@ class GeoCollection(GeoBase):
 
     @classmethod
     def from_dir(cls, in_dir, pattern="*", **kwargs):
-        if not Path(in_dir).is_dir():
-            raise ValueError(f"{in_dir} is not a directory.")
+        if not in_dir:
+            return cls()
 
-        filenames = list(Path(in_dir).rglob(pattern=pattern))
+        if not Path(in_dir).is_dir():
+            raise ValueError(f"'{in_dir}' is not a directory.")
+
+        filenames = sorted(list(Path(in_dir).rglob(pattern=pattern)))
         return cls.open(*filenames, **kwargs)
 
-    @abstractmethod
+    def _check_value(self, value):
+        if not isinstance(value, self.__inner_class__):
+            raise ValueError(f"Invalid value '{type(value).__name__}' encountered for collection '{self.__class__.__name__}'.")
+
     def append(self, value):
         """Add a new value to the collection.
 
         Args:
             value (Data): The data to add.
         """
-        raise NotImplementedError(f"This method is currently not supported.")
+        self._check_value(value)
+        self._items.append(value)
 
-    @abstractmethod
     def insert(self, index, value):
         """Insert a value at a specific index.
 
@@ -357,9 +387,9 @@ class GeoCollection(GeoBase):
             index (int): index of the list.
             value (Data): Data to insert.
         """
-        raise NotImplementedError(f"This method is currently not supported.")
+        self._check_value(value)
+        self._items.insert(index, value)
 
-    @abstractmethod
     def extend(self, values):
         """Add a list of data to the collection.
 
@@ -436,11 +466,11 @@ class GeoCollection(GeoBase):
             try:
                 if not data.crs or CRS(data.crs) != CRS(crs):
                     data = data.to_crs(crs, **kwargs)
-            except Exception as error:
-                logger.error(f"Could not change CRS '{data.filename}': {error}")
-                continue
-            finally:
                 out_collection.append(data)
+            except Exception as error:
+                logger.debug(f"Could not change CRS '{data.filename}': {error}")
+                continue
+
         return out_collection
 
     def crop(self, *args, **kwargs):
@@ -456,18 +486,18 @@ class GeoCollection(GeoBase):
         for data in tqdm(self._items, desc="Cropping", leave=True, position=0):
             try:
                 out_data = data.crop(*args, **kwargs)
-            except Exception as error:
-                logger.error(f"Could not rescale raster '{data.filename}': {error}")
-                continue
-            finally:
                 out_collection.append(out_data)
+            except Exception as error:
+                logger.debug(f"Could not crop '{data.filename}': {error}")
+                continue
+
         return out_collection
 
-    def plot_bounds(self, axes=None, figsize=None, label=None, **kwargs):
+    def plot_bounds(self, ax=None, figsize=None, label=None, **kwargs):
         """Plot the geographic extent of the collection.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             label (str, optional): Legend for the collection. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
@@ -475,22 +505,24 @@ class GeoCollection(GeoBase):
         Returns:
             matplotlib.AxesSubplot: Axes of the figure.
         """
-        if not axes or figsize:
-            _, axes = plt.subplots(figsize=figsize)
+        if not ax or figsize:
+            _, ax = plt.subplots(figsize=figsize)
+
         for i, value in enumerate(self):
             label_ = label or f"{value.__class__.__name__.lower()} {i}"
-            axes = value.plot_bounds(axes=axes, label=label_, **kwargs)
+            ax = value.plot_bounds(ax=ax, label=label_, **kwargs)
             if label:
                 label = "_no_legend_"
-        axes.legend(loc=1, frameon=True)
-        plt.title(f"Bounds of the {self.__class__.__name__}")
-        return axes
 
-    def plot(self, axes=None, figsize=None, label=None, **kwargs):
+        ax.legend(loc=1, frameon=True)
+        plt.title(f"Bounds of the {self.__class__.__name__}")
+        return ax
+
+    def plot(self, ax=None, figsize=None, label=None, **kwargs):
         """Plot the the data.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             label (str, optional): Legend for the collection. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
@@ -498,10 +530,14 @@ class GeoCollection(GeoBase):
         Returns:
             matplotlib.AxesSubplot: Axes of the figure.
         """
-        return self.plot_bounds(axes=axes, figsize=figsize, label=label, **kwargs)
+        return self.plot_bounds(ax=ax, figsize=figsize, label=label, **kwargs)
 
     def __getitem__(self, index):
-        return self._items[index]
+        out_item = self._items[index]
+        # In case multiple items are returned, wrap them in a collection
+        if isinstance(out_item, list):
+            return self.__class__(out_item)
+        return out_item
 
     def __setitem__(self, index, value):
         self.insert(index, value)

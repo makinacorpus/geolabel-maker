@@ -16,58 +16,63 @@ import numpy as np
 
 
 # Geolabel Maker
+from geolabel_maker.base import GeoCollection
 from geolabel_maker.rasters import Raster, RasterCollection
 from geolabel_maker.vectors import Category, CategoryCollection
 
 
-def extract_paths(element, pattern="*.*"):
+def get_paths(files=None, in_dir=None, pattern="*"):
     paths = []
-    if isinstance(element, (str, Path)):
-        if Path(element).is_dir():
-            paths = list(Path(element).rglob(pattern))
-        elif Path(element).is_file():
-            paths = [Path(element)]
-    elif isinstance(element, (Raster, Category)):
-        paths = [Path(element.filename)]
-    elif isinstance(element, (RasterCollection, CategoryCollection)):
-        paths = [Path(elem.filename) for elem in element]
-    elif isinstance(element, (tuple, list, GeneratorType)):
-        for elem in element:
-            path = extract_paths(elem, pattern=pattern)
-            paths.extend(path)
-    else:
-        raise ValueError(f"Unrecognized type {type(element).__name__}")
-    return paths
 
-
-def find_paths(files=None, in_dir=None, pattern="*"):
-    assert files or in_dir, "Files or an input directory must be provided."
-    
-    # First, retrieve paths from a directory
-    paths = []
-    if in_dir and Path(in_dir).is_dir():
-        paths = list(Path(in_dir).rglob(pattern))
-    
-    # Then from a list or collection
-    elif files:
+    # Get paths from a list or collection
+    if files:
         if isinstance(files, (Raster, Category)):
             paths = [Path(files.filename)]
         elif isinstance(files, (RasterCollection, CategoryCollection)):
             paths = [Path(data.filename) for data in files]
         elif isinstance(files, (tuple, list, GeneratorType)):
-            paths = files
+            paths = list(files)
         else:
-            raise ValueError(f"Unrecognized type {type(files).__name__}")
-    paths.sort()
+            raise ValueError(f"Could not retrieve paths for element of type '{type(files).__name__}'.")
+
+    # Get paths from a directory
+    elif in_dir and Path(in_dir).is_dir():
+        paths = sorted(list(Path(in_dir).rglob(pattern)))
+
     return paths
 
 
-def find_colors(categories=None, colors=None):
-    assert categories or colors, "Categories or colors must be provided."
-    
+def get_categories(categories=None, dir_categories=None, colors=None, pattern="*"):
+    collection = CategoryCollection()
+
+    # Get categories from provided colors
     if colors:
-        categories = CategoryCollection()
+        if not isinstance(colors, dict):
+            raise ValueError(f"The provided argument 'colors' must be a dict containing categories' names and colors. " \
+                             f"Got {type(colors).__name__}.")
+
         for name, color in colors.items():
-            categories.append(Category(None, name, color=color))
-        return categories
-    return categories
+            collection.append(Category(None, name, color=color))
+        return collection
+
+    # Get categories from a list
+    elif categories:
+        if not isinstance(categories, (tuple, list, CategoryCollection, GeneratorType)):
+            raise ValueError(f"The provided argument 'categories' must be a list of categories (or a collection). " \
+                             f"Got {type(categories).__name__}.")
+
+        for category in categories:
+            if isinstance(category, Category):
+                collection.append(category)
+            else:
+                collection.append(Category.open(category))
+        return collection
+
+    # Get categories from a directory
+    elif dir_categories:
+        if not isinstance(dir_categories, (str, Path)):
+            raise ValueError(f"The provided argument 'dir_categories' must be a string or path. " \
+                             f"Got {type(dir_categories).__name__}.")
+
+        collection = CategoryCollection.from_dir(dir_categories, pattern=pattern)
+    return collection

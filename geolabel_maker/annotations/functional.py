@@ -38,8 +38,7 @@ __all__ = [
 ]
 
 
-
-def find_polygons(mask_array, preserve_topology=False, simplify_level=1.0):
+def find_polygons(mask_array, preserve_topology=True, simplify_level=1.0):
     """Retrieve the polygons from a black and white raster image.
 
     Args:
@@ -62,15 +61,30 @@ def find_polygons(mask_array, preserve_topology=False, simplify_level=1.0):
             shapely.geometry.Polygon
     """
     polygons = []
-    contours, hierarchy = cv2.findContours(mask_array, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    for contour in contours:
-        segmentation = contour.flatten()
+    contours, hierarchy = cv2.findContours(mask_array, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+
+    # If there are no contours
+    if not contours:
+        return polygons
+    
+    # Retrieve only outliers polygon (not the holes)
+    contour_indices = np.where(hierarchy[0, :, 3] == -1)[0]
+    for contour_idx in contour_indices:
+        
+        outer = contours[contour_idx].reshape(-1, 2)
+        
         # A LinearRing must have at least 3 coordinate tuples (i.e. 3 * 2 values)
-        if len(segmentation) >= 6:
-            x = segmentation[::2]
-            y = segmentation[1::2]
-            polygon = Polygon(np.column_stack((x, y)))
+        if outer.size >= 6:
+            # Retrieve inner polygons (holes)
+            inner_indices = np.squeeze(np.where(hierarchy[0, :, 3] == contour_idx))
+            inners = []
+            if inner_indices.size > 0:
+                inners = [contours[idx].reshape(-1, 2) for idx in np.nditer(inner_indices)]
+
+            # Create a polygon with holes (inners)
+            polygon = Polygon(outer, inners)
             polygon = polygon.simplify(simplify_level, preserve_topology=preserve_topology)
+
             # Only add polygons that are not empty
             if not polygon.is_empty:
                 # Add multiple Polygon if the simplification resulted in a MultiPolygon
@@ -102,7 +116,7 @@ def extract_categories(label=None, categories=None, **kwargs):
              Category(data=GeoDataFrame(234 rows, 1 column), name='buildings', color=(255, 255, 255)))
     """
     assert label, "Label image must be provided"
-    
+
     label_array = np.array(label.convert("RGB"))
     categories_extracted = []
     for category in categories:
@@ -115,6 +129,7 @@ def extract_categories(label=None, categories=None, **kwargs):
     return categories_extracted
 
 
+# TODO: move to _utils.py
 def has_color(label, color):
     """Check if a label image has a specific color.
 
@@ -127,4 +142,4 @@ def has_color(label, color):
     """
     array = np.array(label.convert("RGB"))
     red, green, blue = tuple(color)
-    return np.where((array[:,:,0] == red) & (array[:,:,1] == green) & (array[:,:,2] == blue), True, False).any()
+    return np.where((array[:, :, 0] == red) & (array[:, :, 1] == green) & (array[:, :, 2] == blue), True, False).any()

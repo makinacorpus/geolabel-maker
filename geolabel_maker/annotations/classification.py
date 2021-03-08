@@ -10,15 +10,21 @@
 # Basic imports
 from tqdm import tqdm
 from pathlib import Path
+from copy import deepcopy
 import pandas as pd
-from PIL import Image
+from PIL import Image, ImageDraw
 import json
+import random
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 # Geolabel Maker
 from .functional import has_color
 from .annotation import Annotation
+from geolabel_maker.rasters import Raster
+from geolabel_maker.vectors import Color
 from geolabel_maker.utils import retrieve_path
-from ._utils import find_paths, find_colors
+from ._utils import get_paths, get_categories
 
 
 class Classification(Annotation):
@@ -55,6 +61,7 @@ class Classification(Annotation):
         categories = []
         images = []
         extension = Path(filename).suffix.lower()
+
         # Open from a JSON file
         if extension in [".json"]:
             with open(filename) as f:
@@ -62,26 +69,30 @@ class Classification(Annotation):
                 images = data.get("images", None)
                 categories = data.get("categories", None)
                 annotations = data.get("annotations", None)
+
         # Open from csv, txt etc.
         else:
-            images_paths = []
+            image_names = []
             df = pd.read_csv(filename, **kwargs)
             for annotation_id, row in df.iterrows():
                 annotation = json.loads(row.to_json())
-                annotations.append(annotation)
                 image_name = annotation.get("image_name", None)
-                annotation.pop("image_id")
-                annotation["id"] = annotation_id
-                if not image_name in images_paths:
-                    images_paths.append(image_name)
+                image_id = annotation.get("image_id", annotation_id)
+                annotation["image_id"] = image_id
+                annotation["id"] = annotation.get("id", image_id)
+                annotations.append(annotation)
 
-            # Update the images and categories from the annotations
-            for image_id, image_path in enumerate(images_paths):
-                images.append({"id": image_id, "file_name": image_path})
-            for category_id, category_name in enumerate(annotation.keys()):
-                categories.append({"id": category_id, "name": category_name})
+                # Update the set of images
+                if not image_name in image_names:
+                    image_names.append(image_name)
+                    images.append({"id": image_id, "file_name": image_name})
 
-        # Update the paths
+            # Update the categories from the annotations
+            category_names = set(df.columns) - {"image_name", "image_id", "id"}
+            for category_id, category_name in enumerate(category_names):
+                categories.append({"id": category_id, "name": category_name, "supercategory": category_name})
+
+        # Update the paths to the root of execution
         root = Path(filename).parent
         for image in images:
             image["file_name"] = retrieve_path(image.get("file_name", None), root)
@@ -93,68 +104,59 @@ class Classification(Annotation):
         return Classification(images=images, categories=categories, annotations=annotations)
 
     @classmethod
-    def build(cls, images=None, categories=None, labels=None,
-              dir_images=None, dir_labels=None, colors=None,
-              pattern="*.*", **kwargs):
-        r"""Generate classification annotations from couples of images and labels.
+    def build_annotations(cls, images=None, categories=None, labels=None,
+                          dir_images=None, dir_labels=None, colors=None,
+                          pattern="*", **kwargs):
+        images_paths = get_paths(files=images, in_dir=dir_images, pattern=pattern)
+        labels_paths = get_paths(files=labels, in_dir=dir_labels, pattern=pattern)
+        categories = get_categories(categories=categories, colors=colors)
 
-        Args:
-            dataset (Dataset): The dataset containing the images and categories.
-            zoom (int, optional): Zoom level used to generate the annotations.
-            is_crowd (bool, optional): Defaults to ``False``.
-
-        Returns:
-            Classification: Build annotations.
-        """
-
-        images_paths = find_paths(files=images, in_dir=dir_images, pattern=pattern)
-        labels_paths = find_paths(files=labels, in_dir=dir_labels, pattern=pattern)
-        categories = find_colors(categories=categories, colors=colors)
-
-        def get_annotations():
-            class_annotations = []
-            couple_labels = list(zip(images_paths, labels_paths))
-            for annotation_id, (image_path, label_path) in tqdm(enumerate(couple_labels), desc="Build Annotations", leave=True, position=0):
-                annotation = {
-                    "image_name": str(image_path),
-                    "id": annotation_id
-                }
-                annotation.update({category.name: 0 for category in categories})
-                label_image = Image.open(label_path).convert("RGB")
-                for category in categories:
-                    visible = False
-                    if has_color(label_image, category.color):
-                        visible = True
-                    annotation.update({
-                        category.name: int(visible)
-                    })
-                class_annotations.append(annotation)
-            return class_annotations
-
-        def get_categories():
-            class_categories = []
-            for category_id, category in tqdm(enumerate(categories), desc="Build Categories", leave=True, position=0):
-                class_categories.append({
-                    "id": category_id,
-                    "name": str(category.name)
+        classif_annotations = []
+        couple_labels = list(zip(images_paths, labels_paths))
+        for annotation_id, (image_path, label_path) in enumerate(tqdm(couple_labels, desc="Build Annotations", leave=True, position=0)):
+            annotation = {
+                "id": annotation_id,
+                "image_name": str(image_path),
+                "image_id": annotation_id
+            }
+            annotation.update({category.name: 0 for category in categories})
+            label_image = Image.open(label_path).convert("RGB")
+            for category in categories:
+                visible = False
+                if has_color(label_image, category.color):
+                    visible = True
+                annotation.update({
+                    category.name: int(visible)
                 })
-            return class_categories
+            classif_annotations.append(annotation)
+        return classif_annotations
 
-        def get_images():
-            class_images = []
-            for image_id, image_path in tqdm(enumerate(images_paths), desc="Build Images", leave=True, position=0):
-                class_images.append({
-                    "id": image_id,
-                    "file_name": str(image_path)
+    @classmethod
+    def make_annotations(cls, images=None, categories=None, 
+                         dir_images=None, dir_categories=None, 
+                         image_pattern=None, category_pattern=None, **kwargs):
+        images_paths = get_paths(files=images, in_dir=dir_images, pattern=image_pattern)
+        categories = get_categories(categories=categories, dir_categories=dir_categories, pattern=category_pattern)
+        
+        classif_annotations = []
+        for annotation_id, image_path in enumerate(tqdm(images_paths, desc="Build Annotations", leave=True, position=0)):
+            image = Raster.open(image_path)
+            left, bottom, right, top = image.bounds
+            annotation = {
+                "id": annotation_id,
+                "image_name": str(image_path),
+                "image_id": annotation_id
+            }
+            for category in categories:
+                category_clipped = category.clip((left, bottom, right, top))
+                visible = False
+                if not category_clipped.data.empty:
+                    visible = True
+                annotation.update({
+                    category.name: int(visible)
                 })
-            return class_images
-
-        # Create the annotation as a dict
-        class_images = get_images()
-        class_categories = get_categories()
-        class_annotations = get_annotations()
-
-        return Classification(images=class_images, categories=class_categories, annotations=class_annotations)
+            classif_annotations.append(annotation)
+        return classif_annotations
 
     def save(self, out_file, **kwargs):
         """Save the annotations
@@ -181,5 +183,52 @@ class Classification(Annotation):
         # Multiple formats supported by pandas (csv, zip, etc)
         else:
             df = pd.DataFrame(data["annotations"])
-            df.index.name = "image_id"
+            df = df.drop(columns=["id"])
+            df.index.name = "id"
             df.to_csv(out_file, **kwargs)
+
+    def plot(self, axes=None, figsize=None, image_id=None):
+        """Show the labels associated to an image.
+
+        Args:
+            axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            figsize (tuple, optional): Size of the figure. Defaults to ``None``.
+            image_id (int, optional): ID of the image to be displayed. 
+                If ``None``, will display a random image. Defaults to ``None``.
+            colors (dict, optional): Dictionary of colors indexed by categories' ID. 
+                If ``None``, will display each label in a random color. Defaults to ``None``.
+            opacity (float, optional): Blending perecentage. Defaults to 0.7.
+            kwargs (dict): Other arguments from `matplotlib`.
+
+        Returns:
+            matplotlib.AxesSubplot: The axes of the figure.
+
+        Examples:
+            >>> annotations = ObjectDetection.open("objects.json")
+            >>> annotations.plot()
+        """
+        # Find masks associated to image_id
+        if image_id is None:
+            image_id = random.choice([image["id"] for image in self.images])
+            
+        image = self.get_image(image_id)
+        image = Image.open(image["file_name"]).convert("RGB")
+        # Keep only categories information
+        labels = self.get_labels(image_id)[0]
+        labels.pop("image_name", None)
+        labels.pop("image_id", None)
+        labels.pop("id", None)
+
+        # Create matplotlib axes
+        if not axes or figsize:
+            _, axes = plt.subplots(figsize=figsize)
+
+        axes.imshow(image)
+
+        # Add the legend
+        handles = [mpatches.Patch(facecolor="none", label=f"{category_name}: {bool(is_visible)}") for category_name, is_visible in labels.items()]
+        axes.legend(loc=1, handles=handles, frameon=True)
+
+        plt.title(f"image_id n°{image_id}")
+        plt.axis("off")
+        return axes

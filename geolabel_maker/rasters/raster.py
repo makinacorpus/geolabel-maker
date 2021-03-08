@@ -39,12 +39,14 @@ from pathlib import Path
 import json
 import rasterio
 import rasterio.mask
+import rasterio.plot
 from rasterio.io import MemoryFile
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 import gdal2tiles
 from shapely.geometry import box
 import geopandas as gpd
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 # Geolabel Maker
 from geolabel_maker.downloads import SentinelHubAPI, MapBoxAPI
@@ -358,7 +360,7 @@ class Raster(GeoData, RasterBase):
 
     def overwrite(self, raster, **profile):
         """Overwrite the current raster with the a new one. 
-        
+
         .. note::
             This operation will not modify the values in place,
             but will overwrite the raster saved on the disk.
@@ -375,8 +377,8 @@ class Raster(GeoData, RasterBase):
             Raster: The saved raster.
         """
         if self.filename is None or isinstance(self.data, rasterio.io.DatasetWriter):
-            raise RuntimeError(f"Could not overwrite a raster that does not have a filename or " \
-                                "was generated from a DatasetWriter.")
+            raise RuntimeError(f"Could not overwrite a raster that does not have a filename or "
+                               "was generated from a DatasetWriter.")
 
         raster.save(self.filename, **profile)
         return Raster.open(self.filename)
@@ -565,7 +567,6 @@ class Raster(GeoData, RasterBase):
 
         return self.from_array(out_array, **out_profile)
 
-    # TODO: remove it and make it a function in dataset.py
     def mask(self, categories):
         """Mask the raster from a set of geometries.
 
@@ -588,7 +589,13 @@ class Raster(GeoData, RasterBase):
         bbox = self.bounds
         for category in categories:
             # Match the category to the raster extends
-            category = category.to_crs(self.data.crs)
+            if category.crs != self.crs:
+                category = category.to_crs(self.crs)
+                error_msg = f"The provided category '{category.name}' has a different CRS than the raster. " \
+                            f"Please project all your elements in the same CRS for better performance."
+                warnings.warn(error_msg, RuntimeWarning)
+                logger.warning(error_msg)
+
             category_cropped = category.crop(bbox)
             # If the category contains vectors in the cropped area
             if not category_cropped.data.empty:
@@ -642,7 +649,8 @@ class Raster(GeoData, RasterBase):
         gdal2tiles.generate_tiles(self.filename, out_dir, **kwargs)
         return str(out_dir)
 
-    def generate_mosaics(self, zoom=None, width=256, height=256, is_full=True, out_dir="mosaic"):
+    # TODO: add x and y offsets so different mosaics can be generated with the same images
+    def generate_mosaics(self, zoom=None, width=256, height=256, is_full=True, out_dir="mosaic", **kwargs):
         r"""Generate a mosaic from the raster. 
         A mosaic is a division of the main raster into 'windows'.
         This method does not create slippy tiles.
@@ -666,7 +674,7 @@ class Raster(GeoData, RasterBase):
             >>> raster.generate_mosaics(width=256, height=256, out_dir="mosaic")
         """
         Path(out_dir).mkdir(parents=True, exist_ok=True)
-        out_raster = self.zoom(zoom) if zoom else self
+        out_raster = self.zoom(zoom, **kwargs) if zoom else self
         num_cols = out_raster.data.meta["width"]
         num_rows = out_raster.data.meta["height"]
         offsets = product(range(0, num_cols, width), range(0, num_rows, height))
@@ -689,25 +697,28 @@ class Raster(GeoData, RasterBase):
             })
             out_path = Path(out_dir) / f"{Path(self.filename).stem}-tile_{window.row_off}x{window.col_off}.tif"
             out_raster.save(out_path, window=window, **out_profile)
+        # Close the raster
+        if zoom: out_raster.data.close()
         return str(out_dir)
 
-    def plot(self, axes=None, figsize=None, **kwargs):
+    def plot(self, ax=None, figsize=None, **kwargs):
         r"""Plot a raster.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes of the figure the raster. Defaults to ``None``.
+            ax (matplotlib.AxesSubplot, optional): Axes of the figure the raster. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
 
         Returns:
             matplotlib.AxesSubplot: Axes of the figure.
         """
-        if not axes or figsize:
-            _, axes = plt.subplots(figsize=figsize)
+        
+        if not ax or figsize:
+            _, ax = plt.subplots(figsize=figsize)
+        
         raster_data = self.rasterio()
-        array = raster_data.read().transpose(1, 2, 0)
-        axes.imshow(array, **kwargs)
-        return axes
+        ax = rasterio.plot.show(raster_data, ax=ax, **kwargs)
+        return ax
 
     def inner_repr(self):
         return f"bounds={tuple(self.data.bounds)}"
@@ -772,61 +783,8 @@ class RasterCollection(GeoCollection, RasterBase):
                 self._items[i] = Raster.open(Path(out_dir) / out_file)
         return str(out_dir)
 
-    def append(self, raster):
-        r"""Add a raster to the collection.
-
-        Args:
-            raster (Raster): The raster to add.
-
-        Examples:
-            If ``tile.tif`` is a raster available from the disk, then:
-
-            >>> rasters = RasterCollection()
-            >>> raster = Raster.open("tile.tif")
-            >>> rasters.append(raster)
-
-            Check if the raster is successfully added:
-
-            >>> rasters
-                RasterCollection(
-                  (0): Raster(filename='tile.tif')
-                )
-        """
-        _check_raster(raster)
-        self._items.append(raster)
-
-    def extend(self, rasters):
-        r"""Add multiple raster to the collection.
-
-        Args:
-            rasters (list): List of raster to add.
-
-        Examples:
-            If ``tile1.tif`` and ``tile2.tif`` are rasters available from the disk, then:
-
-            >>> rasters = RasterCollection()
-            >>> rasters_list = [Raster.open("tile1.tif"), Raster.open("tile2.tif")]
-            >>> rasters.extend(rasters_list)
-
-            Check if the rasters are successfully added:
-
-            >>> rasters
-                RasterCollection(
-                  (0): Raster(filename='tile1.tif')
-                  (1): Raster(filename='tile2.tif')
-                )
-        """
-        self._items.extend(rasters)
-
-    def insert(self, index, raster):
-        """Insert a raster at a specific index.
-
-        Args:
-            index (int): Index.
-            raster (Raster): Raster to insert.
-        """
-        _check_raster(raster)
-        self._items[index] = raster
+    def to_crs(self, *args, **kwargs):
+        return super().to_crs(*args, **kwargs)
 
     def crop(self, *args, **kwargs):
         """Crop all rasters from a bounding box.
@@ -849,13 +807,7 @@ class RasterCollection(GeoCollection, RasterBase):
             >>> bbox = (1843045.92, 5173595.36, 1843056.48, 5173605.92)
             >>> out_rasters = rasters.crop(bbox)
         """
-        out_rasters = RasterCollection()
-        for raster in tqdm(self._items, desc="Croping", leave=True, position=0):
-            try:
-                out_rasters.append(raster.crop(*args, **kwargs))
-            except Exception as error:
-                logger.error(f"Could not crop raster '{raster.filename}': {error}")
-        return out_rasters
+        return super().crop(*args, **kwargs)
 
     def rescale(self, *args, **kwargs):
         """Rescale all rasters in respect of a scale factor.
@@ -1028,3 +980,31 @@ class RasterCollection(GeoCollection, RasterBase):
         # Remove the virtual raster
         Path(rasters_vrt).unlink()
         return str(out_dir)
+
+    def plot(self, ax=None, figsize=None, **kwargs):
+        """Plot the data.
+
+        Args:
+            ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            figsize (tuple, optional): Size of the figure. Defaults to ``None``.
+            label (str, optional): Legend for the collection. Defaults to ``None``.
+            kwargs (dict): Other arguments from `matplotlib`.
+
+        Returns:
+            matplotlib.AxesSubplot: The axes of the figure.
+        """
+        if not ax or figsize:
+            _, ax = plt.subplots(figsize=figsize)
+        
+        handles = []
+        for i, raster in enumerate(self._items):
+            ax = raster.plot(ax=ax, **kwargs)
+            label = Path(raster.filename).name if raster.filename else f"raster {i}"
+            handles.append(mpatches.Patch(facecolor="none", label=label))
+        
+        # Need to plot empty graph to avoid rasterio issues
+        ax.plot([], [])
+    
+        ax.legend(loc=1, handles=handles, frameon=True)
+        plt.title(f"{self.__class__.__name__}")
+        return ax

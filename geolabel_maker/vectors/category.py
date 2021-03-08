@@ -29,8 +29,10 @@ The class ``Category`` wraps the ``GeoDataFrame`` class from ``geopandas`` and a
 
 # Basic imports
 import warnings
+from tqdm import tqdm
 from pathlib import Path
 import geopandas as gpd
+from shapely.geometry import box
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
@@ -307,12 +309,30 @@ class Category(GeoData):
             return self.overwrite(out_category)
 
         return out_category
+    
+    def clip(self, bbox, overwrite=False):
+        # Create the mask used to clip the data
+        mask = gpd.GeoDataFrame([{"geometry": box(*bbox)}], crs=self.crs)
+        
+        # Clip the data
+        out_data = self.data.copy()
+        out_data["geometry"] = out_data.buffer(0)
+        out_data = gpd.clip(out_data, mask)
+        
+        # Create the output category
+        out_category = Category(out_data, self.name, color=self.color)
+        
+        # Overwrite if required
+        if overwrite:
+            return self.overwrite(out_category)
 
-    def plot(self, axes=None, figsize=None, **kwargs):
+        return out_category
+
+    def plot(self, ax=None, figsize=None, alpha=0.7, **kwargs):
         """Plot a category.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes of the figure the category. Defaults to ``None``.
+            ax (matplotlib.AxesSubplot, optional): Axes of the figure the category. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
 
@@ -320,11 +340,12 @@ class Category(GeoData):
             matplotlib.AxesSubplot: The axes of the figure.
         """
         color = self.color.to_hex()
-        axes = self.data.plot(ax=axes, figsize=figsize, color=color, **kwargs)
+        ax = self.data.plot(ax=ax, figsize=figsize, color=color, alpha=alpha, **kwargs)
+        ax = self.data.boundary.plot(ax=ax, edgecolor=color, **kwargs)
         handle = mpatches.Patch(facecolor=self.color.to_hex(), label=self.name)
-        axes.legend(loc=1, handles=[handle], frameon=True)
+        ax.legend(loc=1, handles=[handle], frameon=True)
         plt.title(f"Bounds of the {self.__class__.__name__}")
-        return axes
+        return ax
 
     def inner_repr(self):
         rows, cols = self.data.shape
@@ -397,65 +418,15 @@ class CategoryCollection(GeoCollection):
             self._items[i].color = color
 
     def append(self, category):
-        r"""Add a ``Category`` to the collection.
-
-        Args:
-            category (Category): The category to add.
-
-        Examples:
-            If ``buildings.json`` is a vectors available from the disk, 
-            add it to a collection with:
-
-            >>> collection = CategoryCollection()
-            >>> category = Category.open("buildings.json")
-            >>> collection.append(category)
-
-            Check if the category is successfully aded:
-
-            >>> collection
-                CategoryCollection(
-                  (0): Category(filename='buildings.json', name='buildings', color=(234, 85, 40))
-                )
-        """
-        _check_category(category)
-        self._items.append(category)
+        super().append(category)
         self._make_unique_colors()
 
     def extend(self, categories):
-        r"""Add a set of ``Category`` to the collection.
-
-        Args:
-            categories (list): List of categories to add.
-
-        Examples:
-            If ``buildings.json`` and ``vegetation.json`` are vectors available from the disk, 
-            add them to a collection with:
-
-            >>> collection = CategoryCollection()
-            >>> categories = [Category.open("buildings.json"), Category.open("vegetation.json")]
-            >>> collection.extend(categories)
-
-            Check if the categories are successfully aded:
-
-            >>> collection
-                CategoryCollection(
-                  (0): Category(filename='buildings.json', name='buildings', color=(234, 85, 40))
-                  (1): Category(filename='vegetation.json', name='vegetation',  color=(35, 3, 220))
-                )
-        """
-        categories = [category for category in categories if _check_category(category)]
-        self._items.extend(categories)
+        super().extend(categories)
         self._make_unique_colors()
 
     def insert(self, index, category):
-        """Insert a ``Category`` at the desired index.
-
-        Args:
-            index (int): Index.
-            category (Category): Category to insert.
-        """
-        _check_category(category)
-        self._items[index] = category
+        super().insert(index, category)
         self._make_unique_colors()
 
     def colors(self):
@@ -476,6 +447,9 @@ class CategoryCollection(GeoCollection):
         for category in self:
             yield category.name
 
+    def to_crs(self, *args, **kwargs):
+        return super().to_crs(*args, **kwargs)
+
     def crop(self, *args, **kwargs):
         """Crop all categories from a bounding box.
 
@@ -495,15 +469,23 @@ class CategoryCollection(GeoCollection):
 
             >>> categories = CategoryCollection.open("buildings.json", "vegetation.json")
             >>> out_categories = categories.crop((1843000, 5173000, 1845000, 5174000))
-
         """
         return super().crop(*args, **kwargs)
+    
+    def clip(self, *args, **kwargs):
+        out_categories = CategoryCollection()
+        for category in tqdm(self._items, desc="Generating Masks", leave=True, position=0):
+            try:
+                out_categories.append(category.clip(*args, **kwargs))
+            except Exception as error:
+                logger.error(f"Could not clip category '{category.filename}': {error}")
+        return out_categories
 
-    def plot(self, axes=None, figsize=None, **kwargs):
+    def plot(self, ax=None, figsize=None, **kwargs):
         """Plot the data.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             label (str, optional): Legend for the collection. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
@@ -511,12 +493,17 @@ class CategoryCollection(GeoCollection):
         Returns:
             matplotlib.AxesSubplot: The axes of the figure.
         """
-        if not axes or figsize:
-            _, axes = plt.subplots(figsize=figsize)
+        # Create matplotlib axes
+        if not ax or figsize:
+            _, ax = plt.subplots(figsize=figsize)
+        
         handles = []
         for category in self._items:
-            axes = category.plot(axes=axes, **kwargs)
-        handles = [mpatches.Patch(facecolor=category.color.to_hex(), label=category.name) for category in self._items]
-        axes.legend(loc=1, handles=handles, frameon=True)
+            ax = category.plot(ax=ax, **kwargs)
+            handles.append(mpatches.Patch(facecolor=category.color.to_hex(), label=category.name))
+
+        # Add legend and title
+        ax.legend(loc=1, handles=handles, frameon=True)
         plt.title(f"{self.__class__.__name__}")
-        return axes
+
+        return ax

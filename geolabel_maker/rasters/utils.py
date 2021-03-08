@@ -37,6 +37,9 @@ def color_mask(mask, color):
     return color_img
 
 
+#! Update this function as currently ImageChop.add only add color together and do not overwrite them 
+#! i.e. blue + yellow = green instead of blue + yellow = yellow (overwrite with top color)
+#! This result in the creation of new colors if categories are overlaping
 def merge_masks(masks):
     """Merge multiple colored masks (images with black background and a colored mask) together.
 

@@ -10,17 +10,21 @@
 # Basic imports
 from tqdm import tqdm
 from pathlib import Path
-import numpy as np
-from PIL import Image
 import json
+from PIL import Image, ImageDraw
+from shapely.geometry import Polygon, box
+import numpy as np
+import random
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 # Geolabel Maker
-from ._utils import extract_paths
 from .functional import extract_categories
-from geolabel_maker.vectors import Color
 from .annotation import Annotation
-from geolabel_maker.utils import relative_path, retrieve_path
-from ._utils import find_paths, find_colors
+from geolabel_maker.rasters import Raster
+from geolabel_maker.vectors import Color
+from geolabel_maker.utils import retrieve_path
+from ._utils import get_paths, get_categories
 
 
 class ObjectDetection(Annotation):
@@ -36,7 +40,7 @@ class ObjectDetection(Annotation):
 
     """
 
-    def __init__(self, images, categories, annotations, info=None):
+    def __init__(self, images=None, categories=None, annotations=None, info=None):
         super().__init__(images, categories, annotations, info=info)
 
     @classmethod
@@ -69,85 +73,72 @@ class ObjectDetection(Annotation):
 
         return ObjectDetection(images=images, categories=categories, annotations=annotations, info=info)
 
-    # TODO: build method is similar to COCO: re-factorize everything.
     @classmethod
-    def build(cls, images=None, categories=None, labels=None,
-              dir_images=None, dir_labels=None, colors=None,
-              pattern="*.*", root=None, is_crowd=False, **kwargs):
-        r"""Generate object detection annotations from a couples of images and labels.
+    def build_annotations(cls, images=None, categories=None, labels=None, 
+                          dir_images=None, dir_labels=None, colors=None, 
+                          pattern="*", is_crowd=True, **kwargs):
+        images_paths = get_paths(files=images, in_dir=dir_images, pattern=pattern)
+        labels_paths = get_paths(files=labels, in_dir=dir_labels, pattern=pattern)
+        categories = get_categories(categories=categories, colors=colors)
 
-        Args:
-            dataset (Dataset): The dataset containing the images and categories.
-            zoom (int, optional): Zoom level used to generate the annotations.
-            is_crowd (bool, optional): Defaults to ``False``.
+        objects_annotations = []
+        annotation_id = 0
+        couple_labels = list(zip(images_paths, labels_paths))
+        for image_id, (image_path, label_path) in enumerate(tqdm(couple_labels, desc="Build Annotations", leave=True, position=0)):
+            label = Image.open(label_path).convert("RGB")
+            for category_id, category in enumerate(extract_categories(label, categories, **kwargs)):
+                for _, row in category.data.iterrows():
+                    polygon = row.geometry
+                    # Get annotation elements
+                    bbox = polygon.bounds
+                    objects_annotations.append({
+                        "iscrowd": int(is_crowd),
+                        "image_id": image_id,
+                        "image_name": str(image_path),
+                        "category_id": category_id,
+                        "id": annotation_id,
+                        "bbox": list(bbox)
+                    })
+                    annotation_id += 1
+        return objects_annotations
 
-        Returns:
-            ObjectDetection: Build annotations.
-        """
-        images_paths = find_paths(files=images, in_dir=dir_images, pattern=pattern)
-        labels_paths = find_paths(files=labels, in_dir=dir_labels, pattern=pattern)
-        categories = find_colors(categories=categories, colors=colors)
-
-        def get_annotations():
-            # Retrieve the annotations (i.e. geometry / categories)
-            detect_annotations = []
-            annotation_id = 0
-            couple_labels = list(zip(images_paths, labels_paths))
-            for image_id, (image_path, label_path) in enumerate(tqdm(couple_labels, desc="Build Annotations", leave=True, position=0)):
-                label = Image.open(label_path).convert("RGB")
-                for category_id, category in enumerate(extract_categories(label, categories, **kwargs)):
-                    for _, row in category.data.iterrows():
-                        polygon = row.geometry
-                        # Get annotation elements
-                        x, y, max_x, max_y = polygon.bounds
-                        width = max_x - x
-                        height = max_y - y
-                        bbox = (x, y, width, height)
-                        # Make annotation format
-                        detect_annotations.append({
-                            "iscrowd": int(is_crowd),
-                            "image_id": image_id,
-                            "image_name": str(image_path),
-                            "category_id": category_id,
-                            "id": annotation_id,
-                            "bbox": list(bbox)
-                        })
-                        annotation_id += 1
-            return detect_annotations
-
-        def get_categories():
-            # Create an empty categories' dictionary
-            detect_categories = []
-            for category_id, category in tqdm(enumerate(categories), desc="Build Categories", leave=True, position=0):
-                detect_categories.append({
-                    "id": category_id,
-                    "name": str(category.name),
-                    "color": list(category.color),
-                    "file_name": str(category.filename)
-                })
-            return detect_categories
-
-        def get_images():
-            # Retrieve image paths / metadata
-            detect_images = []
-            for image_id, image_path in tqdm(enumerate(images_paths), desc="Build Images", leave=True, position=0):
-                image = Image.open(image_path)
-                width, height = image.size
-                # Create image description
-                detect_images.append({
-                    "id": image_id,
-                    "width": width,
-                    "height": height,
-                    "file_name": str(image_path)
-                })
-            return detect_images
-
-        # Create the annotation as a dict
-        detect_categories = get_categories()
-        detect_images = get_images()
-        detect_annotations = get_annotations()
-
-        return ObjectDetection(detect_images, detect_categories, detect_annotations)
+    @classmethod
+    def make_annotations(cls, images=None, categories=None, 
+                         dir_images=None, dir_categories=None, 
+                         image_pattern=None, category_pattern=None,
+                         is_crowd=True, **kwargs):
+        images_paths = get_paths(files=images, in_dir=dir_images, pattern=image_pattern)
+        categories = get_categories(categories=categories, dir_categories=dir_categories, pattern=category_pattern)
+        
+        objects_annotations = []
+        annotation_id = 0
+        for image_id, image_path in enumerate(tqdm(images_paths, desc="Build Annotations", leave=True, position=0)):
+            image = Raster.open(image_path)
+            left, bottom, right, top = image.bounds
+            height, width = image.data.shape
+            for category_id, category in enumerate(categories):
+                category_clipped = category.clip((left, bottom, right, top))
+                for _, row in category_clipped.data.explode().iterrows():
+                    polygon = row.geometry
+                    x_min, y_min, x_max, y_max = polygon.bounds
+                    bbox = (x_min, x_max, x_max - x_min, y_max - y_min)
+                    # Set the origin in the upper left corner
+                    x_min = round((x_min - left) * width / (right - left), 2)
+                    x_max = round((x_max - left) * width / (right - left), 2)
+                    y_min = round((top - y_min) * height / (top - bottom), 2)
+                    y_max = round((top - y_max) * height / (top - bottom), 2)
+                    bbox = (x_min, y_min, x_max - x_min, y_max - y_min)
+                    # Make annotation format
+                    objects_annotations.append({
+                        "iscrowd": int(is_crowd),
+                        "image_id": image_id,
+                        "image_name": str(image_path),
+                        "category_id": category_id,
+                        "id": annotation_id,
+                        "bbox": list(bbox)
+                    })
+                    annotation_id += 1
+        return objects_annotations
 
     def save(self, out_file):
         """Save the object detection annotations.
@@ -166,3 +157,61 @@ class ObjectDetection(Annotation):
         root = str(Path(out_file).parent)
         with open(out_file, "w") as f:
             json.dump(self.to_dict(root=root), f, indent=4)
+            
+    def plot(self, axes=None, figsize=None, image_id=None, colors=None, opacity=0.7):
+        """Show the labels associated to an image.
+
+        Args:
+            axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            figsize (tuple, optional): Size of the figure. Defaults to ``None``.
+            image_id (int, optional): ID of the image to be displayed. 
+                If ``None``, will display a random image. Defaults to ``None``.
+            colors (dict, optional): Dictionary of colors indexed by categories' ID. 
+                If ``None``, will display each label in a random color. Defaults to ``None``.
+            opacity (float, optional): Blending perecentage. Defaults to 0.7.
+            kwargs (dict): Other arguments from `matplotlib`.
+
+        Returns:
+            matplotlib.AxesSubplot: The axes of the figure.
+
+        Examples:
+            >>> annotations = ObjectDetection.open("objects.json")
+            >>> annotations.plot()
+        """
+        # Create a map of colors / categories
+        category2name = {category["id"]: category["name"] for category in self.categories}
+        colors = colors or {}
+        colors = {str(name): Color.get(color).to_hex() for name, color in colors.items()}
+        for category in self.categories:
+            if not category["name"] in colors.keys():
+                colors[category["name"]] = Color.random().to_hex()
+
+        # Find masks associated to image_id
+        if image_id is None:
+            image_id = random.choice([image["id"] for image in self.images])
+        image = self.get_image(image_id)
+        image = Image.open(image["file_name"]).convert("RGB")
+        labels = self.get_labels(image_id)
+        
+        draw = ImageDraw.Draw(image)
+        for label in labels:
+            x_min, y_min, width, height = label["bbox"]
+            bbox = (x_min, y_min, x_min + width, y_min + height)
+            category_id = label["category_id"]
+            category_name = category2name[category_id]
+            color = colors[category_name]
+            draw.line(list(box(*bbox).exterior.coords), fill=color)
+            
+        # Create matplotlib axes
+        if not axes or figsize:
+            _, axes = plt.subplots(figsize=figsize)
+            
+        axes.imshow(image)
+        
+        # Add the legend
+        handles = [mpatches.Patch(facecolor=color, label=category_name) for category_name, color in colors.items()]
+        axes.legend(loc=1, handles=handles, frameon=True)
+
+        plt.title(f"image_id n°{image_id}")
+        plt.axis("off")
+        return axes

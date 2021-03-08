@@ -30,7 +30,6 @@ from raster images.
 """
 
 # Basic imports
-import warnings
 import inspect
 import re
 import json
@@ -38,22 +37,16 @@ import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 from shapely.geometry import box
-import rasterio.mask
-from PIL import Image
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
 # Geolabel Maker
 from geolabel_maker.base import BoundingBox, CRS, GeoBase
 from geolabel_maker.rasters import Raster, RasterCollection
-from geolabel_maker.rasters.utils import color_mask, merge_masks
 from geolabel_maker.vectors import Category, CategoryCollection
+from geolabel_maker.downloads import SentinelHubAPI, MapBoxAPI, OverpassAPI
 from geolabel_maker.utils import retrieve_path, relative_path
 from geolabel_maker.logger import logger
-
-
-# Global variables
-Image.MAX_IMAGE_PIXELS = 156_250_000
 
 
 class Dataset(GeoBase):
@@ -102,8 +95,8 @@ class Dataset(GeoBase):
         self.dir_tiles = None if not dir_tiles else str(Path(dir_tiles))
         self._images = RasterCollection(images)
         self._categories = CategoryCollection(categories)
-        self._labels = RasterCollection(labels)
-        self.save()
+        self._labels = RasterCollection(labels)        
+        self.save(overwrite=True)
 
     @property
     def crs(self):
@@ -118,11 +111,9 @@ class Dataset(GeoBase):
         for collection in collections:
             if crs is None:
                 crs = CRS(collection.crs)
-            elif crs and crs and CRS(collection.crs) != crs:
-                error_msg = f"The CRS values from {self.__class__.__name__} are different: " \
-                            f"got EPSG:{crs.to_epsg()} != EPSG:{CRS(collection.crs).to_epsg()}."
-                warnings.warn(error_msg, RuntimeWarning)
-                logger.warning(error_msg)
+            elif crs and crs and CRS(collection.crs) != crs:                            
+                logger.warning(f"The CRS values from '{self.__class__.__name__}' are different: " \
+                               f"got EPSG:{crs.to_epsg()} and EPSG:{CRS(collection.crs).to_epsg()}.", RuntimeWarning)
                 return crs
         return crs
 
@@ -234,10 +225,10 @@ class Dataset(GeoBase):
             >>> dataset = Dataset.open("dataset.json")
         """
         if not Path(filename).is_file():
-            raise ValueError(f"Could not read the dataset from configuration file {filename}.")
+            raise ValueError(f"Could not read the dataset from configuration file '{filename}'.")
 
-        logger.info(f"Reading the configuration at {filename}")
         # Load the configuration file.
+        logger.debug(f"Opening the configuration file '{filename}'.")
         with open(filename, "r", encoding="utf-8") as f:
             config = json.load(f)
 
@@ -250,13 +241,12 @@ class Dataset(GeoBase):
         dir_labels = retrieve_path(config.get("dir_labels", None), root=root)
         dir_mosaics = retrieve_path(config.get("dir_mosaics", None), root=root)
         dir_tiles = retrieve_path(config.get("dir_tiles", None), root=root)
-        logger.info(f"Configuration successfully read")
 
-        def load_collection(data_name, data_list=None, in_dir=None, desc="Loading"):
+        def load_collection(data_class, data_list=None, in_dir=None, desc="Loading"):
             """Load a collection of raster or vector.
 
             Args:
-                data_name (str): Name of the object to create. Eg. ``"Raster"`` or ``"Category"``.
+                data_class (Raster or Category): Data to be loaded. Eg. ``Raster`` or ``Category``.
                 data_list (list, optional): List of files provided from the configuration. Defaults to ``None``.
                 in_dir (str, optional): Name of the directory used to search files. Defaults to ``None``.
                 desc (str, optional): Message displayed while loading. Defaults to ``"Loading"``.
@@ -264,9 +254,8 @@ class Dataset(GeoBase):
             Returns:
                 GeoCollection: The loaded collection depending on the data type.
             """
-            logger.info(f"Loading {data_name}")
+            logger.debug(f"Loading '{data_class.__name__}' collection.")
             collection = []
-            data_class = eval(data_name)
             data_optional_args = dict(inspect.signature(data_class.open).parameters)
             data_optional_args = [arg for arg in data_optional_args if arg not in ["cls", "self", "filename"]]
             # Load rasters if provided from a list of dict.
@@ -281,20 +270,21 @@ class Dataset(GeoBase):
                 data_list = list(Path(in_dir).iterdir())
                 for raster_path in tqdm(data_list, desc=desc, leave=True, position=0):
                     collection.append(data_class.open(raster_path))
-            logger.info(f"Successfully loaded {data_name}")
+            logger.debug(f"Successfully loaded '{data_class.__name__}'.")
             return collection
 
         # Load the different objects either from a directory or list of dict {"filename": path, **kwargs}.
-        images = load_collection("Raster", data_list=images, in_dir=dir_images, desc="Loading Images")
-        labels = load_collection("Raster", data_list=labels, in_dir=dir_labels, desc="Loading Labels")
-        categories = load_collection("Category", data_list=categories, in_dir=dir_categories, desc="Loading Categories")
+        images = load_collection(Raster, data_list=images, in_dir=dir_images, desc="Loading Images")
+        labels = load_collection(Raster, data_list=labels, in_dir=dir_labels, desc="Loading Labels")
+        categories = load_collection(Category, data_list=categories, in_dir=dir_categories, desc="Loading Categories")
+        logger.debug(f"Configuration file successfully loaded.")
 
         return Dataset(images=images, categories=categories, labels=labels,
                        dir_images=dir_images, dir_categories=dir_categories, dir_labels=dir_labels,
                        dir_mosaics=dir_mosaics, dir_tiles=dir_tiles, filename=filename)
 
     @classmethod
-    def from_dir(cls, in_dir):
+    def from_dir(cls, dir_images=None, dir_categories=None, dir_labels=None):
         r"""Load a dataset from a root directory.
 
         .. note:: 
@@ -302,24 +292,35 @@ class Dataset(GeoBase):
             it will be loaded.
 
         Args:
-            in_dir (str): Path to the root directory.
+            dir_images (str): Path to the images directory.
+            dir_categories (str): Path to the categories directory.
+            dir_labels (str): Path to the labels directory.
 
         Returns:
             Dataset: The loaded dataset.
 
         Examples:
-            You can load a dataset directly from a root folder.
+            You can load a dataset directly from directories.
             It will create a default configuration.
 
-            >>> dataset = Dataset.open("data/")
+            >>> dataset = Dataset.from_dir(dir_images="images", dir_categories="categories")
         """
-        if not Path(in_dir).is_dir():
-            raise ValueError(f"Could not open the `Dataset` from directory {in_dir}.")
+        images = RasterCollection.from_dir(dir_images)
+        labels = RasterCollection.from_dir(dir_labels)
+        categories = CategoryCollection.from_dir(dir_categories)
+        return cls(images=images, categories=categories, labels=labels,
+                   dir_images=dir_images, dir_categories=dir_categories, dir_labels=dir_labels)
 
-        # Load from a root directory
-        filename = Path(in_dir) / "dataset.json"
+    @classmethod
+    def from_root(cls, root):
+        if not Path(root).is_dir():
+            raise ValueError(f"Could not open the 'Dataset' from root '{root}'.")
+
+        filename = Path(root) / "dataset.json"
         # Create a default configuration file if it does not exist.
         if not filename.exists():
+            logger.debug(f"No configuration file found at root '{filename.parent}'. " \
+                         f"Creating a default configuration '{filename}'.")
             with open(filename, "w") as f:
                 json.dump({
                     "dir_images": "images",
@@ -345,13 +346,13 @@ class Dataset(GeoBase):
 
             >>> dataset = Dataset.download("config.json")
         """
-
+        logger.debug(f"Opening the configuration file '{Path(filename)}'.")
         with open(filename, "r", encoding="utf-8") as f:
             config = json.load(f)
 
         root = str(Path(filename).parent)
-        dir_images = retrieve_path(config.get("dir_images", None), root=root)
-        dir_categories = retrieve_path(config.get("dir_categories", None), root=root)
+        dir_images = retrieve_path(config.get("dir_images", "images"), root=root)
+        dir_categories = retrieve_path(config.get("dir_categories", "categories"), root=root)
         bbox = config.get("bbox", None)
         sentinelhub = config.get("sentinelhub", None)
         mapbox = config.get("mapbox", None)
@@ -361,25 +362,34 @@ class Dataset(GeoBase):
         images = []
         categories = []
         if sentinelhub:
-            assert dir_images, "Could not download sentinel data if `dir_images` is not provided."
-            username, password = sentinelhub.pop("username"), sentinelhub.pop("password")
-            assert username, "Could not download sentinel data if `username` is not provided."
-            assert password, "Could not download sentinel data if `password` is not provided."
-            rasters = Raster.download(username, password, bbox, out_dir=dir_images, **sentinelhub)
-            images.extend(rasters)
+            logger.info(f"Downloading images from Sentinel...")
+            username, password = sentinelhub.pop("username", None), sentinelhub.pop("password", None)
+            assert username, "Could not download sentinel data if 'username' is not provided."
+            assert password, "Could not download sentinel data if 'password' is not provided."
+            api = SentinelHubAPI(username, password)
+            api.download(bbox, out_dir=dir_images, **sentinelhub)
+
+        if mapbox:
+            logger.info(f"Downloading images from MapBox...")
+            access_token = mapbox.pop("access_token", None)
+            assert access_token, "Could not download mapbox data if 'access_token' is not provided."
+            api = MapBoxAPI(access_token)
+            api.download(bbox, out_dir=dir_images, **mapbox)
+
         if overpass:
-            assert dir_categories, "Could not download overpass data if `dir_categories` is not provided."
+            logger.info(f"Downloading categories from Open Street Map...")
             geometries = overpass.pop("geometries", None)
-            assert geometries, "Could not download overpass data if `geometries` is not provided."
+            assert geometries, "Could not download overpass data if 'geometries' is not provided."
+            api = OverpassAPI()
             for geometry in geometries:
-                selector = geometry["selector"]
+                selector = geometry.get("selector", None)
+                assert selector, "Could not download categories if 'selector' is not provided."
                 name = geometry.pop("name", re.sub("[^a-zA-Z_-]", "_", selector))
                 out_file = Path(dir_categories) / f"{name}.json"
                 category = Category.download(bbox, out_file=out_file, **overpass, **geometry)
                 categories.append(category)
 
-        # filename = Path(filename).parent / "dataset.json"
-        return Dataset(images, categories, dir_images=dir_images, dir_categories=dir_categories)
+        return Dataset.from_dir(dir_images=dir_images, dir_categories=dir_categories)
 
     def to_dict(self, root=None):
         r"""Convert the dataset to a dictionary.
@@ -447,8 +457,7 @@ class Dataset(GeoBase):
             config["labels"] = jsonify_rasters(self.labels, self.dir_labels)
         return config
 
-    # TODO: remove auto update filename attribute
-    def save(self, filename=None, **kwargs):
+    def save(self, filename=None, overwrite=False, **kwargs):
         r"""Save the dataset information in a configuration file.
 
         .. warning::
@@ -477,7 +486,7 @@ class Dataset(GeoBase):
 
         config = self.to_dict(root=self.root, **kwargs)
         # If a previous configuration file exists, load it and overwrite only the items that changed.
-        if Path(self.filename).exists():
+        if not overwrite and Path(self.filename).exists():
             with open(self.filename, "r") as f:
                 prev_config = json.load(f)
                 prev_config.update(config)
@@ -561,7 +570,7 @@ class Dataset(GeoBase):
                        dir_images=self.dir_images, dir_categories=self.dir_categories, dir_labels=self.dir_labels,
                        dir_mosaics=self.dir_mosaics, dir_tiles=self.dir_tiles, filename=None)
 
-    def generate_label(self, image_idx, out_file=None):
+    def generate_label(self, image_idx, zoom=None, out_file=None):
         r"""Generate label corresponding to one image. 
         The label associated to an image in respect of the categories 
         is a ``.tif`` image containing all geometries 
@@ -580,12 +589,19 @@ class Dataset(GeoBase):
             >>> dataset.generate_label(0)
         """
         image = self.images[image_idx]
+        # Zoom the image
+        if zoom:
+            image = image.zoom(zoom)
+        # Generate the mask
         label = image.mask(self.categories)
         out_file = out_file or Path(image.filename).parent / f"{Path(image.filename).stem}-label.tif" or f"image-{image_idx}-label.tif"
         label.save(out_file)
+        # Close the rasters
+        if zoom: image.data.close()
+        label.data.close()
         return str(out_file)
 
-    def generate_labels(self, out_dir=None):
+    def generate_labels(self, zoom=None, out_dir=None):
         r"""Generate labels from a set of ``images`` and ``categories``. 
         The label associated to an image in respect of the categories 
         is a ``.tif`` image containing all geometries 
@@ -614,13 +630,14 @@ class Dataset(GeoBase):
         """
         # Clean previously generated labels
         self.labels = []
+        zoom_name = str(zoom or "original")
         dir_labels = str(out_dir or self.dir_labels or Path(self.root) / "labels")
-        Path(dir_labels).mkdir(parents=True, exist_ok=True)
+        (Path(dir_labels) / zoom_name).mkdir(parents=True, exist_ok=True)
 
         # Generate and load the labels
-        for image_idx, image in tqdm(enumerate(self.images), desc="Generating Labels", leave=True, position=0):
-            label_path = Path(dir_labels) / f"{Path(image.filename).stem}-label.tif"
-            self.generate_label(image_idx, out_file=label_path)
+        for image_idx, image in enumerate(tqdm(self.images, desc="Generating Labels", leave=True, position=0)):
+            label_path = Path(dir_labels) / zoom_name / f"{Path(image.filename).stem}-label.tif"
+            self.generate_label(image_idx, zoom=zoom, out_file=label_path)
             self.labels.append(Raster.open(label_path))
 
         self.dir_labels = dir_labels
@@ -661,11 +678,13 @@ class Dataset(GeoBase):
         # Make virtual images
         if make_images:
             out_file = Path(self.root) / "images.vrt"
+            logger.info(f"Generating Images VRT at '{out_file}'...")
             images_vrt = self.images.generate_vrt(str(out_file), **kwargs)
 
         # Make virtual labels
         if make_labels:
             out_file = Path(self.root) / "labels.vrt"
+            logger.info(f"Generating Labels VRT at '{out_file}'...")
             labels_vrt = self.labels.generate_vrt(str(out_file), **kwargs)
 
         # Return the path to the created files
@@ -719,19 +738,20 @@ class Dataset(GeoBase):
             >>> dataset.generate_mosaics(make_images=True, make_labels=True, zoom="18")
         """
         dir_mosaics = str(out_dir or self.dir_mosaics or Path(self.root) / "mosaics")
-        zoom_dir = str(zoom) if zoom else "original"
+        zoom_name = str(zoom or "original")
 
-        # Generate mosaic from the images
+        # Generate mosaics from the images
         if make_images:
-            out_dir = Path(dir_mosaics) / "images" / zoom_dir
-            for image in tqdm(self.images, desc="Generating Image Mosaics", leave=True, position=0):
-                image.generate_mosaics(out_dir=out_dir, zoom=zoom, **kwargs)
+            out_dir = Path(dir_mosaics) / "images" / zoom_name
+            logger.info(f"Generating Images Mosaics at '{out_dir}'...")
+            self.images.generate_mosaics(out_dir=out_dir, zoom=zoom, **kwargs)
 
-        # Generate mosaic from the labels
+        # Generate mosaics from the labels
         if make_labels:
-            out_dir = Path(dir_mosaics) / "labels" / zoom_dir
-            for label in tqdm(self.labels, desc="Generating Label Mosaics", leave=True, position=0):
-                label.generate_mosaics(out_dir=out_dir, zoom=zoom, **kwargs)
+            out_dir = Path(dir_mosaics) / "labels" / zoom_name
+            logger.info(f"Generating Labels Mosaics at '{out_dir}'...")
+            kwargs.pop("resampling", None)
+            self.labels.generate_mosaics(out_dir=out_dir, zoom=zoom, resampling="nearest", **kwargs)
 
         self.dir_mosaics = dir_mosaics
         self.save()
@@ -776,25 +796,25 @@ class Dataset(GeoBase):
 
         # Generate tiles from the images
         if make_images:
-            logger.info(f"Generating Image Tiles at {str(Path(dir_tiles) / 'images')}")
-            out_dir_images = Path(dir_tiles) / "images"
-            self.images.generate_tiles(out_dir_images, **kwargs)
+            out_dir = Path(dir_tiles) / "images"
+            logger.info(f"Generating Images Tiles at '{out_dir}'...")
+            self.images.generate_tiles(out_dir, **kwargs)
 
         # Generate tiles from the labels
         if make_labels:
-            logger.info(f"Generating Label Tiles at {str(Path(dir_tiles) / 'labels')}")
-            out_dir_labels = Path(dir_tiles) / "labels"
-            self.labels.generate_tiles(out_dir_labels, **kwargs)
+            out_dir = Path(dir_tiles) / "labels"
+            logger.info(f"Generating Labels Tiles at '{out_dir}'...")
+            self.labels.generate_tiles(out_dir, **kwargs)
 
         self.dir_tiles = dir_tiles
         self.save()
         return self.dir_tiles
 
-    def plot_bounds(self, axes=None, figsize=None, dataset_color=None, image_color=None, category_color=None):
+    def plot_bounds(self, ax=None, figsize=None, dataset_color=None, image_color=None, category_color=None):
         """Show the geographic extent.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             label (str, optional): Legend for the collection. Defaults to ``None``.
             image_color (str, optional): Name of the color used to show images. Defaults to ``None``.
@@ -804,28 +824,28 @@ class Dataset(GeoBase):
         Returns:
             matplotlib.AxesSubplot: The axes of the figure.
         """
-        if not axes or figsize:
-            _, axes = plt.subplots(figsize=figsize)
+        if not ax or figsize:
+            _, ax = plt.subplots(figsize=figsize)
 
         dataset_color = dataset_color or "red"
         image_color = image_color or "steelblue"
         category_color = category_color or "lightseagreen"
-        axes = self.categories.plot_bounds(axes=axes, color=category_color, label="categories")
-        axes = self.images.plot_bounds(axes=axes, color=image_color, label="images")
+        ax = self.categories.plot_bounds(ax=ax, color=category_color, label="categories")
+        ax = self.images.plot_bounds(ax=ax, color=image_color, label="images")
 
         # Plot the dataset bounding box
         bounds = self.bounds
         x, y = box(*bounds).exterior.xy
-        axes.plot(x, y, color=dataset_color, label="dataset")
-        axes.legend(loc=1, frameon=True)
+        ax.plot(x, y, color=dataset_color, label="dataset")
+        ax.legend(loc=1, frameon=True)
         plt.title(f"Bounds of the Dataset")
-        return axes
+        return ax
 
-    def plot(self, axes=None, figsize=None, dataset_color=None, image_color=None, **kwargs):
+    def plot(self, ax=None, figsize=None, alpha=0.5, **kwargs):
         """Show the elements of the dataset.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             image_color (str, optional): Name of the color used to show images. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
@@ -834,21 +854,27 @@ class Dataset(GeoBase):
             matplotlib.AxesSubplot: The axes of the figure.
         """
         # Create matplotlib axes
-        if not axes or figsize:
-            _, axes = plt.subplots(figsize=figsize)
+        if not ax or figsize:
+            _, ax = plt.subplots(figsize=figsize)
 
-        dataset_color = dataset_color or "red"
-        image_color = image_color or "steelblue"
-        axes = self.categories.plot(axes=axes, label="categories", **kwargs)
-        axes = self.images.plot_bounds(axes=axes, color=image_color, label="images", **kwargs)
+        # Visualize images + bounds and categories
+        ax = self.images.plot(ax=ax, **kwargs)
+        ax = self.categories.plot(ax=ax, label="categories", alpha=alpha, **kwargs)
 
         # Add the legend
-        handles = [mpatches.Patch(facecolor=category.color.to_hex(), label=category.name) for category in self.categories]
-        handles.append(mpatches.Patch(facecolor="white", edgecolor=image_color, label="images"))
-        axes.legend(loc=1, handles=handles, frameon=True)
-        plt.title(f"Dataset")
+        category_handles = []
+        image_handles = []
+        for category in self.categories:
+            category_handles.append(mpatches.Patch(facecolor=category.color.to_hex(), label=category.name))
+        for i, image in enumerate(self.images):
+            label = Path(image.filename).name if image.filename else f"image {i}"
+            image_handles.append(mpatches.Patch(facecolor="none", label=label))
+        handles = category_handles + image_handles
+        ax.legend(loc=1, handles=handles, frameon=True)
+        # Add a title
+        plt.title(self.__class__.__name__)
 
-        return axes
+        return ax
 
     def __repr__(self):
         rep = f"Dataset("

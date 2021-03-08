@@ -11,7 +11,8 @@ from tqdm import tqdm
 from pathlib import Path
 import json
 from PIL import Image, ImageDraw
-from shapely.geometry import Polygon
+from shapely import affinity
+from shapely.geometry import Polygon, box
 import numpy as np
 import random
 import matplotlib.pyplot as plt
@@ -21,8 +22,9 @@ import matplotlib.patches as mpatches
 from .annotation import Annotation
 from .functional import extract_categories
 from geolabel_maker.vectors import Color
+from geolabel_maker.rasters import Raster
 from geolabel_maker.utils import retrieve_path
-from ._utils import find_paths, find_colors
+from ._utils import get_paths, get_categories
 
 
 class COCO(Annotation):
@@ -72,90 +74,85 @@ class COCO(Annotation):
 
         return COCO(images=images, categories=categories, annotations=annotations, info=info)
 
-    # TODO: build method is similar to ObjectDetection: re-factorize everything.
     @classmethod
-    def build(cls, images=None, categories=None, labels=None,
-              dir_images=None, dir_labels=None, colors=None,
-              pattern="*.*", root=None, is_crowd=False, **kwargs):
-        r"""Generate a COCO annotation from a couples of images and labels.
+    def build_annotations(cls, images=None, categories=None, labels=None, 
+                          dir_images=None, dir_labels=None, colors=None, 
+                          pattern=None, is_crowd=True, **kwargs):
+        images_paths = get_paths(files=images, in_dir=dir_images, pattern=pattern)
+        labels_paths = get_paths(files=labels, in_dir=dir_labels, pattern=pattern)
+        categories = get_categories(categories=categories, colors=colors)
 
-        Args:
-            dataset (Dataset): The dataset containing the images and categories.
-            zoom (int, optional): Zoom level used to generate the annotations.
-            is_crowd (bool, optional): Defaults to ``False``.
+        coco_annotations = []
+        annotation_id = 0
+        couple_labels = list(zip(images_paths, labels_paths))
+        for image_id, (image_path, label_path) in enumerate(tqdm(couple_labels, desc="Build Annotations", leave=True, position=0)):
+            label = Image.open(label_path).convert("RGB")
+            for category_id, category in enumerate(extract_categories(label, categories, **kwargs)):
+                for _, row in category.data.iterrows():
+                    polygon = row.geometry
+                    # Get annotation elements
+                    segmentation = np.array(polygon.exterior.coords).flatten().tolist()
+                    bbox = polygon.bounds
+                    area = polygon.area
+                    # Make annotation format
+                    coco_annotations.append({
+                        "segmentation": [segmentation],
+                        "iscrowd": int(is_crowd),
+                        "image_id": image_id,
+                        "image_name": str(image_path),
+                        "category_id": category_id,
+                        "id": annotation_id,
+                        "bbox": list(bbox),
+                        "area": round(area, 2),
+                    })
+                    annotation_id += 1
+        return coco_annotations
 
-        Returns:
-            COCO: Build annotations.
-        """
-        images_paths = find_paths(files=images, in_dir=dir_images, pattern=pattern)
-        labels_paths = find_paths(files=labels, in_dir=dir_labels, pattern=pattern)
-        categories = find_colors(categories=categories, colors=colors)
-
-        def get_annotations():
-            # Retrieve the annotations (i.e. geometry / categories)
-            coco_annotations = []
-            annotation_id = 0
-            couple_labels = list(zip(images_paths, labels_paths))
-            for image_id, (image_path, label_path) in enumerate(tqdm(couple_labels, desc="Build Annotations", leave=True, position=0)):
-                label = Image.open(label_path).convert("RGB")
-                for category_id, category in enumerate(extract_categories(label, categories, **kwargs)):
-                    for _, row in category.data.iterrows():
-                        polygon = row.geometry
-                        # Get annotation elements
-                        segmentation = np.array(polygon.exterior.coords).ravel().tolist()
-                        x, y, max_x, max_y = polygon.bounds
-                        width = max_x - x
-                        height = max_y - y
-                        bbox = (x, y, width, height)
-                        area = polygon.area
-                        # Make annotation format
-                        coco_annotations.append({
-                            "segmentation": [segmentation],
-                            "iscrowd": int(is_crowd),
-                            "image_id": image_id,
-                            "image_name": str(image_path),
-                            "category_id": category_id,
-                            "id": annotation_id,
-                            "bbox": list(bbox),
-                            "area": float(area),
-                        })
-                        annotation_id += 1
-            return coco_annotations
-
-        def get_categories():
-            # Create an empty categories' dictionary
-            coco_categories = []
-            for category_id, category in tqdm(enumerate(categories), desc="Build Categories", leave=True, position=0):
-                coco_categories.append({
-                    "id": category_id,
-                    "name": str(category.name),
-                    "color": list(category.color),
-                    "file_name": str(category.filename),
-                    "supercategory": str(category.name)
-                })
-            return coco_categories
-
-        def get_images():
-            # Retrieve image paths / metadata
-            coco_images = []
-            for image_id, image_path in tqdm(enumerate(images_paths), desc="Build Images", leave=True, position=0):
-                image = Image.open(image_path)
-                width, height = image.size
-                # Create image description
-                coco_images.append({
-                    "id": image_id,
-                    "width": width,
-                    "height": height,
-                    "file_name": str(image_path)
-                })
-            return coco_images
-
-        # Create the annotation as a dict
-        coco_images = get_images()
-        coco_categories = get_categories()
-        coco_annotations = get_annotations()
-
-        return COCO(coco_images, coco_categories, coco_annotations)
+    @classmethod
+    def make_annotations(cls, images=None, categories=None, 
+                         dir_images=None, dir_categories=None, 
+                         image_pattern=None, category_pattern=None,
+                         is_crowd=True, **kwargs):
+        images_paths = get_paths(files=images, in_dir=dir_images, pattern=image_pattern)
+        categories = get_categories(categories=categories, dir_categories=dir_categories, pattern=category_pattern)
+        
+        coco_annotations = []
+        annotation_id = 0
+        for image_id, image_path in enumerate(tqdm(images_paths, desc="Build Annotations", leave=True, position=0)):
+            image = Raster.open(image_path)
+            left, bottom, right, top = image.bounds
+            height, width = image.data.shape
+            for category_id, category in enumerate(categories):
+                category_clipped = category.clip((left, bottom, right, top))
+                for _, row in category_clipped.data.explode().iterrows():
+                    polygon = row.geometry
+                    # Convert the segmentation in image coordinates
+                    segmentation = np.array(polygon.exterior.coords)
+                    # Set the origin in the upper left corner
+                    x = segmentation[:, 0] - left
+                    y = top - segmentation[:, 1]
+                    # Scale the segmentation to fit image dimensions
+                    x *= width / (right - left)
+                    y *= height / (top - bottom)
+                    segmentation = np.around(np.column_stack((x, y)), decimals=2)
+                    polygon = Polygon(segmentation)
+                    segmentation = np.array(polygon.exterior.coords).flatten().tolist()
+                    x_min, y_min, x_max, y_max = polygon.bounds
+                    bbox = (x_min, x_max, x_max - x_min, y_max - y_min)
+                    area = polygon.area
+                    # Make annotation format
+                    coco_annotations.append({
+                        "segmentation": [segmentation],
+                        "iscrowd": int(is_crowd),
+                        "image_id": image_id,
+                        "image_name": str(image_path),
+                        "category_id": category_id,
+                        "id": annotation_id,
+                        "bbox": list(bbox),
+                        "area": round(area, 2),
+                    })
+                    annotation_id += 1
+        return coco_annotations
 
     def save(self, out_file):
         """Save the COCO annotations.
@@ -175,59 +172,8 @@ class COCO(Annotation):
         with open(out_file, "w") as f:
             json.dump(self.to_dict(root=root), f, indent=4)
 
-    def get_image(self, image_id):
-        """Get the image from its id.
-
-        Args:
-            image_id (int): ID of the image to be retrieved.
-
-        Returns:
-            PIL.Image
-
-        Examples:
-            >>> annotations = COCO.open("coco.json")
-            >>> image = annotations.get_image(19)
-        """
-        for image in self.images:
-            if image["id"] == image_id:
-                return Image.open(image["file_name"]).convert("RGB")
-        return None
-
-    def get_masks(self, image_id):
-        """Get the list of masks associated to an image.
-
-        Args:
-            image_id (int): ID of the image.
-
-        Returns:
-            list: List of dictionary containing the segmentation.
-
-        Examples:
-            >>> annotations = COCO.open("coco.json")
-            >>> masks = annotations.get_masks(19)
-        """
-        masks = []
-        for annotation in self.annotations:
-            if annotation["image_id"] == image_id:
-                masks.append(annotation)
-        return masks
-    
-    def get_category(self, category_id):
-        """Get a category from its id.
-
-        Args:
-            category_id (int): ID of the category.
-
-        Returns:
-            dict: Corresponding category.
-        """
-        for category in self.categories:
-            if category["id"] == category_id:
-                return category
-        return None
-
     # TODO: change colors to {category_name: color}
-    def plot(self, axes=None, figsize=None, image_id=None, colors=None, opacity=0.7):
+    def plot(self, axes=None, figsize=None, image_id=None, colors=None, opacity=0.7, plot_bbox=False):
         """Show the superposition of the segmentation map (labels) on an image.
 
         Args:
@@ -248,29 +194,39 @@ class COCO(Annotation):
             >>> annotations.plot()
         """
         # Create a map of colors / categories
+        category2name = {category["id"]: category["name"] for category in self.categories}
         colors = colors or {}
-        colors = {int(key): value for key, value in colors.items()}
+        colors = {str(name): Color.get(color).to_hex() for name, color in colors.items()}
         for category in self.categories:
-            if not category["id"] in colors.keys():
-                colors[category["id"]] = Color.random().to_hex()
+            if not category["name"] in colors.keys():
+                colors[category["name"]] = Color.random().to_hex()
 
         # Find masks associated to image_id
         if image_id is None:
             image_id = random.choice([image["id"] for image in self.images])
         image = self.get_image(image_id)
-        masks = self.get_masks(image_id)
+        image = Image.open(image["file_name"]).convert("RGB")
+        masks = self.get_labels(image_id)
         
         for mask in masks:
-            image_mask = image.copy()
             draw = ImageDraw.Draw(image)
-            segmentation = mask["segmentation"][0]
-            x = segmentation[::2]
-            y = segmentation[1::2]
-            polygon = Polygon(np.column_stack((x, y)))
-            color = colors[mask["category_id"]]
+            image_mask = image.copy()
+            segmentation = np.array(mask["segmentation"]).reshape(-1, 2)
+            polygon = Polygon(segmentation)
+            category_id = mask["category_id"]
+            category_name = category2name[category_id]
+            color = colors[category_name]
             draw.polygon(list(polygon.exterior.coords), fill=color)
             image = Image.blend(image_mask, image, opacity)
-            
+
+        # if plot_bbox:
+        #     draw = ImageDraw.Draw(image)
+        #     for mask in masks:
+        #         x_min, y_min, width, height = mask["bbox"]
+        #         bbox = (x_min, y_min, x_min + width, y_min + height)
+        #         color = colors[category_name]
+        #         draw.line(list(box(*bbox).exterior.coords), fill=color)
+
         # Create matplotlib axes
         if not axes or figsize:
             _, axes = plt.subplots(figsize=figsize)
@@ -278,12 +234,9 @@ class COCO(Annotation):
         axes.imshow(image)
         
         # Add the legend
-        handles = [mpatches.Patch(facecolor=color, label=self.get_category(category_id)["name"]) for category_id, color in colors.items()]
+        handles = [mpatches.Patch(facecolor=color, label=category_name) for category_name, color in colors.items()]
         axes.legend(loc=1, handles=handles, frameon=True)
-        
+
         plt.title(f"image_id n°{image_id}")
         plt.axis("off")
         return axes
-
-    def __repr__(self):
-        return f"COCO(images={len(self.images)}, categories={len(self.categories)}, annotations={len(self.annotations)})"

@@ -9,14 +9,17 @@
 
 # Basic imports
 from abc import ABC, abstractmethod
+from tqdm import tqdm
 from datetime import datetime
 from copy import deepcopy
+from PIL import Image
+
+# Geolabel Maker
 from geolabel_maker.utils import relative_path
+from ._utils import get_paths, get_categories
 
 
 # TODO: Add function to check if the arguments are in the correct format (list of dict)
-
-
 class Annotation(ABC):
 
     def __init__(self, images=None, categories=None, annotations=None, info=None):
@@ -35,22 +38,123 @@ class Annotation(ABC):
 
     @classmethod
     @abstractmethod
-    def build(cls, images=None, categories=None, labels=None, **kwargs):
+    def build_annotations(cls, images=None, categories=None, labels=None,
+                          dir_images=None, dir_labels=None, colors=None,
+                          pattern="*.*", **kwargs):
         raise NotImplementedError
+
+    @classmethod
+    def build_categories(cls, categories=None, colors=None, **kwargs):
+        categories = get_categories(categories=categories, colors=colors)
+
+        info_categories = []
+        for category_id, category in enumerate(tqdm(categories, desc="Build Categories", leave=True, position=0)):
+            info_categories.append({
+                "id": category_id,
+                "name": str(category.name),
+                "color": list(category.color),
+                "file_name": str(category.filename),
+                "supercategory": str(category.name)
+            })
+        return info_categories
+
+    @classmethod
+    def build_images(cls, images=None, dir_images=None, pattern="*", **kwargs):
+        images_paths = get_paths(files=images, in_dir=dir_images, pattern=pattern)
+
+        info_images = []
+        for image_id, image_path in enumerate(tqdm(images_paths, desc="Build Images", leave=True, position=0)):
+            image = Image.open(image_path)
+            width, height = image.size
+            info_images.append({
+                "id": image_id,
+                "width": width,
+                "height": height,
+                "file_name": str(image_path)
+            })
+        return info_images
+
+    @classmethod
+    def build(cls, images=None, categories=None, labels=None,
+              dir_images=None, dir_labels=None, colors=None,
+              pattern="*.*", **kwargs):
+        """Generate an annotation from images and categories or eventually masks.
+
+        Args:
+            images (list, optional): List of image paths to be used. Defaults to None.
+            categories (list, optional): List of loaded categories to be used. Defaults to None.
+            labels (list, optional): List of mask paths to be used. Defaults to None.
+            dir_images (str, optional): Path to the directory containing images to be used. Defaults to None.
+            dir_labels (str, optional): Path to the directory containing masks to be used. Defaults to None.
+            colors (dict, optional): Dictionary of ``{name: color}`` associated to the categories. 
+                Here ``name`` refers to a category's name and ``color`` its color. Defaults to None.
+            pattern (str, optional): Pattern used to retrieve images and masks. Defaults to "*.*".
+
+        Returns:
+            Annotation: The created annotation.
+        """
+        images_paths = get_paths(files=images, in_dir=dir_images, pattern=pattern)
+        labels_paths = get_paths(files=labels, in_dir=dir_labels, pattern=pattern)
+        categories = get_categories(categories=categories, colors=colors)
+
+        info_images = cls.build_images(images=images_paths, **kwargs)
+        info_categories = cls.build_categories(categories=categories, **kwargs)
+        info_annotations = cls.build_annotations(images=images_paths, labels=labels_paths, categories=categories, **kwargs)
+
+        return cls(images=info_images, categories=info_categories, annotations=info_annotations)
+
+    @classmethod
+    @abstractmethod
+    def make_annotations(cls, images=None, categories=None,
+                         dir_images=None, dir_categories=None,
+                         image_pattern="*.*", category_pattern="*", **kwargs):
+        raise NotImplementedError
+
+    @classmethod
+    def make_images(cls, **kwargs):
+        return cls.build_images(**kwargs)
+
+    @classmethod
+    def make_categories(cls, categories=None, dir_categories=None, pattern="*", **kwargs):
+        categories = get_categories(categories=categories, dir_categories=dir_categories, pattern=pattern)
+
+        info_categories = []
+        for category_id, category in enumerate(tqdm(categories, desc="Build Categories", leave=True, position=0)):
+            info_categories.append({
+                "id": category_id,
+                "name": str(category.name),
+                "supercategory": str(category.name),
+                "color": list(category.color),
+                "file_name": str(category.filename)
+            })
+        return info_categories
+
+    @classmethod
+    def make(cls, images=None, categories=None,
+             dir_images=None, dir_categories=None,
+             image_pattern="*.*", category_pattern="*", **kwargs):
+        images_paths = get_paths(files=images, in_dir=dir_images, pattern=image_pattern)
+        categories = get_categories(categories=categories, dir_categories=dir_categories, pattern=category_pattern)
+
+        info_images = cls.make_images(images=images_paths, **kwargs)
+        info_categories = cls.make_categories(categories=categories, **kwargs)
+        info_annotations = cls.make_annotations(images=images_paths, categories=categories, **kwargs)
+
+        return cls(images=info_images, categories=info_categories, annotations=info_annotations)
 
     def to_dict(self, root=None):
         root = root or "."
         images = deepcopy(self.images)
         categories = deepcopy(self.categories)
         annotations = deepcopy(self.annotations)
-        
+
         for image in images:
             image["file_name"] = relative_path(image.get("file_name", None), root)
         for category in categories:
             category["file_name"] = relative_path(category.get("file_name", None), root)
         for annotation in annotations:
-            annotation["image_name"] = relative_path(annotation.get("image_name", None), root)                    
-                
+            annotation["image_name"] = relative_path(annotation.get("image_name", None), root)
+
         return {
             "info": self.info,
             "images": images,
@@ -61,6 +165,63 @@ class Annotation(ABC):
     @abstractmethod
     def save(self, out_file, **kwargs):
         raise NotImplementedError
+
+    def get_image(self, image_id):
+        """Get the image from its id.
+
+        Args:
+            image_id (int): ID of the image to be retrieved.
+
+        Returns:
+            dict: Corresponding image information.
+        """
+        for image in self.images:
+            if image["id"] == image_id:
+                return image
+        return None
+
+    def get_category(self, category_id):
+        """Get a category from its id.
+
+        Args:
+            category_id (int): ID of the category.
+
+        Returns:
+            dict: Corresponding category.
+        """
+        for category in self.categories:
+            if category["id"] == category_id:
+                return deepcopy(category)
+        return None
+
+    def get_annotation(self, annotation_id):
+        """Get an annotation from its id.
+
+        Args:
+            annotation_id (int): ID of the annotation.
+
+        Returns:
+            dict: Corresponding annotation.
+        """
+        for annotation in self.annotations:
+            if annotation["id"] == annotation_id:
+                return deepcopy(annotation)
+        return None
+
+    def get_labels(self, image_id):
+        """Get the list of label(s) associated to an image.
+
+        Args:
+            image_id (int): ID of the image.
+
+        Returns:
+            list: List of dictionary containing the labels.
+        """
+        labels = []
+        for annotation in self.annotations:
+            if annotation["image_id"] == image_id:
+                labels.append(deepcopy(annotation))
+        return labels
 
     def inner_repr(self):
         return f"images={len(self.images)}, categories={len(self.categories)}, annotations={len(self.annotations)}"
