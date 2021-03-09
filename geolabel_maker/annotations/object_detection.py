@@ -7,12 +7,38 @@
 # Copyright (c) 2021, Makina Corpus
 
 
+r"""
+Create your annotations for object detection tasks. 
+There are two methods you can use:
+
+- :func:`~geolabel_maker.annotations.object_detection.ObjectDetection.build`: Use masks (i.e. labels) to generate annotations,
+- :func:`~geolabel_maker.annotations.object_detection.ObjectDetection.make`: Use categories to generate annotations.
+
+.. code-block:: python
+
+    from geolabel_maker.annotations import ObjectDetection
+    
+    # Generate annotations from mask images
+    objects = ObjectDetection.build(
+        dir_images = "data/mosaics/images/18",
+        dir_labels = "data/mosaics/labels/18",
+        colors = {"buildings": "#92a9a2", "vegetation": "green"}
+    )
+    
+    # Generate annotations directly from categories
+    objects = ObjectDetection.make(
+        dir_images = "data/mosaics/images/18",
+        dir_categories = "data/categories"
+    )
+"""
+
+
 # Basic imports
 from tqdm import tqdm
 from pathlib import Path
 import json
 from PIL import Image, ImageDraw
-from shapely.geometry import Polygon, box
+from shapely.geometry import box
 import numpy as np
 import random
 import matplotlib.pyplot as plt
@@ -28,7 +54,7 @@ from ._utils import get_paths, get_categories
 
 
 class ObjectDetection(Annotation):
-    r"""Defines annotations for object detection application. 
+    r"""Defines annotations for object detection tasks. 
 
     * :attr:`info` (dict, optional): Description of the annotation (metadata).
 
@@ -85,8 +111,8 @@ class ObjectDetection(Annotation):
         annotation_id = 0
         couple_labels = list(zip(images_paths, labels_paths))
         for image_id, (image_path, label_path) in enumerate(tqdm(couple_labels, desc="Build Annotations", leave=True, position=0)):
-            label = Image.open(label_path).convert("RGB")
-            for category_id, category in enumerate(extract_categories(label, categories, **kwargs)):
+            categories_extracted = extract_categories(label_path, categories, **kwargs)
+            for category_id, category in enumerate(categories_extracted):
                 for _, row in category.data.iterrows():
                     polygon = row.geometry
                     # Get annotation elements

@@ -8,8 +8,12 @@
 
 
 r"""
-Functions used to interact with ``Raster`` objects, 
+Functions used to interact with :class:`~geolabel_maker.rasters.raster.Raster` objects, 
 like the creation of virtual images or merging tiles.
+
+.. note::
+    You should stick to :class:`~geolabel_maker.rasters.raster.RasterCollection`
+    to handles multiple files.
 
 .. code-block:: python
 
@@ -17,13 +21,13 @@ like the creation of virtual images or merging tiles.
     from geolabel_maker.vectors import Vector
     from geolabel_maker.functional import *
     
-    # Generate tiles
+    # 1. Generate tiles
     generate_tiles("raster.tif", out_dir="tiles")
     
-    # Generate virtual raster(s)
+    # 2. Generate virtual raster(s)
     generate_vrt("tiles.vrt", ["tile1.tif", "tile2.tif"])
     
-    # Merge raster(s)
+    # 3. Merge rasters
     merge("tiles.tif", ["tile1.tif", "tile2.tif"])
 """
 
@@ -43,7 +47,7 @@ __all__ = [
 
 #TODO: Move it to Raster
 def generate_tiles(in_file, out_dir, **kwargs):
-    r"""Create tiles from a raster file (using GDAL)
+    r"""Creates tiles from a raster file (using GDAL)
 
     .. note::
         If the output directory ``out_dir`` does not exist,
@@ -86,7 +90,10 @@ def generate_vrt(in_files, out_file):
 
 #TODO: Move it to RasterCollection
 def merge(in_files, out_file, driver="GTiff", compress="jpeg", photometric="ycbcr", tiled=True):
-    r"""Merge multiple raster files with `GDAL`.
+    r"""Merges multiple raster files with :mod:`GDAL`.
+    
+    .. warnings::
+        This method can raises errors if GDAL is not correctly installed.
 
     Args:
         in_files (str): Path of the raster files to merge.
@@ -94,7 +101,7 @@ def merge(in_files, out_file, driver="GTiff", compress="jpeg", photometric="ycbc
         driver (str, optional): Name of the `GDAL` driver. Defaults to ``"GTiff"``.
         compress (str, optional): Name of the `GDAL` compression mode. Defaults to ``"jpeg"``.
         photometric (str, optional): Name of the `GDAL` pixel format. Defaults to ``"ycbcr"``.
-        tiled (bool, optional): If ``True``, tile the output raster to decrease file size. Defaults to ``True``.
+        tiled (bool, optional): If ``True``, tiles the output raster to decrease file size. Defaults to ``True``.
 
     Returns:
         str: Path to the merged raster.

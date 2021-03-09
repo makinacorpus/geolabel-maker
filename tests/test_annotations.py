@@ -66,8 +66,7 @@ class ClassificationTests(unittest.TestCase):
         classif = Classification.build(
             dir_images=ROOT / "images",
             dir_labels=ROOT / "labels",
-            categories=categories,
-            pattern="*.tif"
+            categories=categories
         )
         classif.save(ROOT / "classification_build.json")
 
@@ -132,8 +131,7 @@ class ObjectDetectionTests(unittest.TestCase):
         objects = ObjectDetection.build(
             dir_images=ROOT / "images",
             dir_labels=ROOT / "labels",
-            categories=categories,
-            pattern="*.tif"
+            categories=categories
         )
         assert len(objects.images) == 9, "Number of images is incorrect"
         assert len(objects.categories) == 2, "Number of categories is incorrect"
@@ -148,8 +146,7 @@ class ObjectDetectionTests(unittest.TestCase):
                       Category.open(ROOT_CATEGORIES / "vegetation.json", color="green")]
         objects = ObjectDetection.make(
             dir_images=ROOT / "images",
-            categories=categories,
-            pattern="*.tif"
+            categories=categories
         )
         assert len(objects.images) == 9, "Number of images is incorrect"
         assert len(objects.categories) == 2, "Number of categories is incorrect"
@@ -194,8 +191,7 @@ class COCOTests(unittest.TestCase):
         coco = COCO.build(
             dir_images=ROOT / "images",
             dir_labels=ROOT / "labels",
-            categories=categories,
-            pattern="*.tif"
+            categories=categories
         )
         coco.save(ROOT / "coco_build.json")
         assert len(coco.images) == 9, "Number of images is incorrect"

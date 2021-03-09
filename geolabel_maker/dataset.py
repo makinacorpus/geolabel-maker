@@ -77,9 +77,9 @@ class Dataset(GeoBase):
 
     * :attr:`images` (list): Collection of raster images (usually satellite images).
 
-    * :attr:`categories` (list): Collection of vector categories (usually geometries a.k.a ``GeoDataFrame``).
+    * :attr:`categories` (list): Collection of vector categories (i.e. geometries).
 
-    * :attr:`labels` (list): Collection of raster labels (usually generated with ``generate_labels()``).
+    * :attr:`labels` (list): Collection of raster labels (usually generated with :func:`~geolabel_maker.dataset.Dataset.generate_labels`).
 
     """
 
@@ -171,7 +171,7 @@ class Dataset(GeoBase):
 
     @classmethod
     def open(cls, filename):
-        r"""Load a ``Dataset`` from a configuration file in the ``json`` format.
+        r"""Loads a dataset from a configuration file in the JSON format.
         This file should be associated to a set of images and categories.
 
         .. warning:: 
@@ -185,7 +185,7 @@ class Dataset(GeoBase):
             Dataset: The loaded dataset.
 
         Examples:
-            For example, you can create a minimal configuration ``dataset.json``:
+            Load a dataset with a minimal configuration ``dataset.json``:
 
             .. code-block:: json
 
@@ -243,7 +243,7 @@ class Dataset(GeoBase):
         dir_tiles = retrieve_path(config.get("dir_tiles", None), root=root)
 
         def load_collection(data_class, data_list=None, in_dir=None, desc="Loading"):
-            """Load a collection of raster or vector.
+            r"""Loads a collection of raster or vector.
 
             Args:
                 data_class (Raster or Category): Data to be loaded. Eg. ``Raster`` or ``Category``.
@@ -285,7 +285,33 @@ class Dataset(GeoBase):
 
     @classmethod
     def from_dir(cls, dir_images=None, dir_categories=None, dir_labels=None):
-        r"""Load a dataset from a root directory.
+        r"""Loads a dataset from directories.
+
+        Args:
+            dir_images (str): Path to the images directory.
+            dir_categories (str): Path to the categories directory.
+            dir_labels (str): Path to the labels directory.
+
+        Returns:
+            Dataset: The loaded dataset.
+
+        Examples:
+            You can load a dataset directly from directories.
+            It will create a default configuration in the working directory.
+
+            >>> dataset = Dataset.from_dir(dir_images="images", dir_categories="categories")
+        """
+        images = RasterCollection.from_dir(dir_images)
+        labels = RasterCollection.from_dir(dir_labels)
+        categories = CategoryCollection.from_dir(dir_categories)
+        return cls(images=images, categories=categories, labels=labels,
+                   dir_images=dir_images, dir_categories=dir_categories, dir_labels=dir_labels)
+
+    @classmethod
+    def from_root(cls, root):
+        r"""Loads a dataset from a root directory.
+        The root directory must either contains a configuration file named ``dataset.json``,
+        or directories named ``images``, ``categories`` and ``labels``.
 
         .. note:: 
             If a configuration file named ``dataset.json`` exists in the root directory,
@@ -300,21 +326,13 @@ class Dataset(GeoBase):
             Dataset: The loaded dataset.
 
         Examples:
-            You can load a dataset directly from directories.
-            It will create a default configuration.
+            You can load a dataset directly from a root.
+            It will create a default configuration in the working directory.
 
-            >>> dataset = Dataset.from_dir(dir_images="images", dir_categories="categories")
+            >>> dataset = Dataset.from_root("data")
         """
-        images = RasterCollection.from_dir(dir_images)
-        labels = RasterCollection.from_dir(dir_labels)
-        categories = CategoryCollection.from_dir(dir_categories)
-        return cls(images=images, categories=categories, labels=labels,
-                   dir_images=dir_images, dir_categories=dir_categories, dir_labels=dir_labels)
-
-    @classmethod
-    def from_root(cls, root):
         if not Path(root).is_dir():
-            raise ValueError(f"Could not open the 'Dataset' from root '{root}'.")
+            raise ValueError(f"Could not open the 'Dataset' from root './'.")
 
         filename = Path(root) / "dataset.json"
         # Create a default configuration file if it does not exist.
@@ -332,7 +350,9 @@ class Dataset(GeoBase):
 
     @classmethod
     def download(cls, filename):
-        """Dowload images and categories from `SentinelHub` and `OpenStreetMap`.
+        r"""Dowloads images and categories from `SentinelHub <https://docs.sentinel-hub.com>`__, 
+        `MapBox <https://docs.mapbox.com>`__ and 
+        `Open Street Map <https://www.openstreetmap.org/>`__ .
         A configuration file with the user credentials is required.
 
         Args:
@@ -342,7 +362,47 @@ class Dataset(GeoBase):
             Dataset: The downloaded dataset.
 
         Examples:
-            If you provided credentials in ``config.json``, you can download data with:
+            If you provided credentials in ``config.json`` as:
+            
+            .. code-block::json
+
+                {
+                    "dir_images": "images",
+                    "dir_categories": "categories",
+                    "bbox": [2.34, 48.84, 2.36, 48.86],
+                    "sentinelhub": {
+                        "username": "...",
+                        "password": "...",
+                        "date": ["20200920", "20201020"],
+                        "platformname": "Sentinel-2",
+                        "processinglevel": "Level-2A",
+                        "cloudcoverpercentage": [0, 10],
+                        "bandname": "TCI",
+                        "resolution": 10
+                    },
+                    "mapbox": {
+                        "access_token": "pk...",
+                        "zoom": 17, 
+                        "high_res": true,
+                        "slippy_maps": false,
+                        "width": 10240,       
+                        "height": 10240,   
+                    },
+                    "overpass": {
+                        "geometries": [
+                            {
+                                "selector": "building",
+                                "name": "buildings"
+                            },
+                            {
+                                "selector": "natural=wood",
+                                "name": "woods"
+                            }
+                        ]
+                    }
+                } 
+            
+            You can download the corresponding data with:
 
             >>> dataset = Dataset.download("config.json")
         """
@@ -359,8 +419,6 @@ class Dataset(GeoBase):
         overpass = config.get("overpass", None)
 
         assert bbox, "Could not download data if no bounding box is provided"
-        images = []
-        categories = []
         if sentinelhub:
             logger.info(f"Downloading images from Sentinel...")
             username, password = sentinelhub.pop("username", None), sentinelhub.pop("password", None)
@@ -386,22 +444,21 @@ class Dataset(GeoBase):
                 assert selector, "Could not download categories if 'selector' is not provided."
                 name = geometry.pop("name", re.sub("[^a-zA-Z_-]", "_", selector))
                 out_file = Path(dir_categories) / f"{name}.json"
-                category = Category.download(bbox, out_file=out_file, **overpass, **geometry)
-                categories.append(category)
+                api.download(bbox, selector=selector, out_file=out_file, **overpass)
 
         return Dataset.from_dir(dir_images=dir_images, dir_categories=dir_categories)
 
     def to_dict(self, root=None):
-        r"""Convert the dataset to a dictionary.
+        r"""Converts the dataset to a dictionary.
         The dictionary is similar to a configuration file,
         excepts it does not contains directory information.
 
         Args:
             root (str, optional): Root path from where the files are relative to. 
-                If ``None``, the root will be the current directory ``"."``. Default to ``None``.
-            list_only (bool, optional): If ``True``, will add only ``images``, ``categories`` and ``labels`` as list,
+                If ``None``, the root will be the current directory ``"."``. Defaults to ``None``.
+            list_only (bool, optional): If ``True``, will adds only ``images``, ``categories`` and ``labels`` as list,
                 i.e. the directories information ``dir_images``etc. are skipped.
-                Then, the files are referenced from ``root``. Default to ``False``. 
+                Then, the files are referenced from ``root``. Defaults to ``False``. 
 
         Returns:
             dict: The dataset's configuration.
@@ -458,10 +515,11 @@ class Dataset(GeoBase):
         return config
 
     def save(self, filename=None, overwrite=False, **kwargs):
-        r"""Save the dataset information in a configuration file.
+        r"""Saves the dataset information in a configuration file.
 
         .. warning::
-            This method will update the ``filename`` attribute of the dataset.
+            This method will update the ``filename`` dataset's attribute 
+            if the associated argument is provided.
 
         Args:
             filename (str): Name of the configuration file to be saved.
@@ -499,7 +557,7 @@ class Dataset(GeoBase):
         return self.filename
 
     def to_crs(self, crs, **kwargs):
-        """Project all elements in the dataset to ``crs``.
+        r"""Projects all elements in the dataset to ``crs``.
 
         .. warning::
             The returned dataset is loaded in memory, 
@@ -535,7 +593,7 @@ class Dataset(GeoBase):
                        dir_mosaics=self.dir_mosaics, dir_tiles=self.dir_tiles, filename=None)
 
     def crop(self, bbox, **kwargs):
-        """Crop the dataset from a bounding box.
+        r"""Crops the dataset from a bounding box.
 
         .. note::
             The bounding box coordinates should be in the same system as the dataset extent.
@@ -570,16 +628,14 @@ class Dataset(GeoBase):
                        dir_images=self.dir_images, dir_categories=self.dir_categories, dir_labels=self.dir_labels,
                        dir_mosaics=self.dir_mosaics, dir_tiles=self.dir_tiles, filename=None)
 
-    def generate_label(self, image_idx, zoom=None, out_file=None):
-        r"""Generate label corresponding to one image. 
+    def generate_label(self, image_idx, out_file=None):
+        r"""Generates label corresponding to one image. 
         The label associated to an image in respect of the categories 
         is a ``.tif`` image containing all geometries 
         within the geographic extents from the origin image.
 
         Args:
-            out_dir (str, optional): Output directory where the file will be saved. 
-                If ``None``, the file will be saved in ``"{root}/labels"``.
-                Default to ``None``.
+            out_file (str, optional): Output directory where the file will be saved. 
 
         Returns:
             str: Path to the created label.
@@ -598,7 +654,7 @@ class Dataset(GeoBase):
         return str(out_file)
 
     def generate_labels(self, out_dir=None):
-        r"""Generate labels from a set of ``images`` and ``categories``. 
+        r"""Generates labels from a set of ``images`` and ``categories``. 
         The label associated to an image in respect of the categories 
         is a ``.tif`` image containing all geometries 
         within the geographic extents from the origin image.
@@ -606,15 +662,15 @@ class Dataset(GeoBase):
 
         .. note::
             This method will load the raster labels created dynamically.
-            Access them through the ``Dataset.labels`` attribute.
+            Access them through the :attr:`labels` attribute.
 
         Args:
             out_dir (str, optional): Output directory where the file will be saved. 
-                If ``None``, the file will be saved in ``"{root}/labels"``.
-                Default to ``None``.
+                If ``None``, the labels will be saved in the directory ``labels`` under the root dataset.
+                Defaults to ``None``.
 
         Returns:
-            str: Path to the directory containing the created ``Raster`` label.
+            str: Path to the directory containing the created label.
 
         Examples:
             By default, the labels are generated ``data/labels`` directory.
@@ -622,7 +678,7 @@ class Dataset(GeoBase):
             >>> dataset = Dataset.open("data/")
             >>> dataset.generate_labels()
 
-            The labels are generated in ``"data/labels"``.
+            The labels are generated in ``data/labels``.
         """
         # Clean previously generated labels
         self.labels = []
@@ -640,10 +696,10 @@ class Dataset(GeoBase):
         return self.dir_labels
 
     def generate_vrt(self, make_images=True, make_labels=True, **kwargs):
-        r"""Write virtual images from images and/or labels.
+        r"""Writes virtual images from images and/or labels.
 
         .. seealso::
-            Generate the labels with ``geolabel_maker.Dataset.generate_labels`` method.
+            Generate the labels with :func:`~geolabel_maker.Dataset.generate_labels` method.
 
         Args:
             make_images (bool, optional): If ``True``, generate a virtual image for georeferenced aerial images. 
@@ -692,7 +748,7 @@ class Dataset(GeoBase):
     # TODO: write from a VRT image. Currently not supported in rasterio.
     # TODO: remove zoom directory before writing to file (issue if the user re-run with different width, height)
     def generate_mosaics(self, out_dir=None, make_images=True, make_labels=True, zoom=None, **kwargs):
-        r"""Generate sets of mosaics from the images and labels. 
+        r"""Generates mosaics from the images and labels. 
         A mosaic is a division of the main raster into 'windows'.
         This method does not create slippy tiles.
 
@@ -701,18 +757,16 @@ class Dataset(GeoBase):
             it will be created.
 
         .. seealso::
-            Generate the labels with ``geolabel_maker.Dataset.generate_labels`` method.
+            Generate the labels with :func:`~geolabel_maker.Dataset.generate_labels` method.
 
         Args:
             make_images (bool, optional): If ``True``, generate a mosaic for georeferenced images. 
                 Defaults to ``True``.
             make_labels (bool, optional): If ``True``, generate a mosaic for georeferenced label images.  
                 Defaults to ``True``.
-            out_dir (str, optional): Output directory where the tiles will be saved. 
-                If ``None``, the tiles will be saved in ``"{root}/mosaics"``, where ``root`` reference the root dataset.
-                The label mosaic will be saved under ``"{out_dir}/labels"``,
-                and the image mosaic under ``"{out_dir}/images"``.
-                Default to ``None``.
+            out_dir (str, optional): Output directory where the mosaics will be saved. 
+                If ``None``, the tiles will be saved in the directory ``mosaics`` under the root dataset.
+                Defaults to ``None``.
             kwargs (dict): Remaining arguments from ``Raster.generate_mosaic`` method.
 
         Returns:
@@ -753,7 +807,7 @@ class Dataset(GeoBase):
         return self.dir_mosaics
 
     def generate_tiles(self, out_dir=None, make_images=True, make_labels=True, **kwargs):
-        r"""Generate tiles from the images and optionally the generated labels.
+        r"""Generates tiles from the images and optionally the generated labels.
 
         .. note::
             This method can generates two set of tiles: one from the ``images``, 
@@ -768,10 +822,8 @@ class Dataset(GeoBase):
             make_labels (bool, optional): If ``True``, generate tiles for georeferenced label images.  
                 Defaults to ``True``.
             out_dir (str, optional): Output directory where the tiles will be saved. 
-                If ``None``, the tiles will be saved in ``"{root}/tiles"``, where ``root`` reference the root dataset.
-                The label tiles will be saved under ``"{out_dir}/labels"``,
-                and the image tiles under ``"{out_dir}/images"``.
-                Default to ``None``.
+                If ``None``, the tiles will be saved in the directory ``tiles`` under the root dataset.
+                Defaults to ``None``.
 
         Examples:
             If ``data`` is a directory containing images in ``images`` and vectors in ``categories`` directories,
@@ -805,14 +857,13 @@ class Dataset(GeoBase):
         self.save()
         return self.dir_tiles
 
-    def plot_bounds(self, ax=None, figsize=None, dataset_color=None, image_color=None, category_color=None):
-        """Show the geographic extent.
+    def plot_bounds(self, ax=None, figsize=None, image_color=None, category_color=None):
+        r"""Plots the geographic extent of the images and categories using :mod:`matplotlib.pyplot`.
 
         Args:
             ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
-            label (str, optional): Legend for the collection. Defaults to ``None``.
-            image_color (str, optional): Name of the color used to show images. Defaults to ``None``.
+            image_color (str, optional): Color used to show images. Defaults to ``None``.
             category_color (str, optional): Name of the color used to show categories. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
 
@@ -822,22 +873,20 @@ class Dataset(GeoBase):
         if not ax or figsize:
             _, ax = plt.subplots(figsize=figsize)
 
-        dataset_color = dataset_color or "red"
-        image_color = image_color or "steelblue"
-        category_color = category_color or "lightseagreen"
+        image_color = image_color or "red"
+        category_color = category_color or "skyblue"
         ax = self.categories.plot_bounds(ax=ax, color=category_color, label="categories")
         ax = self.images.plot_bounds(ax=ax, color=image_color, label="images")
 
         # Plot the dataset bounding box
         bounds = self.bounds
         x, y = box(*bounds).exterior.xy
-        ax.plot(x, y, color=dataset_color, label="dataset")
         ax.legend(loc=1, frameon=True)
         plt.title(f"Bounds of the Dataset")
         return ax
 
     def plot(self, ax=None, figsize=None, alpha=0.5, **kwargs):
-        """Show the elements of the dataset.
+        r"""Plots the images and categories of the dataset using :mod:`matplotlib.pyplot`.
 
         Args:
             ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
@@ -854,7 +903,7 @@ class Dataset(GeoBase):
 
         # Visualize images + bounds and categories
         ax = self.images.plot(ax=ax, **kwargs)
-        ax = self.categories.plot(ax=ax, label="categories", alpha=alpha, **kwargs)
+        ax = self.categories.plot(ax=ax, alpha=alpha, **kwargs)
 
         # Add the legend
         category_handles = []

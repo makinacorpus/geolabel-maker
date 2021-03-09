@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 
 class Downloader(ABC):
     r"""
-    Defines an abstract skeleton for all downloader.
+    Abstract architecture used to wrap all downloader.
     
     * :attr:`url` (str): The url of the API.
 

@@ -6,6 +6,32 @@
 # Copyright (c) 2020, Makina Corpus
 
 
+r"""
+Create your annotations for segmentation tasks. 
+There are two methods you can use:
+
+- :func:`~geolabel_maker.annotations.coco.COCO.build`: Use masks (i.e. labels) to generate annotations,
+- :func:`~geolabel_maker.annotations.coco.COCO.make`: Use categories to generate annotations.
+
+.. code-block:: python
+
+    from geolabel_maker.annotations import COCO
+    
+    # Generate annotations from mask images
+    coco = COCO.build(
+        dir_images = "data/mosaics/images/18",
+        dir_labels = "data/mosaics/labels/18",
+        colors = {"buildings": "#92a9a2", "vegetation": "green"}
+    )
+    
+    # Generate annotations directly from categories
+    coco = COCO.make(
+        dir_images = "data/mosaics/images/18",
+        dir_categories = "data/categories"
+    )
+"""
+
+
 # Basic imports
 from tqdm import tqdm
 from pathlib import Path
@@ -28,8 +54,8 @@ from ._utils import get_paths, get_categories
 
 
 class COCO(Annotation):
-    r"""Defines an annotation for `Common Object in Context <http://cocodataset.org/>`__. 
-    It follows the format used by Microsoft for `COCO` annotations.
+    r"""Defines annotations for segmentation tasks. 
+    It follows the format `Common Object in Context <http://cocodataset.org/>`__ (COCO) used by Microsoft.
 
     * :attr:`info` (dict, optional): Description of the annotation (metadata).
 
@@ -77,17 +103,17 @@ class COCO(Annotation):
     @classmethod
     def build_annotations(cls, images=None, categories=None, labels=None, 
                           dir_images=None, dir_labels=None, colors=None, 
-                          pattern=None, is_crowd=True, **kwargs):
-        images_paths = get_paths(files=images, in_dir=dir_images, pattern=pattern)
-        labels_paths = get_paths(files=labels, in_dir=dir_labels, pattern=pattern)
+                          pattern_image="*", pattern_label="*", is_crowd=True, **kwargs):
+        images_paths = get_paths(files=images, in_dir=dir_images, pattern=pattern_image)
+        labels_paths = get_paths(files=labels, in_dir=dir_labels, pattern=pattern_label)
         categories = get_categories(categories=categories, colors=colors)
 
         coco_annotations = []
         annotation_id = 0
         couple_labels = list(zip(images_paths, labels_paths))
         for image_id, (image_path, label_path) in enumerate(tqdm(couple_labels, desc="Build Annotations", leave=True, position=0)):
-            label = Image.open(label_path).convert("RGB")
-            for category_id, category in enumerate(extract_categories(label, categories, **kwargs)):
+            categories_extracted = extract_categories(label_path, categories, **kwargs)
+            for category_id, category in enumerate(categories_extracted):
                 for _, row in category.data.iterrows():
                     polygon = row.geometry
                     # Get annotation elements
@@ -111,10 +137,10 @@ class COCO(Annotation):
     @classmethod
     def make_annotations(cls, images=None, categories=None, 
                          dir_images=None, dir_categories=None, 
-                         image_pattern=None, category_pattern=None,
+                         pattern_image=None, pattern_category=None,
                          is_crowd=True, **kwargs):
-        images_paths = get_paths(files=images, in_dir=dir_images, pattern=image_pattern)
-        categories = get_categories(categories=categories, dir_categories=dir_categories, pattern=category_pattern)
+        images_paths = get_paths(files=images, in_dir=dir_images, pattern=pattern_image)
+        categories = get_categories(categories=categories, dir_categories=dir_categories, pattern=pattern_category)
         
         coco_annotations = []
         annotation_id = 0

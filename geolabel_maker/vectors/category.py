@@ -9,26 +9,37 @@
 
 r"""
 This module handles loading geometries.
-The class ``Category`` wraps the ``GeoDataFrame`` class from ``geopandas`` and add two more attributes: ``name`` and ``color``.
+The class :class:`~geolabel_maker.vectors.category.Category` wraps the :class:`geopandas.GeoDataFrame` class 
+and contains two additional attributes: :attr:`name` and :attr:`color`.
 
 .. code-block:: python
 
     # Basic imports
     import geopandas as gpd
-    # Geolabel Maker
     from geolabel_maker.vectors import Category
     
     # 1. Load directly from Geolabel Maker
     category = Category.open("categories/buildings.json", name="buildings", color=(255, 255, 255))
     
-    # 2. Load from GeoPandas
+    # 1.1. Load from GeoPandas
     data = gpd.read_file("categories/buildings.json")
     category = Category(data, "buildings", color=(255, 255, 255))
     
+    # 2. Change the coordinate reference system (CRS)
+    out_category = category.to_crs("EPSG:4326")
+    
+    # 3. Crop the geometries
+    out_category = category.crop((3, 34, 4, 35))
+    
+    # 4. Clip the geometries (modifies the structure of the vectors)
+    out_category = category.clip((3, 34, 4, 35))
+    
+    # 5. Save your category
+    out_category.save("category.json")
 """
 
 # Basic imports
-import warnings
+from abc import abstractmethod
 from tqdm import tqdm
 from pathlib import Path
 import geopandas as gpd
@@ -39,7 +50,6 @@ import matplotlib.patches as mpatches
 # Geolabel Maker
 from geolabel_maker.base import GeoBase, GeoData, GeoCollection, BoundingBox, CRS
 from geolabel_maker.vectors.color import Color
-from geolabel_maker.downloads import OverpassAPI
 from geolabel_maker.logger import logger
 
 
@@ -49,66 +59,51 @@ __all__ = [
 ]
 
 
-def _check_geopandas(element, **kwargs):
-    r"""Convert an object to a ``GeoDataFrame``.
+def _check_geopandas(element):
+    r"""Checks if an object is a :class:`geopandas.GeoDataFrame`.
 
     Args:
-        element (any): Element to convert. 
-            It can be a ``str``, ``Path``, ``Category`` etc...
-
-    Returns:
-        geopandas.GeoDataFrame
+        element (any): Element to check. 
 
     Examples:
         >>> _check_geopandas("buildings.json")
             ValueError("Element of class 'str' is not a 'geopandas.GeoDataFrame'.")
-        >>> _check_geopandas(Path("buildings.json"))
-            ValueError("Element of class 'Path' is not a 'geopandas.GeoDataFrame'.")
-        >>> _check_geopandas(gpd.read_file("buildings.json"))
-            True
     """
     if not isinstance(element, gpd.GeoDataFrame):
         ValueError(f"Element of class '{type(element).__name__}' is not a 'geopandas.GeoDataFrame'.")
-    return True
 
 
-def _check_category(element):
-    r"""Check if an object is a ``Category``.
+class CategoryBase(GeoBase):
+    r"""
+    Abstract architecture used to wrap all category elements.
 
-    Args:
-        element (any): Element to verify. 
-
-    Raises:
-        ValueError: If the element is not a ``Category``.
-
-    Returns:
-        bool: ``True`` if the element is a ``Category``.
-
-    Examples:
-        >>> _check_category("buildings.json")
-            ValueError("Element of class 'str' is not a 'Category'.")
-        >>> _check_category(Category.open("buildings.json"))
-            True
     """
-    if not isinstance(element, Category):
-        raise ValueError(f"Element of class '{type(element).__name__}' is not a 'Category'.")
-    return True
+
+    @abstractmethod
+    def clip(self, bbox, **kwargs):
+        raise NotImplementedError
 
 
 class Category(GeoData):
     r"""
-    A category is a set of vectors (or geometries) corresponding to the same geographic element.
-    A category must have a name (e.g. ``"buildings"``) and a RGB color (e.g. ``(255, 255, 255)``),
+    A category is a set of vectors (or geometries) corresponding to different instances
+    of the same geographic class (e.g. multiple buildings).
+    A category must have a name (e.g. ``"buildings"``) and a color (e.g. ``"red"``),
     which will be used to draw the vectors on raster images (called labels).
     This class is used to extract polygons / geometries from satellite images, and then create the labels.
 
     * :attr:`data` (geopandas.GeoDataFrame): A table of geometries.
 
+    * :attr:`filename` (str): Name of the category's file.
+    
+    * :attr:`crs` (CRS): Coordinate reference system.
+    
+    * :attr:`bounds` (BoundingBox): Bounding box of the geographic extent.
+
     * :attr:`name` (str): The name of the category corresponding to the elements.
 
     * :attr:`color` (tuple): RGB tuple of pixel values (from 0 to 255).
 
-    * :attr:`filename` (str): Name of the category's file.
 
     """
 
@@ -123,10 +118,8 @@ class Category(GeoData):
         try:
             return CRS(self.data.crs)
         except:
-            error_msg = f"There are no CRS for the category {self.name}. " \
-                        f"Maybe its in geographic coordinates, or try using `to_crs()` method."
-            warnings.warn(error_msg, RuntimeWarning)
-            logger.warning(error_msg)
+            logger.warning(f"There are no CRS for the category {self.name}. " \
+                           f"Maybe its in geographic coordinates, or try using `to_crs()` method.")
             return None
 
     @property
@@ -143,13 +136,14 @@ class Category(GeoData):
 
     @classmethod
     def open(cls, filename, name=None, color=None):
-        r"""Load the ``Category`` from a vector file. 
-        The supported extensions are the one supported by ``geopandas``.
+        r"""Loads a category from a vector file. 
+        The supported extensions are the one supported by :func:`fiona` package.
+        This method relies on :func:`geopandas.read_file` function.
 
         Args:
             filename (str): The path to the vector file.
-            name (str, optional): Name of the category. If ``None``, the name will be ``filename``. Defaults to None.
-            color (tuple, optional): Color in the format :math:`(R, G, B)`. Defaults to None.
+            name (str, optional): Name of the category. If ``None``, the name will be ``filename``. Defaults to ``None``.
+            color (tuple, optional): Color in the format :math:`(R, G, B)`. Defaults to ``None``.
 
         Returns:
             Category: The loaded category.
@@ -164,57 +158,42 @@ class Category(GeoData):
         name = name or Path(filename).stem
         return Category(data, name, color=color, filename=str(filename))
 
-    # TODO: Remove it to force the user retrieve geometries directly from the API.
-    @classmethod
-    def download(cls, bbox, **kwargs):
-        """Download a geometry using the `Open Street Map` API.
-
-        Args:
-            bbox (tuple): Bounding box used to retrieve geometries, 
-                in the format :math:`(lon_{min}, lat_{min}, lon_{max}, lat_{max})`.
-            kwargs (dict): Arguments used in the ``OverpassAPI`` download method.
-
-        Returns:
-            Category: The downloaded category.
-        """
-        api = OverpassAPI()
-        color = kwargs.pop("color", None)
-        name = kwargs.pop("name", None)
-        filename = api.download(bbox, **kwargs)
-        return Category.open(filename, name=name, color=color)
-
     @classmethod
     def from_postgis(cls, name, sql, conn, color=None, **kwargs):
-        r"""Load a ``Category`` from a `PostGIS` database.
-        This method wraps the ``read_postgis`` function from ``geopandas``.
-
-        .. seealso::
-            For more details, please visit ``geopandas`` 
-            `documentation <https://geopandas.readthedocs.io/en/latest/reference/geopandas.read_postgis.html#geopandas.read_postgis>`__.
+        r"""Loads a category from a `PostGIS` database.
+        This method relies on :func:`geopandas.read_postgis` function.
 
         Args:
             name (str, optional): Name of the category.
             sql (str): Query posted in the database.
             conn (DB connection object or SQLAlchemy engine): Connection to the database.
-            color (tuple, optional): Color in the format :math:`(R, G, B)`. Defaults to None.
-            kwargs (dict): Rest of the arguments from ``GeoDataFrame.from_postgis`` method.
+            color (tuple, optional): Color in the format :math:`(R, G, B)`. Defaults to ``None``.
+            kwargs (dict): Remaining arguments.
 
         Returns:
             Category: The category from PostGis.
 
         Examples:
-            >>> from geolabel_maker.vectors import Category
+            We can use :func:`sqlalchemy` to connect to the database.
+            
             >>> from sqlalchemy import create_engine  
             >>> db_connection_url = "postgres://myusername:mypassword@myhost:5432/mydb"
             >>> con = create_engine(db_connection_url)  
+            
+            Then, create your request:
+            
             >>> sql = "SELECT geom FROM buildings"
+            
+            Finally, load your category:
+            
             >>> category = Category.from_postgis("buildings", sql, con, color=(255, 255, 255))  
         """
         data = gpd.read_postgis(sql, conn, **kwargs)
         return Category(data, name, color=color)
 
     def save(self, out_file):
-        """Save the category in `JSON` format.
+        """Saves the category in JSON format.
+        This method relies on :func:`geopandas.GeoDataFrame.to_file` method.
 
         Args:
             out_file (str): Name of the output file.
@@ -226,11 +205,11 @@ class Category(GeoData):
         return str(out_file)
 
     def overwrite(self, category):
-        """Overwrite the current category by another.
+        """Overwrites the current category by another.
 
         .. note::
             This operation will not modify the values in place,
-            but will overwrite the raster saved on the disk.
+            but will overwrite the category saved on the disk.
 
         Args:
             category (Category): The category to be saved.
@@ -243,22 +222,39 @@ class Category(GeoData):
         return category
 
     def to_crs(self, crs=None, overwrite=False, **kwargs):
-        r"""Project the category from its initial `CRS` to another one.
+        r"""Projects the category from its initial coordinate reference system (CRS) to another one.
 
         .. note::
-            This method will create an in-memory category.
+            By default, this method will create an in-memory category.
+            To automatically save it, use ``overwrite`` argument.
 
         Args:
-            crs (str, pyproj.crs.CRS): The destination `CRS`.
-
+            crs (str, pyproj.crs.CRS): The destination coordinate reference system (CRS).
+            overwrite (bool, optional): If ``True``, overwrites the initial category saved on disk with the output. 
+                If ``False``, the output data will not be written on disk. Defaults to ``False``.
+    
         Returns:
             Category: The projected category.
 
         Examples:
-            If ``buildings.json`` is a geometry available from the disk, change its CRS with:
+            If ``buildings.json`` is a category available from the disk, 
+            change its CRS with:
 
             >>> category = Category.open("buildings.json", name="buildings", color=(255, 255, 255))
-            >>> out_category = category.to_crs(""EPSG:4326"")
+            >>> crs = "EPSG:4326"
+            >>> out_category = category.to_crs(crs)
+            
+            The output category is loaded in-memory:
+
+            >>> out_category.filename
+                None
+            
+            To automatically replace the ``buildings.json`` with the output category,
+            use the ``overwrite`` argument:
+            
+            >>> out_category = category.to_crs(crs, overwrite=True)
+            >>> out_category.filename
+                'buildings.json'
         """
         out_data = self.data.to_crs(crs=crs, **kwargs)
         out_category = Category(out_data, self.name, self.color)
@@ -270,23 +266,44 @@ class Category(GeoData):
         return out_category
 
     def crop(self, bbox, overwrite=False):
-        r"""Crop a category within a bounding box.
+        r"""Crops a category within a bounding box.
 
         .. note::
-            The bounding box coordinates should be in the same system as the geometries.
+            The bounding box coordinates should be in the same 
+            coordinate reference system (CRS) as the category.
+
+        .. note::
+            By default, this method will create an in-memory category.
+            To automatically save it, use ``overwrite`` argument.
 
         Args:
             bbox (tuple): Bounding box used to crop the geometries,
                 in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
-
+            overwrite (bool, optional): If ``True``, overwrites the initial category saved on disk with the output. 
+                If ``False``, the output data will not be written on disk. Defaults to ``False``.
+                
         Returns:
             Category: The cropped category.
 
         Examples:
-            If ``buildings.json`` is a geometry available from the disk, crop it with:
+            If ``buildings.json`` is a category available from the disk, 
+            crop it with:
 
             >>> category = Category.open("buildings.json", name="buildings", color=(255, 255, 255))
-            >>> out_category = category.crop((1843000, 5173000, 1845000, 5174000))
+            >>> bbox = (1843000, 5173000, 1845000, 5174000)
+            >>> out_category = category.crop(bbox)
+            
+            The output category is loaded in-memory:
+
+            >>> out_category.filename
+                None
+            
+            To automatically replace the ``buildings.json`` with the output category,
+            use the ``overwrite`` argument:
+            
+            >>> out_category = category.crop(bbox, overwrite=True)
+            >>> out_category.filename
+                'buildings.json'
         """
         # Create a polygon from the bbox
         Xmin, Ymin, Xmax, Ymax = bbox
@@ -311,6 +328,47 @@ class Category(GeoData):
         return out_category
     
     def clip(self, bbox, overwrite=False):
+        r"""Clips points, lines, or polygon geometries to the bounding box extent.
+        This method will modify the structure of the points, lines, or polygons so that
+        all parts outside of the bounding box are deleted.
+
+        .. note::
+            The bounding box coordinates should be in the same 
+            coordinate reference system (CRS) as the category.
+    
+        .. note::
+            By default, this method will create an in-memory category.
+            To automatically save it, use ``overwrite`` argument.
+    
+        Args:
+            bbox (tuple): Bounding box used to crop the geometries,
+                in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
+            overwrite (bool, optional): If ``True``, overwrites the initial category saved on disk with the output. 
+                If ``False``, the output data will not be written on disk. Defaults to ``False``.
+
+        Returns:
+            Category: The clipped category.
+            
+        Examples:
+            If ``buildings.json`` is a category available from the disk, 
+            clip it with:
+
+            >>> category = Category.open("buildings.json", name="buildings", color=(255, 255, 255))
+            >>> bbox = (1843000, 5173000, 1845000, 5174000)
+            >>> out_category = category.clip(bbox)
+            
+            The output category is loaded in-memory:
+
+            >>> out_category.filename
+                None
+            
+            To automatically replace the ``buildings.json`` with the output category,
+            use the ``overwrite`` argument:
+            
+            >>> out_category = category.clip(bbox, overwrite=True)
+            >>> out_category.filename
+                'buildings.json'
+        """
         # Create the mask used to clip the data
         mask = gpd.GeoDataFrame([{"geometry": box(*bbox)}], crs=self.crs)
         
@@ -329,12 +387,12 @@ class Category(GeoData):
         return out_category
 
     def plot(self, ax=None, figsize=None, alpha=0.7, **kwargs):
-        """Plot a category.
+        r"""Plots a category using :mod:`matplotlib.pyplot`.
 
         Args:
             ax (matplotlib.AxesSubplot, optional): Axes of the figure the category. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
-            kwargs (dict): Other arguments from `matplotlib`.
+            kwargs (dict): Other arguments from :func:`geopandas.GeoDataFrame.plot`.
 
         Returns:
             matplotlib.AxesSubplot: The axes of the figure.
@@ -355,14 +413,19 @@ class Category(GeoData):
 class CategoryCollection(GeoCollection):
     r"""
     Defines a collection of category.
-    This class behaves similarly as a ``list``, excepts it is made only of ``Category``.
+    This class behaves similarly as a :class:`list`, 
+    excepts it is made only of :class:`~geolabel_maker.vectors.category.Category`.
 
     .. note::
         The categories have unique colors.
 
     .. warning::
-        If you initialize a ``CategoryCollection`` from categories with duplicated colors,
+        If you initialize a :class:`~geolabel_maker.vectors.category.CategoryCollection` from categories with duplicated colors,
         the duplicated ones will be replaced with random colors.
+
+    * :attr:`crs` (CRS): Coordinate reference system.
+    
+    * :attr:`bounds` (BoundingBox): Bounding box of the geographic extent.
 
     """
 
@@ -373,7 +436,10 @@ class CategoryCollection(GeoCollection):
 
     @classmethod
     def open(cls, *filenames, **kwargs):
-        r"""Open multiple categories.
+        r"""Opens multiple categories.
+
+        .. seealso::
+            See :func:`~geolabel_maker.vectors.category.Category.open` method for further details.
 
         Returns:
             CategoryCollection
@@ -387,7 +453,10 @@ class CategoryCollection(GeoCollection):
         return super().open(*filenames, **kwargs)
 
     def save(self, out_dir, in_place=True):
-        """Save all the rasters in a given directory.
+        r"""Saves all the categories in a given directory.
+
+        .. seealso::
+            See :func:`~geolabel_maker.vectors.category.Category.save` method for further details.
 
         Args:
             out_dir (str): Path to the output directory.
@@ -407,7 +476,6 @@ class CategoryCollection(GeoCollection):
         return str(out_dir)
 
     def _make_unique_colors(self):
-        """Make sure the categories have unique colors."""
         colors = [category.color for category in self._items]
         for i, color in enumerate(colors):
             other_colors = set(colors[:i] + colors[i + 1:])
@@ -430,7 +498,7 @@ class CategoryCollection(GeoCollection):
         self._make_unique_colors()
 
     def colors(self):
-        """Iterate on all colors.
+        r"""Iterates on all colors.
 
         Yields:
             tuple: RGB color.
@@ -439,7 +507,7 @@ class CategoryCollection(GeoCollection):
             yield category.color
 
     def names(self):
-        """Iterate on all names.
+        r"""Iterates on all names.
 
         Yields:
             str: Name of the categories.
@@ -448,31 +516,97 @@ class CategoryCollection(GeoCollection):
             yield category.name
 
     def to_crs(self, *args, **kwargs):
+        r"""Projects all categories from their initial coordinate reference system (CRS) to another one.
+
+        .. note::
+            By default, this method will create in-memory categories.
+            To automatically save it, use ``overwrite`` argument.
+
+        .. seealso::
+            See :func:`~geolabel_maker.vectors.category.Category.to_crs` method for further details.
+
+        Args:
+            crs (CRS): The destination coordinate reference system (CRS).
+            overwrite (bool, optional): If ``True``, overwrites the initial categories saved on disk with the outputs. 
+                If ``False``, the output data will not be written on disk. Defaults to ``False``.
+    
+        Returns:
+            CategoryCollection: The projected category collection.
+
+        Examples:
+            If ``buildings.json`` and ``vegetation.json`` are vectors available from the disk,
+            change their CRS with:
+
+            >>> categories = CategoryCollection.open("buildings.json", "vegetation.json")
+            >>> crs = "EPSG:4326"
+            >>> out_categories = categories.to_crs(crs)
+        """
         return super().to_crs(*args, **kwargs)
 
     def crop(self, *args, **kwargs):
-        """Crop all categories from a bounding box.
+        r"""Crops all categories in box extent.
+
+        .. note::
+            By default, this method will create in-memory categories.
+            To automatically save it, use ``overwrite`` argument.
+
+        .. note::
+            The bounding box coordinates should be in the same 
+            coordinate reference system (CRS) as the category collection.
 
         .. seealso::
-            See ``Category.crop()`` method for further details.
+            See :func:`~geolabel_maker.vectors.category.Category.crop` method for further details.
 
         Args:
             bbox (tuple): Bounding box used to crop the geometries,
                 in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.                
+            overwrite (bool, optional): If ``True``, overwrites the initial categories saved on disk with the outputs. 
+                If ``False``, the output data will not be written on disk. Defaults to ``False``.
 
         Returns:
             CategoryCollection: The cropped categories.
 
         Examples:
             If ``buildings.json`` and ``vegetation.json`` are vectors available from the disk, 
-            open them with:
+            crop them with:
 
             >>> categories = CategoryCollection.open("buildings.json", "vegetation.json")
-            >>> out_categories = categories.crop((1843000, 5173000, 1845000, 5174000))
+            >>> bbox = (1843000, 5173000, 1845000, 5174000)
+            >>> out_categories = categories.crop(bbox)
         """
         return super().crop(*args, **kwargs)
     
     def clip(self, *args, **kwargs):
+        r"""Clips all categories in box extent.
+
+        .. note::
+            By default, this method will create in-memory categories.
+            To automatically save it, use ``overwrite`` argument.
+
+        .. note::
+            The bounding box coordinates should be in the same 
+            coordinate reference system (CRS) as the category collection.
+
+        .. seealso::
+            See :func:`~geolabel_maker.vectors.category.Category.clip` method for further details.
+
+        Args:
+            bbox (tuple): Bounding box used to crop the geometries,
+                in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
+            overwrite (bool, optional): If ``True``, overwrites the initial categories saved on disk with the outputs. 
+                If ``False``, the output data will not be written on disk. Defaults to ``False``.
+
+        Returns:
+            CategoryCollection: The cropped categories.
+
+        Examples:
+            If ``buildings.json`` and ``vegetation.json`` are vectors available from the disk, 
+            clip them with:
+
+            >>> categories = CategoryCollection.open("buildings.json", "vegetation.json")
+            >>> bbox = (1843000, 5173000, 1845000, 5174000)
+            >>> out_categories = categories.clip(bbox)
+        """
         out_categories = CategoryCollection()
         for category in tqdm(self._items, desc="Generating Masks", leave=True, position=0):
             try:
@@ -482,13 +616,13 @@ class CategoryCollection(GeoCollection):
         return out_categories
 
     def plot(self, ax=None, figsize=None, **kwargs):
-        """Plot the data.
+        """Plots the data using :mod:`matplotlib.pyplot`.
 
         Args:
             ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             label (str, optional): Legend for the collection. Defaults to ``None``.
-            kwargs (dict): Other arguments from `matplotlib`.
+            kwargs (dict): Other arguments from :func:`geopandas.GeoDataFrame.plot`.
 
         Returns:
             matplotlib.AxesSubplot: The axes of the figure.

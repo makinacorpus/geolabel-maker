@@ -8,8 +8,8 @@
 
 
 r"""
-This module handles geometries retrieval from the `Overpass` API.
-It is part of the `Open Street Map` API, but for large queries and requests.
+This module handles geometries retrieval from the `Overpass <http://overpass-api.de/api/interpreter>`__ API.
+It is part of the `Open Street Map <https://www.openstreetmap.org/>`__ API, but for larger queries.
 
 .. code-block:: python
 
@@ -70,7 +70,10 @@ class OverpassAPI(Downloader):
             >>> api = OverpassAPI()
             >>> api.download((48.0, 2.0, 48.1, 2.1), selector="building", out_file="buildings.json")
         """
-        logger.info(f"Downloading geometries for selector '{selector}'.")
+        selector_parts = selector.split('=')
+        category_name = selector.split('=')[-1]
+        supercategory_name = selector.split('=')[0]
+        logger.info(f"Downloading {category_name} {'(' + supercategory_name + ') ' if len(selector_parts) > 1 else ''}from Overpass.")
 
         lon_min, lat_min, lon_max, lat_max = bbox
         query = f"""
@@ -83,7 +86,7 @@ class OverpassAPI(Downloader):
             out skel qt;
         """
         query_string = re.sub(" +", "", query.replace("\n", " "))
-        logger.debug(f"Making a query to overpass: '{query_string}'.")
+        logger.debug(f"Making a query to overpass: {query_string}.")
 
         # Connect to Overpass API
         response = requests.get(
@@ -117,5 +120,5 @@ class OverpassAPI(Downloader):
         # Saving
         Path(out_file).parent.mkdir(parents=True, exist_ok=True)
         df.to_file(out_file, driver="GeoJSON")
-        logger.debug(f"OSM geometries successfully saved at {out_file}.")
+        logger.debug(f"OSM geometries successfully saved at '{out_file}'.")
         return out_file

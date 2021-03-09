@@ -25,11 +25,12 @@ They are mainly used for `COCO` annotations, as it requires to extract masks and
 # Basic imports
 import geopandas as gpd
 from shapely.geometry import Polygon, MultiPolygon
+from PIL import Image
 import numpy as np
 import cv2
 
 # Geolabel Maker
-from geolabel_maker.vectors import Category
+from geolabel_maker.vectors import Category, Color
 
 
 __all__ = [
@@ -38,41 +39,86 @@ __all__ = [
 ]
 
 
-def find_polygons(mask_array, preserve_topology=True, simplify_level=1.0):
-    """Retrieve the polygons from a black and white raster image.
+def retrieve_masks(label_file, colors=None):
+    r"""Retrieves masks from a label image.
+    A mask is a binary image indicating the presence of an object.
+    This method must be used once the tiles are generated (see :func:`~geolabel_maker.dataset.Dataset.generate_tiles` method).
 
     Args:
-        mask_array (numpy.ndarray): Black and white mask image of shape :math:`(X, Y, 3)`.
+        label_file (str): Path to the label image.
+        colors (list, optional): List of RGB colors.
+
+    Returns:
+        tuple: Categories containing geometries (e.g. all buildings from the images at ``zoom`` level).
+
+    Examples:
+        >>> from PIL import Image
+        >>> label_image = Image.open("42154.png")
+
+        Then, extract the masks associated to different colors:
+
+        >>> masks = retrieve_masks(label_image)
+
+        Select a specific mask by its color:
+
+        >>> mask = mask[(0, 150, 0)]
+    """
+    label = Image.open(label_file).convert("RGB")
+    width, height = label.size
+    colors = colors or label.getcolors(width * height)
+    colors = map(lambda color: Color.get(color), colors)
+    label_array = np.array(label)
+    masks = {}
+
+    for color in colors:
+        mask = cv2.inRange(label_array, np.array(color), np.array(color))
+        masks[tuple(color)] = mask
+    return masks
+
+
+def find_polygons(mask, preserve_topology=True, simplify_level=1.0):
+    """Finds polygons from a binary image.
+
+    .. seealso::
+        See :func:`~geolabel_maker.dataset.Dataset.retrieve_masks` function for further details.
+
+    Args:
+        mask (numpy.array): Black and white mask image of shape :math:`(X, Y, 3)`.
         preserve_topology (bool): If ``True``, preserve the topology of the polygon. Default to ``False``.
 
     Returns:
         list: List of ``shapely.geometry.Polygon`` vectorized from the input raster ``mask_image``.
 
     Examples:
+        Open a label generated with :func:`~geolabel_maker.dataset.Dataset.generate_mosaics` 
+        or :func:`~geolabel_maker.dataset.Dataset.generate_tiles`.
+
         >>> from PIL import Image
-        >>> # Open a tile label (generated with `generate_tiles()` or `gdal2tiles()`)
         >>> label_image = Image.open("42154.png")
-        >>> colors = [(255, 255, 255), (0, 150, 0)]
-        >>> masks = retrieve_masks(label_image, colors)
+
+        Then, extract the masks associated to different colors:
+
+        >>> masks = retrieve_masks(label_image)
+
+        Select a specific mask by its color:
+
         >>> mask = mask[(0, 150, 0)]
-        >>> # Get all polygons in the mask
-        >>> polygons = find_polygons(mask)
-        >>> type(polygons[0])
-            shapely.geometry.Polygon
+        
+        Once you have a mask (i.e. binary image)
     """
     polygons = []
-    contours, hierarchy = cv2.findContours(mask_array, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+    contours, hierarchy = cv2.findContours(mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
 
     # If there are no contours
     if not contours:
         return polygons
-    
+
     # Retrieve only outliers polygon (not the holes)
     contour_indices = np.where(hierarchy[0, :, 3] == -1)[0]
     for contour_idx in contour_indices:
-        
+
         outer = contours[contour_idx].reshape(-1, 2)
-        
+
         # A LinearRing must have at least 3 coordinate tuples (i.e. 3 * 2 values)
         if outer.size >= 6:
             # Retrieve inner polygons (holes)
@@ -96,14 +142,17 @@ def find_polygons(mask_array, preserve_topology=True, simplify_level=1.0):
     return polygons
 
 
-def extract_categories(label=None, categories=None, **kwargs):
+def extract_categories(label_file, categories, **kwargs):
     r"""Retrieve the polygons for all tile labels.
-    This method must be used once the tiles are generated (see ``generate_tiles`` method).
+    This method must be used once the tiles are generated (see :func:`~geolabel_maker.dataset.Dataset.generate_tiles` method).
+
+    .. seealso::
+        See func:`~geolabel_maker.annotations.functional.find_polygons` function for further details.
 
     Args:
-        label (PIL.Image): PIL Image of the label.
+        label_file (str): Path to the label image.
         categories (list): List of categories.
-        **kwargs (optional): See ``geolabel_maker.functional.find_polygons`` method arguments.
+        **kwargs (optional): Remaining arguments.
 
     Returns:
         tuple: Categories containing geometries (e.g. all buildings from the images at ``zoom`` level).
@@ -115,31 +164,10 @@ def extract_categories(label=None, categories=None, **kwargs):
             (Category(data=GeoDataFrame(34 rows, 1 column), name='vegetation', color=(0, 150, 0), 
              Category(data=GeoDataFrame(234 rows, 1 column), name='buildings', color=(255, 255, 255)))
     """
-    assert label, "Label image must be provided"
-
-    label_array = np.array(label.convert("RGB"))
+    masks = retrieve_masks(label_file, colors=list(categories.colors()))
     categories_extracted = []
-    for category in categories:
-        # Extract a mask of color `color` exactly
-        color = tuple(category.color)
-        mask_array = cv2.inRange(label_array, color, color)
-        polygons = find_polygons(mask_array, **kwargs)
+    for (color, mask), category in zip(masks.items(), categories):
+        polygons = find_polygons(mask, **kwargs)
         data = gpd.GeoDataFrame({"geometry": polygons})
         categories_extracted.append(Category(data, category.name, color=color))
     return categories_extracted
-
-
-# TODO: move to _utils.py
-def has_color(label, color):
-    """Check if a label image has a specific color.
-
-    Args:
-        label (PIL.Image): PIL Image of the label.
-        color (tuple): RGB color.
-
-    Returns:
-        bool: True if the label image has the specified color.
-    """
-    array = np.array(label.convert("RGB"))
-    red, green, blue = tuple(color)
-    return np.where((array[:, :, 0] == red) & (array[:, :, 1] == green) & (array[:, :, 2] == blue), True, False).any()

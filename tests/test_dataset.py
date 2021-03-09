@@ -58,15 +58,16 @@ class DatasetTests(unittest.TestCase):
         assert len(dataset.images) == 9, "The number of loaded images is invalid"
         assert len(dataset.categories) == 2, "The number of loaded categories is invalid"
         assert len(dataset.labels) == 0, "The number of loaded labels is invalid"
-        Path("dataset.json").unlink()
+        assert Path(dataset.filename).exists(), "No 'dataset.json' file created"
+        Path(dataset.filename).unlink()
 
     def test_04_from_root(self):
         dataset = Dataset.from_root(ROOT_DATASET)
         assert len(dataset.images) == 9, "The number of loaded images is invalid"
         assert len(dataset.categories) == 2, "The number of loaded categories is invalid"
         assert len(dataset.labels) == 9, "The number of loaded labels is invalid"
-        assert Path(ROOT_DATASET / "dataset.json").exists(), "No 'dataset.json' file created"
-        Path(ROOT_DATASET / "dataset.json").unlink()
+        assert Path(dataset.filename).exists(), "No 'dataset.json' file created"
+        Path(dataset.filename).unlink()
 
     def test_05_save(self):
         dataset = self.open_default()
@@ -125,25 +126,25 @@ class DatasetTests(unittest.TestCase):
 
     def test_10_to_crs(self, crs="EPSG:4326"):
         dataset = self.open_default()
-        dataset_proj = dataset.to_crs(crs)
-        assert isinstance(dataset_proj, Dataset), "The projection of a dataset did not returned a Dataset"
-        assert dataset_proj.crs.to_epsg() == CRS(crs).to_epsg(), "The destination CRS does not match"
+        out_dataset = dataset.to_crs(crs)
+        assert isinstance(out_dataset, Dataset), "Cropping a dataset did not returned a Dataset"
+        assert out_dataset.crs.to_epsg() == CRS(crs).to_epsg(), "The destination CRS does not match"
 
     def test_11_crop(self):
         dataset = self.open_default()
         bbox = (1843045.92, 5173595.36, 1843056.48, 5173605.92)
-        dataset_crop = dataset.crop(bbox)
-        assert isinstance(dataset_crop, Dataset), "The projection of a dataset did not returned a Dataset"
+        out_dataset = dataset.crop(bbox)
+        assert isinstance(out_dataset, Dataset), "The projection of a dataset did not returned a Dataset"
 
     def test_12_plot_bounds(self):
         dataset = self.open_default()
         axes = dataset.plot_bounds()
-        assert isinstance(axes, plt.Axes), "Plots should return axes"
+        assert isinstance(axes, plt.Axes), "Plot should return axes"
 
     def test_13_plot(self):
         dataset = self.open_default()
         axes = dataset.plot()
-        assert isinstance(axes, plt.Axes), "Plots should return axes"
+        assert isinstance(axes, plt.Axes), "Plot should return axes"
 
 
 if __name__ == '__main__':

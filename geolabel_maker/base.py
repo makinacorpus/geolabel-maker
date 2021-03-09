@@ -7,7 +7,7 @@
 # Copyright (c) 2021, Makina Corpus
 
 
-"""
+r"""
 This module defines abstract skeleton for geometries, rasters and datasets.
 
 """
@@ -31,7 +31,7 @@ from geolabel_maker.logger import logger
 
 class BoundingBox:
     r"""
-    Defines a bounding box as :math`(left, bottom, right, top)`.
+    Defines a bounding box as :math:`(\text{left}, \text{bottom}, \text{right}, \text{top})`.
 
     * :attr:`left` (float): The left coordinate of the bounding box.
 
@@ -60,7 +60,7 @@ class BoundingBox:
 
 
 def to_crs(element):
-    r"""Convert an element to a Coordinate Reference System (CRS).
+    r"""Converts an element to a Coordinate Reference System (CRS).
 
     Args:
         element (Any): An object describing a coordinate reference system.
@@ -77,11 +77,12 @@ def to_crs(element):
 
 class CRS(pyproj.crs.CRS):
     r"""
-    Defines a Coordinate Reference System (CRS) from ``pyproj`` implementation.
-    This class is mainly used to homogenize CRS representations from ``rasterio`` and ``geopandas``.
+    Defines a Coordinate Reference System (CRS) from :mod:`pyproj` implementation.
+    This class is mainly used to homogenize CRS representations from :mod:`rasterio` and :mod:`geopandas`.
 
     .. seealso::
-        Visit the source implementation on `readthedocs <https://pyproj4.github.io/pyproj/dev/api/crs/crs.html>`__.
+        See :class:`pyproj.crs.CRS` on `readthedocs <https://pyproj4.github.io/pyproj/dev/api/crs/crs.html>`__
+        for further details.
 
     """
 
@@ -90,7 +91,7 @@ class CRS(pyproj.crs.CRS):
 
     @classmethod
     def from_rasterio(cls, crs):
-        r"""Create a crs from a ``rasterio.crs.CRS`` objetc.
+        r"""Creates a crs from a ``rasterio.crs.CRS`` objetc.
 
         Args:
             crs (rasterio.crs.CRS): Rasterio crs.
@@ -132,7 +133,8 @@ class CRS(pyproj.crs.CRS):
 
 
 class GeoBase(ABC):
-    """Abstract architecture for all geographic elements.
+    r"""
+    Abstract architecture used to wrap geographic data.
 
     * :attr:`crs` (CRS): The projection of the data.
 
@@ -154,7 +156,7 @@ class GeoBase(ABC):
     @classmethod
     @abstractmethod
     def open(cls, filename, **kwargs):
-        """Open the data from a file.
+        r"""Opens the data from a file.
 
         Args:
             filename (str): Name of the file to load.
@@ -167,7 +169,7 @@ class GeoBase(ABC):
 
     @abstractmethod
     def save(self, out_file):
-        """Save the data to the disk.
+        r"""Saves the data to the disk.
 
         Args:
             out_file (str): Name of the output file.
@@ -179,10 +181,10 @@ class GeoBase(ABC):
 
     @abstractmethod
     def to_crs(self, crs, **kwargs):
-        """Project the geo data in another system.
+        r"""Projects the geo data from its coordinate reference system (CRS) to another one.
 
         Args:
-            crs (CRS): The destination coordinate  reference system.
+            crs (CRS): Destination CRS.
             kwargs (dict): Remaining options.
 
         Returns:
@@ -192,7 +194,7 @@ class GeoBase(ABC):
 
     @abstractmethod
     def crop(self, bbox, **kwargs):
-        """Crop the data from a bounding box.
+        r"""Crops the data in a bounding box.
 
         .. note::
             The bounding box coordinates should be in the same system as the raster extent.
@@ -206,13 +208,12 @@ class GeoBase(ABC):
         """
         raise NotImplementedError(f"This method is currently not supported.")
 
-    def plot_bounds(self, ax=None, figsize=None, label=None, **kwargs):
-        """Plot the geographic extent of the data.
+    def plot_bounds(self, ax=None, figsize=None, **kwargs):
+        r"""Plots the geographic extent of the data using :mod:`matplotlib.pyplot`.
 
         Args:
             ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
-            label (str, optional): Legend for the collection. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
 
         Returns:
@@ -222,30 +223,26 @@ class GeoBase(ABC):
             _, ax = plt.subplots(figsize=figsize)
 
         x, y = box(*self.bounds).exterior.xy
-        ax.plot(x, y, label=label, **kwargs)
-
-        if label:
-            ax.legend(loc=1, frameon=True)
+        ax.plot(x, y, **kwargs)
 
         plt.title(f"Bounds of the {self.__class__.__name__}")
         return ax
 
-    def plot(self, ax=None, figsize=None, label=None, **kwargs):
-        """Plot the the data.
+    def plot(self, ax=None, figsize=None, **kwargs):
+        r"""Plots the data using :mod:`matplotlib.pyplot`.
 
         Args:
             ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
-            label (str, optional): Legend for the collection. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
 
         Returns:
             matplotlib.AxesSubplot: Axes of the figure.
         """
-        return self.plot_bounds(ax=ax, figsize=figsize, label=label, **kwargs)
+        return self.plot_bounds(ax=ax, figsize=figsize, **kwargs)
 
     def inner_repr(self):
-        """Inner representation of the data."""
+        r"""Inner representation of the data."""
         return ""
 
     def __repr__(self):
@@ -254,7 +251,7 @@ class GeoBase(ABC):
 
 class GeoData(GeoBase):
     r"""
-    Abstract class used to wrap rasters, categories and other geo data elements.
+    Abstract architecture used to wrap rasters, categories and other single geo data objects.
 
     * :attr:`crs` (CRS): CRS projection of the element.
 
@@ -289,7 +286,8 @@ class GeoData(GeoBase):
 
 
 class GeoCollection(GeoBase):
-    """An abstract class used to store a collection of ``Data``.
+    r"""
+    Abstract architecture used to wrap a collection of data.
 
     * :attr:`crs` (CRS): CRS projection of all elements. If the elements are in different CRS, it will show a warning.
 
@@ -316,6 +314,9 @@ class GeoCollection(GeoBase):
 
     @property
     def crs(self):
+        r"""Gets the coordinate reference system (CRS).
+        Raises a warning if the elements are in different CRS.
+        """
         crs = None
         for value in self._items:
             if crs is None:
@@ -331,7 +332,7 @@ class GeoCollection(GeoBase):
 
     @property
     def bounds(self):
-        """Get the total geographic extent of the collection."""
+        r"""Gets the total geographic extent of the collection."""
         # If the collection is empty
         if len(self) == 0:
             return None
@@ -348,6 +349,14 @@ class GeoCollection(GeoBase):
 
     @classmethod
     def open(cls, *filenames, **kwargs):
+        r"""Opens a collection from multiple file paths.
+
+        Args:
+            filenames (list): List of file paths.
+
+        Returns:
+            GeoCollection: The loaded collection.
+        """
         collection = []
         for filename in tqdm(filenames, desc="Opening", leave=True, position=0):
             if not Path(filename).is_file():
@@ -358,6 +367,15 @@ class GeoCollection(GeoBase):
 
     @classmethod
     def from_dir(cls, in_dir, pattern="*", **kwargs):
+        """Opens a collection from a directory.
+
+        Args:
+            in_dir (str): Path to the directory containing the data to be loaded.
+            pattern (str, optional): Regular expression used to filter data. Defaults to ``"*"``.
+    
+        Returns:
+            GeoCollection: The loaded collection.
+        """
         if not in_dir:
             return cls()
 
@@ -367,62 +385,62 @@ class GeoCollection(GeoBase):
         filenames = sorted(list(Path(in_dir).rglob(pattern=pattern)))
         return cls.open(*filenames, **kwargs)
 
-    def _check_value(self, value):
-        if not isinstance(value, self.__inner_class__):
-            raise ValueError(f"Invalid value '{type(value).__name__}' encountered for collection '{self.__class__.__name__}'.")
+    def _check_data(self, data):
+        if not isinstance(data, self.__inner_class__):
+            raise ValueError(f"Invalid data '{type(data).__name__}' encountered for collection '{self.__class__.__name__}'.")
 
-    def append(self, value):
-        """Add a new value to the collection.
+    def append(self, data):
+        r"""Adds a new data to the collection.
 
         Args:
-            value (Data): The data to add.
+            data (GeoData): The data to add.
         """
-        self._check_value(value)
-        self._items.append(value)
+        self._check_data(data)
+        self._items.append(data)
 
-    def insert(self, index, value):
-        """Insert a value at a specific index.
+    def insert(self, index, data):
+        r"""Inserts a data at a specific index.
 
         Args:
             index (int): index of the list.
-            value (Data): Data to insert.
+            data (GeoData): Data to insert.
         """
-        self._check_value(value)
-        self._items.insert(index, value)
+        self._check_data(data)
+        self._items.insert(index, data)
 
-    def extend(self, values):
-        """Add a list of data to the collection.
+    def extend(self, collection):
+        r"""Adds a list of data to the collection.
 
         Args:
-            values (list): List of data.
+            collection (list): List of data.
         """
-        for value in values:
-            self.append(value)
+        for data in collection:
+            self.append(data)
 
-    def count(self, value):
-        """Count the occurrence of a specific value in the collection.
+    def count(self, data):
+        r"""Counts the occurrence of a specific data in the collection.
 
         Args:
-            value (Data): The data to count.
+            data (GeoData): The data to count.
 
         Returns:
-            int: The occurrence of ``value``.
+            int: The occurrence of data.
         """
-        return self._items.count(value)
+        return self._items.count(data)
 
-    def index(self, value):
-        """Get the index of a value.
+    def index(self, data):
+        r"""Gets the index of a data.
 
         Args:
-            value (Data): The data to retrieve its index.
+            data (GeoData): The data to retrieve its index.
 
         Returns:
-            int: The index of ``value``.
+            int: The index of data.
         """
-        return self._items.index(value)
+        return self._items.index(data)
 
     def pop(self, index):
-        """Pop and remove a data by its index.
+        r"""Pops and remove a data by its index.
 
         Args:
             index (int): Index of the data to pop.
@@ -432,20 +450,20 @@ class GeoCollection(GeoBase):
         """
         return self._items.pop(index)
 
-    def remove(self, value):
-        """Remove a data by its value.
+    def remove(self, data):
+        r"""Removes a data from the collection.
 
         Args:
-            value (Data): The data to remove.
+            data (GeoData): The data to remove.
         """
-        self._items.remove(value)
+        self._items.remove(data)
 
     def clear(self):
-        """Empty the collection."""
+        r"""Clears the collection."""
         self._items.clear()
 
     def copy(self):
-        """Create a copy of the collection.
+        r"""Creates a copy of the collection.
 
         Returns:
             GeoCollection: A copy of the collection.
@@ -453,7 +471,7 @@ class GeoCollection(GeoBase):
         return self.__class__(self._items.copy())
 
     def to_crs(self, crs, **kwargs):
-        """Change the CRS of the collection's items.
+        r"""Projects all data from the collection to another coordinate reference system (CRS).
 
         Args:
             crs (CRS): Destination CRS.
@@ -474,7 +492,7 @@ class GeoCollection(GeoBase):
         return out_collection
 
     def crop(self, *args, **kwargs):
-        """Crop all values from a bounding box.
+        r"""Crops all data from the collection in a bounding box.
 
         Args:
             bbox (BoundingBox): The geographic extent used to crop all data.
@@ -493,14 +511,13 @@ class GeoCollection(GeoBase):
 
         return out_collection
 
-    def plot_bounds(self, ax=None, figsize=None, label=None, **kwargs):
-        """Plot the geographic extent of the collection.
+    def plot_bounds(self, ax=None, figsize=None, **kwargs):
+        r"""Plots the geographic extent of the collection using :mod:`matplotlib.pyplot`.
 
         Args:
             ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
-            label (str, optional): Legend for the collection. Defaults to ``None``.
-            kwargs (dict): Other arguments from `matplotlib`.
+            kwargs (dict): Remaining arguments from :func`matplotlib.pyplot.plot`.
 
         Returns:
             matplotlib.AxesSubplot: Axes of the figure.
@@ -508,29 +525,26 @@ class GeoCollection(GeoBase):
         if not ax or figsize:
             _, ax = plt.subplots(figsize=figsize)
 
-        for i, value in enumerate(self):
-            label_ = label or f"{value.__class__.__name__.lower()} {i}"
-            ax = value.plot_bounds(ax=ax, label=label_, **kwargs)
-            if label:
-                label = "_no_legend_"
+        for i, data in enumerate(self):
+            kwargs["label"] = f"{data.__class__.__name__.lower()} {i}"
+            ax = data.plot_bounds(ax=ax, **kwargs)
 
         ax.legend(loc=1, frameon=True)
         plt.title(f"Bounds of the {self.__class__.__name__}")
         return ax
 
-    def plot(self, ax=None, figsize=None, label=None, **kwargs):
-        """Plot the the data.
+    def plot(self, ax=None, figsize=None, **kwargs):
+        r"""Plots the collection using :mod:`matplotlib.pyplot`.
 
         Args:
             ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
-            label (str, optional): Legend for the collection. Defaults to ``None``.
-            kwargs (dict): Other arguments from `matplotlib`.
+            kwargs (dict): Remaining arguments from :func`matplotlib.pyplot.plot`.
 
         Returns:
             matplotlib.AxesSubplot: Axes of the figure.
         """
-        return self.plot_bounds(ax=ax, figsize=figsize, label=label, **kwargs)
+        return self.plot_bounds(ax=ax, figsize=figsize, **kwargs)
 
     def __getitem__(self, index):
         out_item = self._items[index]

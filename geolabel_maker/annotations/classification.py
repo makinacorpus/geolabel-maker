@@ -7,28 +7,51 @@
 # Copyright (c) 2021, Makina Corpus
 
 
+r"""
+Create your annotations for classification tasks. 
+There are two methods you can use:
+
+- :func:`~geolabel_maker.annotations.classification.Classification.build`: Use masks (i.e. labels) to generate annotations,
+- :func:`~geolabel_maker.annotations.classification.Classification.make`: Use categories to generate annotations.
+
+.. code-block:: python
+
+    from geolabel_maker.annotations import Classification
+    
+    # Generate annotations from mask images
+    classif = Classification.build(
+        dir_images = "data/mosaics/images/18",
+        dir_labels = "data/mosaics/labels/18",
+        colors = {"buildings": "#92a9a2", "vegetation": "green"}
+    )
+
+    # Generate annotations directly from categories
+    classif = Classification.make(
+        dir_images = "data/mosaics/images/18",
+        dir_categories = "data/categories"
+    )
+"""
+
+
 # Basic imports
 from tqdm import tqdm
 from pathlib import Path
-from copy import deepcopy
 import pandas as pd
-from PIL import Image, ImageDraw
+from PIL import Image
 import json
 import random
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
 # Geolabel Maker
-from .functional import has_color
 from .annotation import Annotation
 from geolabel_maker.rasters import Raster
-from geolabel_maker.vectors import Color
 from geolabel_maker.utils import retrieve_path
 from ._utils import get_paths, get_categories
 
 
 class Classification(Annotation):
-    r"""Defines an annotation for classification tasks.
+    r"""Defines annotations for classification tasks.
     For classification tasks, annotations tells if a category is visible in an image.
 
     * :attr:`info` (dict, optional): Description of the annotation (metadata).
@@ -106,9 +129,9 @@ class Classification(Annotation):
     @classmethod
     def build_annotations(cls, images=None, categories=None, labels=None,
                           dir_images=None, dir_labels=None, colors=None,
-                          pattern="*", **kwargs):
-        images_paths = get_paths(files=images, in_dir=dir_images, pattern=pattern)
-        labels_paths = get_paths(files=labels, in_dir=dir_labels, pattern=pattern)
+                          pattern_image="*", pattern_label="*", **kwargs):
+        images_paths = get_paths(files=images, in_dir=dir_images, pattern=pattern_image)
+        labels_paths = get_paths(files=labels, in_dir=dir_labels, pattern=pattern_label)
         categories = get_categories(categories=categories, colors=colors)
 
         classif_annotations = []
@@ -120,10 +143,12 @@ class Classification(Annotation):
                 "image_id": annotation_id
             }
             annotation.update({category.name: 0 for category in categories})
-            label_image = Image.open(label_path).convert("RGB")
+            label = Image.open(label_path).convert("RGB")
+            width, height = label.size
+            label_colors = label.getcolors(width * height)
             for category in categories:
                 visible = False
-                if has_color(label_image, category.color):
+                if tuple(category.color) in label_colors:
                     visible = True
                 annotation.update({
                     category.name: int(visible)
@@ -134,9 +159,9 @@ class Classification(Annotation):
     @classmethod
     def make_annotations(cls, images=None, categories=None, 
                          dir_images=None, dir_categories=None, 
-                         image_pattern=None, category_pattern=None, **kwargs):
-        images_paths = get_paths(files=images, in_dir=dir_images, pattern=image_pattern)
-        categories = get_categories(categories=categories, dir_categories=dir_categories, pattern=category_pattern)
+                         pattern_image=None, pattern_category=None, **kwargs):
+        images_paths = get_paths(files=images, in_dir=dir_images, pattern=pattern_image)
+        categories = get_categories(categories=categories, dir_categories=dir_categories, pattern=pattern_category)
         
         classif_annotations = []
         for annotation_id, image_path in enumerate(tqdm(images_paths, desc="Build Annotations", leave=True, position=0)):

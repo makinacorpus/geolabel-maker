@@ -8,8 +8,9 @@
 
 
 r"""
-Defines the `MapBox` API, used to retrieve tiles from their services 
-and convert slippy maps to georeferenced images.
+This module handles satellite image retrieval from the `MapBox <https://docs.mapbox.com/api/overview/>`__ API.
+Because MapBox only provides static image in ``PNG`` format, 
+the download process will automatically georeference it as a ``GeoTIFF`` raster.
 
 .. code-block:: python
 
@@ -26,9 +27,13 @@ and convert slippy maps to georeferenced images.
     # Download a georeferenced image from it's geographic coordinates
     api.download_image(lat=48.8520, lon=2.3483, zoom=17)
     
+    # Download slippy maps from a bounding box
+    bbox = (2.3483, 48.8520, 2.3693, 48.8638)
+    api.download(bbox, zoom=17, width=1024, height=1024, slippy_maps=True, out_format="png")
+    
     # Download multiple georeferenced images from a bounding box
     bbox = (2.3483, 48.8520, 2.3693, 48.8638)
-    api.download(bbox, zoom=17, width=1024, height=1024, slippy_maps=True)
+    api.download(bbox, zoom=17, width=1024, height=1024)
 """
 
 # Basic imports
@@ -46,8 +51,9 @@ from .utils import bbox2xyz, xyz2bounds, latlon2xyz
 
 class MapBoxAPI(Downloader):
     r"""
-    Connect to `MapBox` API.
-    This class is equivalent to ``mapbox.Static``, but provide more options for georefencing satellite images.
+    Defines the `MapBox <https://docs.mapbox.com/api/overview/>`__ API.
+    This class is equivalent to ``mapbox.Static`` class, 
+    but provides more options for georefencing satellite images.
     
     * :attr:`url` (str): URL used to retrieve static images.
     
@@ -80,7 +86,7 @@ class MapBoxAPI(Downloader):
         
             >>> api = MapBoxAPI(ACCESS_TOKEN)
             
-            If you previously downloaded a tile ``17/190/198.png`` you can georeference it with: 
+            If you previously downloaded a tile (e.g. ``17/190/198.png``) you can georeference it with: 
             
             >>> api.georeference(x=190, y=198, z=17, tile_file="17/190/198.png", out_file="tile.tif")
         """
@@ -215,7 +221,11 @@ class MapBoxAPI(Downloader):
         # Convert the bbox to xyz (slippy maps format)
         lon_min, lat_min, lon_max, lat_max = bbox
         x_min, y_min, x_max, y_max = bbox2xyz(lon_min, lat_min, lon_max, lat_max, zoom)
-        logger.info(f"Generate {(x_max - x_min + 1) * (y_max - y_min + 1):,} satellite images at zoom level {zoom}")
+        logger.debug(f"Retrieving products for the query: bbox={x_min, y_min, x_max, y_max}, zoom={zoom}, " \
+                     f"width={width}, height={height}, high_res={high_res}, slippy_maps={slippy_maps}, " \
+                     f"out_format={out_format}, out_dir={out_dir}, compress={compress}, photometric={photometric}, tiled={tiled}.")
+        num_images = (x_max - x_min + 1) * (y_max - y_min + 1)
+        logger.info(f"Downloading {num_images:,} satellite image{'s' if num_images > 1 else ''} from MapBox.")
 
         x_range = max(width // (256 * (1 + int(high_res))), 1)
         y_range = max(height // (256 * (1 + int(high_res))), 1)

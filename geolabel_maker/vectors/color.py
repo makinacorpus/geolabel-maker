@@ -14,19 +14,19 @@ This module handle color conversion and manipulation.
 
     from geolabel_maker.vectors import Color
     
-    # Create a RGB color
+    # 1. Create a RGB color
     color = Color(red=200, green=23, blue=156)
     
-    # Create a color from another format
+    # 2. Create a color from another format
     color = Color.get("green")
     color = Color.get((0, 255, 0))
     color = Color.get("#fcfcfc")
     # etc...
-    
-    # Convert a color to RGB
+
+    # 3. Convert a color to RGB
     rgb = color.to_rgb()
-    
-    # Convert a color to hex
+
+    # 4. Convert a color to hex
     hex = color.to_hex()
 """
 
@@ -75,7 +75,7 @@ class Color:
 
     @classmethod
     def get(cls, element):
-        """Create a color object from different input types. 
+        """Creates a color object from different input types. 
         The accepted formats are name, hexvalues, or RGBA.
         
         .. seealso::
@@ -123,7 +123,7 @@ class Color:
 
     @classmethod
     def random(cls):
-        """Generate a random color.
+        """Generates a random color.
         
         .. seealso::
             This method relies on ``random`` package. To control the generated colors,
@@ -138,18 +138,26 @@ class Color:
         return Color(red, green, blue)
 
     def to_rgb(self):
-        """Convert the color to a tuple of RGB values.
+        """Converts the color to a tuple of RGB values.
 
         Returns:
             tuple: The red, green and blue values.
+            
+        Examples:
+            >>> color = Color.get("green")
+            >>> rgb = color.to_rgb()
         """
         return (self.red, self.green, self.blue)
 
     def to_hex(self):
-        """Convert a color to a hex format.
+        """Converts a color to a hex format.
 
         Returns:
             str: The color in a hex representation.
+            
+        Examples:
+            >>> color = Color.get("green")
+            >>> hex = color.to_hex()
         """
         return f"#{self.red:02x}{self.green:02x}{self.blue:02x}"
 
