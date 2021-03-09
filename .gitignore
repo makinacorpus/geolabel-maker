@@ -137,26 +137,13 @@ frontend-flask/
 frontend/
 
 # Data
-data/
-reports/
-.*/
-*.pkl*
-*.csv
-tiles/
-images/
-labels/
-sentinel/
-mapbox/
-out/
-notebools/*json*
 notebooks/*test*
-mosaics/
-tiles/
-openstreetmap/
-notebooks/test/
+notebooks/*json
+notebooks/data/
+notebooks/mosaics/
+notebooks/tiles/
 *.vrt
 *annotations*.json
-config.json
 *secret*
 *credentials*
 
