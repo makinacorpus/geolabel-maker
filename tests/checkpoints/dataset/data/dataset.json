@@ -2,6 +2,7 @@
     "dir_images": "images",
     "dir_categories": "categories",
     "dir_labels": "labels",
+    "dir_mosaics": "mosaics",
     "images": [
         {
             "id": 0,
@@ -100,5 +101,5 @@
             "filename": "tile_768-5376-label.tif"
         }
     ],
-    "dir_mosaics": "mosaics"
+    "dir_tiles": "tiles"
 }
