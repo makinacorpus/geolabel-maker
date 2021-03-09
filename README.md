@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="" rel="noopener">
-  <img src="docs/images/geolabel_maker.gif" alt="Demo"></a>
+  <img src="docs/medias/geolabel_maker_banner.gif" alt="Demo"></a>
 </p>
 
 <div align="center">
@@ -59,16 +59,16 @@ pip install geolabel-maker
 
 ## Usage
 
-![data](docs/images/data.png)
+![data](docs/medias/data.png)
 
 Before to generate your dataset, you will need to provide geo-referenced satellite `images` (i.e. rasters) and `categories` (i.e. vectors). Geolabel Maker provides tools to download imagery from [Sentinel](https://www.sentinel-hub.com/) or [MapBox](https://www.mapbox.com/) and vectors from [Open Street Map](https://www.openstreetmap.org/).
 See this [example on how to download data](notebooks/Download%20data%20with%20Geolabel%20Maker.ipynb) for further details.
 
-![dataset](docs/images/dataset.png)
+![dataset](docs/medias/dataset.png)
 
 Once you have geo-referenced rasters and vectors, you are ready to build your own dataset. Geolabel Maker lets you generate labels in different dimensions and resolution. In addition, you can generate tiles in [Slippy Map format](https://wiki.openstreetmap.org/wiki/Slippy_Map) or divide bigger images into a mosaic. See this [example on how to generate a dataset](notebooks/Generate%20a%20dataset%20with%20Geolabel%20Maker.ipynb) for further details.
 
-![annotations](docs/images/annotations.png)
+![annotations](docs/medias/annotations.png)
 
 The final step is to generate you annotations file. This python package lets you create three kinds of annotations:
 

@@ -11,8 +11,9 @@ Annotations
    ~coco.COCO
    ~classification.Classification 
    ~object_detection.ObjectDetection 
+   ~functional.find_masks
    ~functional.find_polygons
-   ~functional.extract_categories
+   ~functional.find_categories
 
 
 Annotation

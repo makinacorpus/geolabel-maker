@@ -3,7 +3,7 @@ About
 =====
 
 
-.. image:: ../images/geolabel_maker.gif
+.. image:: ../medias/geolabel_maker.gif
 
 
 With ``geolabel-maker``\ , you will be able to combine satellite or aerial imagery with
@@ -19,8 +19,8 @@ It is designed to link up these 4 needed steps :
 
 
 
-.. image:: ../images/data.png
-   :target: ../images/data.png
+.. image:: ../medias/data.png
+   :target: ../medias/data.png
    :alt: data
 
 
@@ -29,8 +29,8 @@ and ``categories`` (i.e. vectors).
 See this `example on how to download data <../examples/data.html>`_ for further details.
 
 
-.. image:: ../images/dataset.png
-   :target: ../images/dataset.png
+.. image:: ../medias/dataset.png
+   :target: ../medias/dataset.png
    :alt: dataset
 
 
@@ -40,8 +40,8 @@ You will need to create tiles for the images and labels (i.e. rasterized vectors
 See this `example on how to generate a dataset <../examples/dataset.html>`_ for further details.
 
 
-.. image:: ../images/annotations.png
-   :target: ../images/annotations.png
+.. image:: ../medias/annotations.png
+   :target: ../medias/annotations.png
    :alt: annotations
 
 

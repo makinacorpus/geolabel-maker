@@ -68,7 +68,7 @@ class MapBoxAPI(Downloader):
 
     @staticmethod
     def georeference(x, y, z, tile_file, out_file):
-        r"""Georeference a slippy tile image.
+        r"""Georeferences a slippy tile image.
 
         Args:
             x (int): X coordinate of the slippy tile.
@@ -121,7 +121,7 @@ class MapBoxAPI(Downloader):
             return str(Path(tile_dir) / f"MAPBOX_{z}_{x}_{y}.{tile_format}")
 
     def download_tile(self, x, y, z, high_res=True, out_file="mapbox.png"):
-        r"""Download a tile in ``"png"`` format from `MapBox` API.
+        r"""Downloads a tile in ``"png"`` format from `MapBox` API.
 
         Args:
             x (int): X coordinate of the tile.
@@ -155,7 +155,7 @@ class MapBoxAPI(Downloader):
         return str(out_tile)
 
     def download_image(self, lat, lon, zoom, high_res=True, out_file="mapbox.tif"):
-        r"""Download a georeferenced satellite image from `MapBox` API.
+        r"""Downloads a georeferenced satellite image from `MapBox` API.
 
         Args:
             lat (float): Latitude of the image.
@@ -187,7 +187,7 @@ class MapBoxAPI(Downloader):
 
     def download(self, bbox, zoom, width=10_240, height=10_240, high_res=True, slippy_maps=False,
                  out_format="tif", out_dir="mapbox", compress="jpeg", photometric="ycbcr", tiled=True):
-        r"""Download georeferenced satellite images from `MapBox` API.
+        r"""Downloads georeferenced satellite images from `MapBox` API.
 
         Args:
             bbox (tuple): A bounding box in the format :math:`(lon_{min}, lat_{min}, lon_{max}, lat_{max})`.

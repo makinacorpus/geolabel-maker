@@ -20,7 +20,7 @@ Downloader
     :members:
 
 
-MapBx
+MapBox
 ======
 
 .. automodule:: geolabel_maker.downloads.mapbox

@@ -25,9 +25,9 @@ You will find all the documentation of *Geolabel Maker*, with examples.
    ~annotations.coco.COCO
    ~annotations.classification.Classification 
    ~annotations.object_detection.ObjectDetection 
-   ~annotations.functional.retrieve_masks
+   ~annotations.functional.find_masks
    ~annotations.functional.find_polygons
-   ~annotations.functional.extract_categories
+   ~annotations.functional.find_categories
    ~downloads.downloader.Downloader
    ~downloads.mapbox.MapBoxAPI
    ~downloads.sentinelhub.SentinelHubAPI
