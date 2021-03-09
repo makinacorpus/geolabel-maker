@@ -146,11 +146,14 @@ tiles/
 images/
 labels/
 sentinel/
+mapbox/
+out/
+notebools/*json*
+notebooks/*test*
 mosaics/
 tiles/
 openstreetmap/
 notebooks/test/
-notebooks/
 *.vrt
 *annotations*.json
 config.json
