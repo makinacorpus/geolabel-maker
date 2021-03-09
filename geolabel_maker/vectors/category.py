@@ -84,7 +84,7 @@ class CategoryBase(GeoBase):
         raise NotImplementedError
 
 
-class Category(GeoData):
+class Category(GeoData, CategoryBase):
     r"""
     A category is a set of vectors (or geometries) corresponding to different instances
     of the same geographic class (e.g. multiple buildings).
@@ -109,7 +109,7 @@ class Category(GeoData):
 
     def __init__(self, data, name, color=None, filename=None):
         _check_geopandas(data)
-        super().__init__(data, filename=filename)
+        GeoData.__init__(self, data, filename=filename)
         self.name = name
         self._color = Color.get(color) if color else Color.random()
 
@@ -410,9 +410,9 @@ class Category(GeoData):
         return f"data=GeoDataFrame({rows} rows, {cols} columns), name='{self.name}', color={tuple(self.color)}"
 
 
-class CategoryCollection(GeoCollection):
+class CategoryCollection(GeoCollection, CategoryBase):
     r"""
-    Defines a collection of category.
+    A category collection is an ordered set of categories.
     This class behaves similarly as a list, 
     excepts it is made only of :class:`~geolabel_maker.vectors.category.Category`.
 
@@ -432,7 +432,7 @@ class CategoryCollection(GeoCollection):
     __inner_class__ = Category
 
     def __init__(self, *categories):
-        super().__init__(*categories)
+        GeoCollection.__init__(self, *categories)
 
     @classmethod
     def open(cls, *filenames, **kwargs):

@@ -9,7 +9,8 @@
 
 """
 This module defines functions used to process couple (image, label).
-They are mainly used for `COCO` annotations, as it requires to extract masks and create segmentation maps.
+They are mainly used for :class:`~geolabel_maker.annotations.coco.COCO` annotations, 
+as it requires to extract masks and generates segmentation maps.
 
 .. code-block:: python
 
@@ -18,7 +19,7 @@ They are mainly used for `COCO` annotations, as it requires to extract masks and
     
     categories = [Category.open("buildings.json", color="white"), 
                   Category.open("vegetation.json", color="green")]
-    extracted_categories = extract_categories("data/tiles/labels/18/2937/29373.png", categories)
+    out_categories = find_categories("data/tiles/labels/18/2937/29373.png", categories)
 """
 
 
@@ -34,15 +35,22 @@ from geolabel_maker.vectors import Category, Color
 
 
 __all__ = [
+    "find_masks",
     "find_polygons",
-    "extract_categories"
+    "find_categories"
 ]
 
 
-def retrieve_masks(label_file, colors=None):
-    r"""Retrieves masks from a label image.
+def find_masks(label_file, colors=None):
+    r"""Finds masks (binary images) from a label image.
     A mask is a binary image indicating the presence of an object.
-    This method must be used once the tiles are generated (see :func:`~geolabel_maker.dataset.Dataset.generate_tiles` method).
+    
+    .. note::
+        This method is used once the tiles are generated.
+        
+    .. seealso::
+        See :func:`~geolabel_maker.dataset.Dataset.generate_mosaics` and
+        :func:`~geolabel_maker.dataset.Dataset.generate_tiles` methods for further details.
 
     Args:
         label_file (str): Path to the label image.
@@ -72,22 +80,22 @@ def retrieve_masks(label_file, colors=None):
 
     for color in colors:
         mask = cv2.inRange(label_array, np.array(color), np.array(color))
-        masks[tuple(color)] = mask
+        masks[tuple(color)] = mask  # TODO: Transform to binary image
     return masks
 
 
 def find_polygons(mask, preserve_topology=True, simplify_level=1.0):
-    """Finds polygons from a binary image.
+    """Finds polygons from a binary mask.
 
     .. seealso::
-        See :func:`~geolabel_maker.dataset.Dataset.retrieve_masks` function for further details.
+        See :func:`~geolabel_maker.dataset.Dataset.find_masks` function for further details.
 
     Args:
         mask (numpy.array): Black and white mask image of shape :math:`(X, Y, 3)`.
         preserve_topology (bool): If ``True``, preserve the topology of the polygon. Default to ``False``.
 
     Returns:
-        list: List of ``shapely.geometry.Polygon`` vectorized from the input raster ``mask_image``.
+        list: List of :class:`shapely.geometry.Polygon` vectorized from the input image ``mask``.
 
     Examples:
         Open a label generated with :func:`~geolabel_maker.dataset.Dataset.generate_mosaics` 
@@ -142,12 +150,12 @@ def find_polygons(mask, preserve_topology=True, simplify_level=1.0):
     return polygons
 
 
-def extract_categories(label_file, categories, **kwargs):
-    r"""Retrieve the polygons for all tile labels.
-    This method must be used once the tiles are generated (see :func:`~geolabel_maker.dataset.Dataset.generate_tiles` method).
-
+def find_categories(label_file, categories, **kwargs):
+    r"""Finds the categories and associated polygons in a label image.
+        
     .. seealso::
-        See func:`~geolabel_maker.annotations.functional.find_polygons` function for further details.
+        See :func:`~geolabel_maker.annotations.functional.find_masks` and
+        :func:`~geolabel_maker.annotations.functional.find_polygons` methods for further details.
 
     Args:
         label_file (str): Path to the label image.
@@ -164,7 +172,7 @@ def extract_categories(label_file, categories, **kwargs):
             (Category(data=GeoDataFrame(34 rows, 1 column), name='vegetation', color=(0, 150, 0), 
              Category(data=GeoDataFrame(234 rows, 1 column), name='buildings', color=(255, 255, 255)))
     """
-    masks = retrieve_masks(label_file, colors=list(categories.colors()))
+    masks = find_masks(label_file, colors=list(categories.colors()))
     categories_extracted = []
     for (color, mask), category in zip(masks.items(), categories):
         polygons = find_polygons(mask, **kwargs)

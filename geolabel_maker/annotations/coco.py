@@ -46,7 +46,7 @@ import matplotlib.patches as mpatches
 
 # Geolabel Maker
 from .annotation import Annotation
-from .functional import extract_categories
+from .functional import find_categories
 from geolabel_maker.vectors import Color
 from geolabel_maker.rasters import Raster
 from geolabel_maker.utils import retrieve_path
@@ -112,7 +112,7 @@ class COCO(Annotation):
         annotation_id = 0
         couple_labels = list(zip(images_paths, labels_paths))
         for image_id, (image_path, label_path) in enumerate(tqdm(couple_labels, desc="Build Annotations", leave=True, position=0)):
-            categories_extracted = extract_categories(label_path, categories, **kwargs)
+            categories_extracted = find_categories(label_path, categories, **kwargs)
             for category_id, category in enumerate(categories_extracted):
                 for _, row in category.data.iterrows():
                     polygon = row.geometry

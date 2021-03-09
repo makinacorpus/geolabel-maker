@@ -47,8 +47,9 @@ __all__ = [
 
 class Color:
     r"""
-    Defines colors in the format :math:`(R, G, B)`. The values must be in the range :math:`[0, 255]`.
-    This class is mainly used to store and process colors from other formats (e.g. string, name etc).
+    A color is a radiometry in RGB format :math:`(R, G, B)`. 
+    The red, green, blue values must be in the range :math:`[0, 255]`.
+    This class is mainly used to store and process colors from other formats (e.g. strings, hex codes, alphas etc).
 
     * :attr:`red` (int): Value for the :math:`R` channel.
 

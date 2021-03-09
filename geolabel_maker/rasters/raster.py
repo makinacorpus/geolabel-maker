@@ -139,8 +139,8 @@ class RasterBase(GeoBase):
 
 class Raster(GeoData, RasterBase):
     r"""
-    Defines a georeferenced image. This class encapsulates :mod:`rasterio` dataset,
-    and defines custom auto-download and processing methods, to work with :mod:`geolabel_maker`.
+    A raster is a georeferenced image. This class encapsulates :mod:`rasterio.DatasetReader` object,
+    and defines custom processing methods to work with a :class:`~geolabel_maker.Dataset`.
 
     * :attr:`data` (rasterio.io.DatasetReader): The raster data corresponding to a georeferenced image.
 
@@ -744,7 +744,7 @@ class Raster(GeoData, RasterBase):
 
 class RasterCollection(GeoCollection, RasterBase):
     r"""
-    Defines a collection of raster.
+    A raster collection is an ordered set of rasters.
     This class behaves similarly as a list, excepts it is made only of :class:`~geolabel_maker.rasters.raster.Raster`.
 
     * :attr:`crs` (CRS): Coordinate reference system.

@@ -1,0 +1,39 @@
+{
+    "dir_images": "checkpoints\\dataset\\data\\images",
+    "dir_categories": "checkpoints\\dataset\\data\\categories",
+    "dir_labels": "checkpoints\\dataset\\data\\labels",
+    "images": [
+        {
+            "id": 0,
+            "filename": "None"
+        }
+    ],
+    "categories": [
+        {
+            "id": 0,
+            "name": "buildings",
+            "color": [
+                69,
+                243,
+                145
+            ],
+            "filename": "None"
+        },
+        {
+            "id": 1,
+            "name": "vegetation",
+            "color": [
+                55,
+                177,
+                5
+            ],
+            "filename": "None"
+        }
+    ],
+    "labels": [
+        {
+            "id": 0,
+            "filename": "None"
+        }
+    ]
+}

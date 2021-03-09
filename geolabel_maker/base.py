@@ -288,6 +288,7 @@ class GeoData(GeoBase):
 class GeoCollection(GeoBase):
     r"""
     Abstract architecture used to wrap a collection of data.
+    A geo collection is an ordered set of data.
 
     * :attr:`crs` (CRS): CRS projection of all elements. If the elements are in different CRS, it will show a warning.
 
