@@ -233,10 +233,9 @@ class Raster(GeoData, RasterBase):
             "width": array.shape[-1],
             "dtype": str(array.dtype)
         })
-        memfile = MemoryFile()
-
-        out_data = memfile.open(**out_profile)
-        out_data.write(array)
+        with MemoryFile() as memfile:
+            out_data = memfile.open(**out_profile)
+            out_data.write(array)
 
         return Raster(out_data)
 
@@ -602,28 +601,29 @@ class Raster(GeoData, RasterBase):
         masks = []
         out_transform = None
         bbox = self.bounds
-        for category in categories:
-            # Match the category to the raster extends
-            if category.crs != self.crs:
-                category = category.to_crs(self.crs)
-                error_msg = f"The provided category '{category.name}' has a different CRS than the raster. " \
-                            f"Please project all your elements in the same CRS for better performance."
-                warnings.warn(error_msg, RuntimeWarning)
-                logger.warning(error_msg)
+        with self.rasterio() as raster_data:
+            for category in categories:
+                # Match the category to the raster extends
+                if category.crs != self.crs:
+                    category = category.to_crs(self.crs)
+                    error_msg = f"The provided category '{category.name}' has a different CRS than the raster. " \
+                                f"Please project all your elements in the same CRS for better performance."
+                    warnings.warn(error_msg, RuntimeWarning)
+                    logger.warning(error_msg)
 
-            category_cropped = category.crop(bbox)
-            # If the category contains vectors in the cropped area
-            if not category_cropped.data.empty:
-                # Create a raster from the geometries
-                mask, out_transform = rasterio.mask.mask(
-                    self.rasterio(),
-                    list(category_cropped.data.geometry),
-                    crop=False
-                )
-                # Convert from (C, H, W) to (H, W, C)
-                mask = mask.transpose(1, 2, 0)
-                mask = color_mask(mask, category.color)
-                masks.append(mask)
+                category_cropped = category.crop(bbox)
+                # If the category contains vectors in the cropped area
+                if not category_cropped.data.empty:
+                    # Create a raster from the geometries
+                    mask, out_transform = rasterio.mask.mask(
+                        raster_data,
+                        list(category_cropped.data.geometry),
+                        crop=False
+                    )
+                    # Convert from (C, H, W) to (H, W, C)
+                    mask = mask.transpose(1, 2, 0)
+                    mask = color_mask(mask, category.color)
+                    masks.append(mask)
 
         # Merge masks into one image
         out_mask = merge_masks(masks)

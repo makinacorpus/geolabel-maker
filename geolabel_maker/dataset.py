@@ -36,6 +36,7 @@ import json
 import numpy as np
 from pathlib import Path
 from tqdm import tqdm
+import rasterio.mask
 from shapely.geometry import box
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -43,6 +44,7 @@ import matplotlib.patches as mpatches
 # Geolabel Maker
 from geolabel_maker.base import BoundingBox, CRS, GeoBase
 from geolabel_maker.rasters import Raster, RasterCollection
+from geolabel_maker.rasters.utils import color_mask, merge_masks
 from geolabel_maker.vectors import Category, CategoryCollection
 from geolabel_maker.downloads import SentinelHubAPI, MapBoxAPI, OverpassAPI
 from geolabel_maker.utils import retrieve_path, relative_path
@@ -420,7 +422,6 @@ class Dataset(GeoBase):
 
         assert bbox, "Could not download data if no bounding box is provided"
         if sentinelhub:
-            logger.info(f"Downloading images from Sentinel...")
             username, password = sentinelhub.pop("username", None), sentinelhub.pop("password", None)
             assert username, "Could not download sentinel data if 'username' is not provided."
             assert password, "Could not download sentinel data if 'password' is not provided."
@@ -428,14 +429,12 @@ class Dataset(GeoBase):
             api.download(bbox, out_dir=dir_images, **sentinelhub)
 
         if mapbox:
-            logger.info(f"Downloading images from MapBox...")
             access_token = mapbox.pop("access_token", None)
             assert access_token, "Could not download mapbox data if 'access_token' is not provided."
             api = MapBoxAPI(access_token)
             api.download(bbox, out_dir=dir_images, **mapbox)
 
         if overpass:
-            logger.info(f"Downloading categories from Open Street Map...")
             geometries = overpass.pop("geometries", None)
             assert geometries, "Could not download overpass data if 'geometries' is not provided."
             api = OverpassAPI()
@@ -729,13 +728,13 @@ class Dataset(GeoBase):
         # Make virtual images
         if make_images:
             out_file = Path(self.root) / "images.vrt"
-            logger.info(f"Generating Images VRT at '{out_file}'...")
+            logger.info(f"Generating Images VRT at '{out_file}'.")
             images_vrt = self.images.generate_vrt(str(out_file), **kwargs)
 
         # Make virtual labels
         if make_labels:
             out_file = Path(self.root) / "labels.vrt"
-            logger.info(f"Generating Labels VRT at '{out_file}'...")
+            logger.info(f"Generating Labels VRT at '{out_file}'.")
             labels_vrt = self.labels.generate_vrt(str(out_file), **kwargs)
 
         # Return the path to the created files
@@ -792,13 +791,13 @@ class Dataset(GeoBase):
         # Generate mosaics from the images
         if make_images:
             out_dir = Path(dir_mosaics) / "images" / zoom_name
-            logger.info(f"Generating Images Mosaics at '{out_dir}'...")
+            logger.info(f"Generating Images Mosaics at '{out_dir}'.")
             self.images.generate_mosaics(out_dir=out_dir, zoom=zoom, **kwargs)
 
         # Generate mosaics from the labels
         if make_labels:
             out_dir = Path(dir_mosaics) / "labels" / zoom_name
-            logger.info(f"Generating Labels Mosaics at '{out_dir}'...")
+            logger.info(f"Generating Labels Mosaics at '{out_dir}'.")
             kwargs.pop("resampling", None)
             self.labels.generate_mosaics(out_dir=out_dir, zoom=zoom, resampling="nearest", **kwargs)
 
@@ -844,13 +843,13 @@ class Dataset(GeoBase):
         # Generate tiles from the images
         if make_images:
             out_dir = Path(dir_tiles) / "images"
-            logger.info(f"Generating Images Tiles at '{out_dir}'...")
+            logger.info(f"Generating Images Tiles at '{out_dir}'.")
             self.images.generate_tiles(out_dir, **kwargs)
 
         # Generate tiles from the labels
         if make_labels:
             out_dir = Path(dir_tiles) / "labels"
-            logger.info(f"Generating Labels Tiles at '{out_dir}'...")
+            logger.info(f"Generating Labels Tiles at '{out_dir}'.")
             self.labels.generate_tiles(out_dir, **kwargs)
 
         self.dir_tiles = dir_tiles

@@ -22,7 +22,7 @@ import sys
 
 # GLobal variables
 FILE_FORMATTER = logging.Formatter("%(asctime)s :: %(name)s :: [%(levelname)-7s] :: %(filename)s:%(lineno)s :: %(funcName)s() :: %(message)s")
-STREAM_FORMATTER = logging.Formatter("[%(levelname)-7s] %(message)s")
+STREAM_FORMATTER = logging.Formatter("%(levelname)s: %(message)s")
 
 
 def get_logger(name, logfile=None, level=10, stream_level=20, file_level=0):

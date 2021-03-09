@@ -17,11 +17,10 @@ from .dataset import Dataset
 
 
 # Global variables
-HERE = os.path.abspath(os.path.dirname(__file__))
 Image.MAX_IMAGE_PIXELS = 156_250_000
 
 
-__version__ = open(os.path.join(HERE, "VERSION.md")).read().strip()
+__version__ = "0.0.2"
 __all__ = (
     "__version__",
     "Dataset"

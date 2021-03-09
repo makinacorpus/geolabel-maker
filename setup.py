@@ -1,11 +1,20 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+# Encoding: UTF-8
+# File: setup.py
+# Creation: Monday December 28th 2020
+# Supervisor: Daphné Lercier (dlercier)
+# Author: Arthur Dujardin (arthurdjn)
+# ------
+# Copyright (c) 2021, Makina Corpus
 
-import os
+
+# Basic imports
+from pathlib import Path
 from setuptools import setup, find_packages
 
 
-HERE = os.path.abspath(os.path.dirname(__file__))
+# Global variables
+from geolabel_maker import __version__
+ROOT = Path(__file__).parent.resolve()
 
 
 setup(
@@ -18,7 +27,7 @@ setup(
         "annotations",
         "ground truth"
     ],
-    version=open(os.path.join(HERE, "geolabel_maker", "VERSION.md")).read().strip(),
+    version=__version__,
     packages=find_packages(),
     author="Arthur Dujardin, Lucie Camanez, Daphne Lercier",
     author_email="contact@makina-corpus.com",
