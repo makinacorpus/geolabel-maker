@@ -526,7 +526,7 @@ class GeoCollection(GeoBase):
             _, ax = plt.subplots(figsize=figsize)
 
         for i, data in enumerate(self):
-            kwargs["label"] = f"{data.__class__.__name__.lower()} {i}"
+            kwargs["label"] = Path(data.filename).stem if data.filename else f"{data.__class__.__name__.lower()} {i}"
             ax = data.plot_bounds(ax=ax, **kwargs)
 
         ax.legend(loc=1, frameon=True)

@@ -10,6 +10,8 @@
 # Basic imports
 import begin
 from pathlib import Path
+import sys
+sys.path.append("../")
 
 # Geolabel Maker
 from geolabel_maker.annotations import *

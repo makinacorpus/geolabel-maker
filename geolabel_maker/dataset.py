@@ -364,7 +364,7 @@ class Dataset(GeoBase):
         Examples:
             If you provided credentials in ``config.json`` as:
             
-            .. code-block::json
+            .. code-block:: json 
 
                 {
                     "dir_images": "images",
@@ -457,7 +457,7 @@ class Dataset(GeoBase):
             root (str, optional): Root path from where the files are relative to. 
                 If ``None``, the root will be the current directory ``"."``. Defaults to ``None``.
             list_only (bool, optional): If ``True``, will adds only ``images``, ``categories`` and ``labels`` as list,
-                i.e. the directories information ``dir_images``etc. are skipped.
+                i.e. the directories information ``dir_images`` etc. are skipped.
                 Then, the files are referenced from ``root``. Defaults to ``False``. 
 
         Returns:
@@ -702,9 +702,9 @@ class Dataset(GeoBase):
             Generate the labels with :func:`~geolabel_maker.Dataset.generate_labels` method.
 
         Args:
-            make_images (bool, optional): If ``True``, generate a virtual image for georeferenced aerial images. 
+            make_images (bool, optional): If ``True``, generates a virtual image for georeferenced aerial images. 
                 Defaults to ``True``.
-            make_labels (bool, optional): If ``True``, generate virtual image for georeferenced label images.  
+            make_labels (bool, optional): If ``True``, generates virtual image for georeferenced label images.  
                 Defaults to ``True``.
 
         Returns:
@@ -760,9 +760,9 @@ class Dataset(GeoBase):
             Generate the labels with :func:`~geolabel_maker.Dataset.generate_labels` method.
 
         Args:
-            make_images (bool, optional): If ``True``, generate a mosaic for georeferenced images. 
+            make_images (bool, optional): If ``True``, generates a mosaic for georeferenced images. 
                 Defaults to ``True``.
-            make_labels (bool, optional): If ``True``, generate a mosaic for georeferenced label images.  
+            make_labels (bool, optional): If ``True``, generates a mosaic for georeferenced label images.  
                 Defaults to ``True``.
             out_dir (str, optional): Output directory where the mosaics will be saved. 
                 If ``None``, the tiles will be saved in the directory ``mosaics`` under the root dataset.
@@ -817,9 +817,9 @@ class Dataset(GeoBase):
             Generate the labels with ``geolabel_maker.Dataset.generate_labels`` method.
 
         Args:
-            make_images (bool, optional): If ``True``, generate tiles for georeferenced images. 
+            make_images (bool, optional): If ``True``, generates tiles for georeferenced images. 
                 Defaults to ``True``.
-            make_labels (bool, optional): If ``True``, generate tiles for georeferenced label images.  
+            make_labels (bool, optional): If ``True``, generates tiles for georeferenced label images.  
                 Defaults to ``True``.
             out_dir (str, optional): Output directory where the tiles will be saved. 
                 If ``None``, the tiles will be saved in the directory ``tiles`` under the root dataset.
@@ -857,14 +857,12 @@ class Dataset(GeoBase):
         self.save()
         return self.dir_tiles
 
-    def plot_bounds(self, ax=None, figsize=None, image_color=None, category_color=None):
+    def plot_bounds(self, ax=None, figsize=None):
         r"""Plots the geographic extent of the images and categories using :mod:`matplotlib.pyplot`.
 
         Args:
             ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
-            image_color (str, optional): Color used to show images. Defaults to ``None``.
-            category_color (str, optional): Name of the color used to show categories. Defaults to ``None``.
             kwargs (dict): Other arguments from `matplotlib`.
 
         Returns:
@@ -873,10 +871,8 @@ class Dataset(GeoBase):
         if not ax or figsize:
             _, ax = plt.subplots(figsize=figsize)
 
-        image_color = image_color or "red"
-        category_color = category_color or "skyblue"
-        ax = self.categories.plot_bounds(ax=ax, color=category_color, label="categories")
-        ax = self.images.plot_bounds(ax=ax, color=image_color, label="images")
+        ax = self.categories.plot_bounds(ax=ax)
+        ax = self.images.plot_bounds(ax=ax)
 
         # Plot the dataset bounding box
         bounds = self.bounds
@@ -911,7 +907,7 @@ class Dataset(GeoBase):
         for category in self.categories:
             category_handles.append(mpatches.Patch(facecolor=category.color.to_hex(), label=category.name))
         for i, image in enumerate(self.images):
-            label = Path(image.filename).name if image.filename else f"image {i}"
+            label = Path(image.filename).stem if image.filename else f"image {i}"
             image_handles.append(mpatches.Patch(facecolor="none", label=label))
         handles = category_handles + image_handles
         ax.legend(loc=1, handles=handles, frameon=True)

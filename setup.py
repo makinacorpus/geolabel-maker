@@ -13,13 +13,14 @@ setup(
     keywords=[
         "geospatial artificial intelligence",
         "deep learning",
-        "convolutional neural networks",
-        "image",
+        "satellite images",
+        "vector geometries",
+        "annotations",
         "ground truth"
     ],
     version=open(os.path.join(HERE, "geolabel_maker", "VERSION.md")).read().strip(),
     packages=find_packages(),
-    author="Makina Corpus",
+    author="Arthur Dujardin, Lucie Camanez, Daphne Lercier",
     author_email="contact@makina-corpus.com",
     maintainer="Makina Corpus",
     description="Data preparation for geospatial artificial intelligence",

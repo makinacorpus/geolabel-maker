@@ -413,7 +413,7 @@ class Category(GeoData):
 class CategoryCollection(GeoCollection):
     r"""
     Defines a collection of category.
-    This class behaves similarly as a :class:`list`, 
+    This class behaves similarly as a list, 
     excepts it is made only of :class:`~geolabel_maker.vectors.category.Category`.
 
     .. note::

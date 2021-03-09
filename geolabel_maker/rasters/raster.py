@@ -745,7 +745,7 @@ class Raster(GeoData, RasterBase):
 class RasterCollection(GeoCollection, RasterBase):
     r"""
     Defines a collection of raster.
-    This class behaves similarly as a :class:`list`, excepts it is made only of :class:`~geolabel_maker.rasters.raster.Raster`.
+    This class behaves similarly as a list, excepts it is made only of :class:`~geolabel_maker.rasters.raster.Raster`.
 
     * :attr:`crs` (CRS): Coordinate reference system.
     
@@ -895,7 +895,7 @@ class RasterCollection(GeoCollection, RasterBase):
         Args:
             factor (float): Rescale factor.
             resampling (str, optional): Resempling method.  
-                Options available are from ``rasterio.enums.Resampling``. Defaults to ``"bilinear"``.
+                Options available are from :class:`rasterio.enums.Resampling`. Defaults to ``"bilinear"``.
             overwrite (bool, optional): If ``True``, overwrites the initial rasters saved on disk with the outputs. 
                 If ``False``, the output data will not be written on disk. Defaults to ``False``.                  
 
