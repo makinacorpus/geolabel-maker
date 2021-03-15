@@ -604,10 +604,9 @@ Or set `DISABLE_SPEEDUPS = True` in the `geolabel_maker/__init__.py` file.
 
 - [Daphné Lercier (@dlercier)](https://github.com/dlercier): supervised the project
 
-- [Arthur Dujardin (@arthurdjn)](https://github.com/arthurdjn): fixed issues, optimized, and pushed the project further
-
 - [Lucie Camanez (@truecatus)](https://github.com/truecactus): started the project
 
+- [Arthur Dujardin (@arthurdjn)](https://github.com/arthurdjn): optimized and pushed the project further
 
 ## Acknowledgements
 
