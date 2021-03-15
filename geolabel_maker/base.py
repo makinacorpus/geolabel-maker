@@ -16,7 +16,6 @@ This module defines abstract skeleton for geometries, rasters and datasets.
 # Basic imports
 from tqdm import tqdm
 from abc import ABC, abstractmethod
-import warnings
 from pathlib import Path
 import numpy as np
 from shapely.geometry import box
@@ -326,7 +325,6 @@ class GeoCollection(GeoBase):
             elif value.crs and crs and CRS(value.crs) != crs:
                 error_msg = f"The CRS values of the {self.__class__.__name__} are different: " \
                             f"got EPSG:{CRS(value.crs).to_epsg()} != EPSG:{crs.to_epsg()}."
-                warnings.warn(error_msg, RuntimeWarning)
                 logger.warning(error_msg)
                 return crs
         return crs
@@ -359,7 +357,7 @@ class GeoCollection(GeoBase):
             GeoCollection: The loaded collection.
         """
         collection = []
-        for filename in tqdm(filenames, desc="Opening", leave=True, position=0):
+        for filename in tqdm(filenames, desc="Loading", leave=True, position=0):
             if not Path(filename).is_file():
                 raise ValueError(f"{filename} is not a a file.")
 
@@ -554,8 +552,9 @@ class GeoCollection(GeoBase):
             return self.__class__(out_item)
         return out_item
 
-    def __setitem__(self, index, value):
-        self.insert(index, value)
+    def __setitem__(self, index, data):
+        self._check_data(data)
+        self._items[index] = data
 
     def __iter__(self):
         yield from self._items

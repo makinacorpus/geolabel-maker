@@ -13,8 +13,7 @@ from setuptools import setup, find_packages
 
 
 # Global variables
-from geolabel_maker import __version__
-ROOT = Path(__file__).parent.resolve()
+from geolabel_maker.version import __version__
 
 
 setup(
@@ -48,23 +47,24 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "geolabel_maker = geolabel_maker.geolabels:main.start",
+            "geolabel_maker = geolabel_maker.main:main",
         ]
     },
     python_requires=">=3.6",
     install_requires=[
         "gdal2tiles",
         "geopandas",
+        "matplotlib",
         "numpy",
         "pandas",
-        "scikit-image",
         "sentinelsat",
         "osmtogeojson",
         "opencv-python",
         "pillow",
+        "pyproj",
         "rasterio",
         "requests", 
         "shapely",
-        "pyproj"
+        "tqdm",
     ],
 )

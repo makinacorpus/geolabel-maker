@@ -137,6 +137,7 @@ frontend-flask/
 frontend/
 
 # Data
+.*/
 notebooks/*test*
 notebooks/*json
 notebooks/data/

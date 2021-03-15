@@ -8,7 +8,6 @@
 
 
 # Basic imports
-from PIL import Image, ImageChops
 import numpy as np
 
 
@@ -37,9 +36,6 @@ def color_mask(mask, color):
     return color_img
 
 
-#! Update this function as currently ImageChop.add only add color together and do not overwrite them 
-#! i.e. blue + yellow = green instead of blue + yellow = yellow (overwrite with top color)
-#! This result in the creation of new colors if categories are overlaping
 def merge_masks(masks):
     """Merges multiple colored masks (images with black background and a colored mask) together.
 
@@ -50,9 +46,17 @@ def merge_masks(masks):
     Returns:
         numpy.array: The merged masks, with the same shape as the input ones.
     """
-    out_image = Image.fromarray(masks[0].astype("uint8"))
-    if len(masks) > 1:
-        for mask in masks[1:]:
-            mask_image = Image.fromarray(mask.astype("uint8"))
-            out_image = ImageChops.add(out_image, mask_image)
-    return np.array(out_image)
+    # Special cases
+    if len(masks) == 0:
+        return None
+    elif len(masks) == 1:
+        return masks[0]
+    # Merge multiple masks
+    merged_mask = masks[0]
+    for mask in masks[1:]:
+        mask_indices = np.any((mask != [0, 0, 0]), axis=-1)
+        mask_values = mask[mask_indices]
+        if mask_values.size > 0:
+            color = mask_values[0]
+            merged_mask[mask_indices] = mask_values
+    return merged_mask.astype("uint8")

@@ -11,17 +11,17 @@ r"""
 This module defines the architecture of an annotations constructor.
 In *Geolabel Maker*, you can create your annotations file with different constructors such as:
 
-- ``COCO``: for instance segmentation,
-- ``ObjectDetection``: for object detections,
-- ``Classification``: for image classification.
+- :class:`~geolabel_maker.annotations.object_detection.ObjectDetection`: for object detections,
+- :class:`~geolabel_maker.annotations.classification.Classification`: for image classification.
+- :class:`~geolabel_maker.annotations.segmentation.Segmentation`: for instance segmentation,
 
 These constructors can then be used to save your annotations to a file. 
-The supported formats are ``JSON``, ``TXT`` or ``CSV``, depending on the constructors used.
+The supported formats are JSON, TXT or CSV, depending on the constructors used.
 
 Also, two methods can be used to generate annotations:
 
-- ``make``: requires only categories and images,
-- ``build``: fast but requires masks (a.k.a labels).
+- :class:`~geolabel_maker.annotations.annotation.Annotation.make`: requires only categories and images,
+- :class:`~geolabel_maker.annotations.annotation.Annotation.build`: fast but requires masks (a.k.a labels).
 """
 
 
@@ -224,7 +224,7 @@ class Annotation(ABC):
             pattern (str, optional): Pattern used to retrieve images and masks. Defaults to ``"*"``.
 
         Returns:
-            Annotation: The created annotation.
+            Annotation: The created annotations.
         """
         images_paths = get_paths(files=images, in_dir=dir_images, pattern=pattern_image)
         labels_paths = get_paths(files=labels, in_dir=dir_labels, pattern=pattern_label)
@@ -323,6 +323,10 @@ class Annotation(ABC):
         Colors and masks are therefore not required. 
         Therefore, this process is slower than ``build`` one.
 
+        .. warning::
+            The images must be georeferenced, 
+            preferably in the same coordinate reference system than the categories.
+
         .. seealso::
             For a faster but less precise implementation,
             use ``build`` method.
@@ -336,7 +340,7 @@ class Annotation(ABC):
             pattern_category (str, optional): Pattern used to retrieve categories. Defaults to ``"*"``.
 
         Returns:
-            Annotation: The created annotation.
+            Annotation: The created annotations.
         """
         images_paths = get_paths(files=images, in_dir=dir_images, pattern=pattern_image)
         categories = get_categories(categories=categories, dir_categories=dir_categories, pattern=pattern_category)

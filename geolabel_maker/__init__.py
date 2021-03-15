@@ -9,19 +9,7 @@
 
 # Basic imports
 from shapely import speedups
-import os
-from PIL import Image
 
 # Geolabel Maker
 from .dataset import Dataset
-
-
-# Global variables
-Image.MAX_IMAGE_PIXELS = 156_250_000
-
-
-__version__ = "0.0.2"
-__all__ = (
-    "__version__",
-    "Dataset"
-)
+from .version import __version__

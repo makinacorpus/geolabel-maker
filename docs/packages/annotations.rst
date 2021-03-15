@@ -8,7 +8,7 @@ Annotations
    :nosignatures:
 
    ~annotation.Annotation
-   ~coco.COCO
+   ~segmentation.Segmentation
    ~classification.Classification 
    ~object_detection.ObjectDetection 
    ~functional.find_masks
@@ -23,13 +23,6 @@ Annotation
     :members:
     :inherited-members:
 
-
-COCO
-====
-
-.. automodule:: geolabel_maker.annotations.coco
-    :members:
-    :inherited-members:
 
 Classification
 ==============
@@ -47,8 +40,9 @@ Object Detection
     :inherited-members:
 
 
-functional
-==========
+Segmentation
+============
 
-.. automodule:: geolabel_maker.annotations.functional
+.. automodule:: geolabel_maker.annotations.segmentation
     :members:
+    :inherited-members:

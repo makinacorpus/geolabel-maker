@@ -309,9 +309,9 @@ class Raster(GeoData, RasterBase):
         r"""Overwrites the current raster with the a new one. 
 
         .. note::
-            This operation will not modify the values in place,
-            but will overwrite the raster saved on the disk.
-
+            This operation will modify the values in place,
+            and overwrite the category saved on the disk.
+    
         Args:
             raster (Raster): Raster to save.
             profile (dict): Profile parameters from `rasterio profiles <https://rasterio.readthedocs.io/en/latest/topics/profiles.html>`__.
@@ -324,11 +324,12 @@ class Raster(GeoData, RasterBase):
             Raster: The saved raster.
         """
         if self.filename is None or isinstance(self.data, rasterio.io.DatasetWriter):
-            raise RuntimeError(f"Could not overwrite a raster that does not have a filename or "
-                               "was generated from a DatasetWriter.")
-
-        raster.save(self.filename, **profile)
-        return Raster.open(self.filename)
+            logger.warning(f"Could not overwrite a raster loaded in memory. You should save it first.")
+        else:
+            raster.save(self.filename, **profile)
+            raster = Raster.open(self.filename)
+            self.data = raster.data
+        return raster
 
     def to_crs(self, crs, overwrite=False):
         r"""Projects the raster from its initial coordinate reference system (CRS) to another one.
@@ -608,7 +609,6 @@ class Raster(GeoData, RasterBase):
                     category = category.to_crs(self.crs)
                     error_msg = f"The provided category '{category.name}' has a different CRS than the raster. " \
                                 f"Please project all your elements in the same CRS for better performance."
-                    warnings.warn(error_msg, RuntimeWarning)
                     logger.warning(error_msg)
 
                 category_cropped = category.crop(bbox)
@@ -920,7 +920,7 @@ class RasterCollection(GeoCollection, RasterBase):
             try:
                 out_rasters.append(raster.rescale(*args, **kwargs))
             except Exception as error:
-                logger.error(f"Could not rescale raster '{raster.filename}': {error}")
+                logger.error(f"Could not rescale raster '{raster.data.name}': {error}")
         return out_rasters
 
     def zoom(self, *args, **kwargs):
@@ -961,7 +961,7 @@ class RasterCollection(GeoCollection, RasterBase):
             try:
                 out_rasters.append(raster.zoom(*args, **kwargs))
             except Exception as error:
-                logger.error(f"Could not zoom raster '{raster.filename}': {error}")
+                logger.error(f"Could not zoom raster '{raster.data.name}': {error}")
         return out_rasters
 
     def mask(self, *args, **kwargs):
@@ -990,7 +990,7 @@ class RasterCollection(GeoCollection, RasterBase):
             try:
                 out_rasters.append(raster.mask(*args, **kwargs))
             except Exception as error:
-                logger.error(f"Could not mask raster '{raster.filename}': {error}")
+                logger.error(f"Could not mask raster '{raster.data.name}': {error}")
         return out_rasters
 
     #! It is not possible to create VRT from in memory rasters.
@@ -1053,7 +1053,10 @@ class RasterCollection(GeoCollection, RasterBase):
         """
         out_dir = None
         for raster in tqdm(self._items, desc="Generating Mosaics", leave=True, position=0):
-            out_dir = raster.generate_mosaics(**kwargs)
+            try:
+                out_dir = raster.generate_mosaics(**kwargs)
+            except Exception as error:
+                logger.warning(f"Could not generate mosaics for raster '{raster.data.name}': {error}")
         return str(out_dir)
 
     def generate_tiles(self, out_dir="tiles", **kwargs):

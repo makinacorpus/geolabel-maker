@@ -25,7 +25,7 @@ FILE_FORMATTER = logging.Formatter("%(asctime)s :: %(name)s :: [%(levelname)-7s]
 STREAM_FORMATTER = logging.Formatter("%(levelname)s: %(message)s")
 
 
-def get_logger(name, logfile=None, level=10, stream_level=20, file_level=0):
+def get_logger(name, logfile=None, level=20, stream_level=20, file_level=0):
     # Create the logger
     logger = logging.getLogger(name)
     logger.setLevel(stream_level)

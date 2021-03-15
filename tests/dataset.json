@@ -13,9 +13,9 @@
             "id": 0,
             "name": "buildings",
             "color": [
-                69,
-                243,
-                145
+                140,
+                39,
+                43
             ],
             "filename": "None"
         },
@@ -23,9 +23,9 @@
             "id": 1,
             "name": "vegetation",
             "color": [
-                55,
-                177,
-                5
+                89,
+                230,
+                112
             ],
             "filename": "None"
         }

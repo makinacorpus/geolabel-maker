@@ -24,7 +24,6 @@ autodoc_mock_imports = [
     "PIL",
     "matplotlib",
     "skimage",
-    "requests",
     "sentinelsat",
     "osmtogeojson",
     "cv2"

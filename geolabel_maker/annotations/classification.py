@@ -52,7 +52,7 @@ from ._utils import get_paths, get_categories
 
 class Classification(Annotation):
     r"""Defines annotations for classification tasks.
-    For classification tasks, annotations tells if a category is visible in an image.
+    These annotations are used to know if a category is visible from an image.
 
     * :attr:`info` (dict, optional): Description of the annotation (metadata).
 
@@ -145,7 +145,7 @@ class Classification(Annotation):
             annotation.update({category.name: 0 for category in categories})
             label = Image.open(label_path).convert("RGB")
             width, height = label.size
-            label_colors = label.getcolors(width * height)
+            label_colors = list(map(lambda stat: stat[1], label.getcolors(width * height)))
             for category in categories:
                 visible = False
                 if tuple(category.color) in label_colors:
@@ -212,11 +212,11 @@ class Classification(Annotation):
             df.index.name = "id"
             df.to_csv(out_file, **kwargs)
 
-    def plot(self, axes=None, figsize=None, image_id=None):
+    def plot(self, ax=None, figsize=None, image_id=None):
         """Show the labels associated to an image.
 
         Args:
-            axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
+            ax (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
             figsize (tuple, optional): Size of the figure. Defaults to ``None``.
             image_id (int, optional): ID of the image to be displayed. 
                 If ``None``, will display a random image. Defaults to ``None``.
@@ -245,15 +245,16 @@ class Classification(Annotation):
         labels.pop("id", None)
 
         # Create matplotlib axes
-        if not axes or figsize:
-            _, axes = plt.subplots(figsize=figsize)
+        if not ax or figsize:
+            _, ax = plt.subplots(figsize=figsize)
 
-        axes.imshow(image)
+        ax.imshow(image)
 
         # Add the legend
-        handles = [mpatches.Patch(facecolor="none", label=f"{category_name}: {bool(is_visible)}") for category_name, is_visible in labels.items()]
-        axes.legend(loc=1, handles=handles, frameon=True)
+        text = "\n".join([f"{category_name}: {bool(is_visible)}" for category_name, is_visible in labels.items()])
+        ax.text(0.98, 0.98, text, fontsize=10, bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.8}, 
+                horizontalalignment='right', verticalalignment='top', transform=ax.transAxes)
 
         plt.title(f"image_id n°{image_id}")
         plt.axis("off")
-        return axes
+        return ax

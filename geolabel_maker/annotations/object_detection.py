@@ -37,12 +37,12 @@ There are two methods you can use:
 from tqdm import tqdm
 from pathlib import Path
 import json
-from PIL import Image, ImageDraw
-from shapely.geometry import box
-import numpy as np
 import random
+import numpy as np
+from PIL import Image, ImageDraw
+from shapely.geometry import Polygon, MultiPolygon, box
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
+from matplotlib.collections import PatchCollection
 
 # Geolabel Maker
 from .functional import find_categories
@@ -115,8 +115,11 @@ class ObjectDetection(Annotation):
             for category_id, category in enumerate(categories_extracted):
                 for _, row in category.data.iterrows():
                     polygon = row.geometry
+                    if not isinstance(polygon, (Polygon, MultiPolygon)):
+                        continue
                     # Get annotation elements
-                    bbox = polygon.bounds
+                    x_min, y_min, x_max, y_max = polygon.bounds
+                    bbox = (x_min, y_min, x_max - x_min, y_max - y_min)
                     objects_annotations.append({
                         "iscrowd": int(is_crowd),
                         "image_id": image_id,
@@ -146,13 +149,14 @@ class ObjectDetection(Annotation):
                 category_clipped = category.clip((left, bottom, right, top))
                 for _, row in category_clipped.data.explode().iterrows():
                     polygon = row.geometry
-                    x_min, y_min, x_max, y_max = polygon.bounds
-                    bbox = (x_min, x_max, x_max - x_min, y_max - y_min)
+                    if not isinstance(polygon, (Polygon, MultiPolygon)):
+                        continue
+                    xp_min, yp_min, xp_max, yp_max = polygon.bounds
                     # Set the origin in the upper left corner
-                    x_min = round((x_min - left) * width / (right - left), 2)
-                    x_max = round((x_max - left) * width / (right - left), 2)
-                    y_min = round((top - y_min) * height / (top - bottom), 2)
-                    y_max = round((top - y_max) * height / (top - bottom), 2)
+                    x_min = round((xp_min - left) * width / (right - left), 2)
+                    x_max = round((xp_max - left) * width / (right - left), 2)
+                    y_max = round((top - yp_min) * height / (top - bottom), 2)
+                    y_min = round((top - yp_max) * height / (top - bottom), 2)
                     bbox = (x_min, y_min, x_max - x_min, y_max - y_min)
                     # Make annotation format
                     objects_annotations.append({
@@ -184,8 +188,8 @@ class ObjectDetection(Annotation):
         with open(out_file, "w") as f:
             json.dump(self.to_dict(root=root), f, indent=4)
             
-    def plot(self, axes=None, figsize=None, image_id=None, colors=None, opacity=0.7):
-        """Show the labels associated to an image.
+    def plot(self, image_id=None, colors=None, plot_bbox=False, plot_name=False, ax=None, figsize=None):
+        """Show the superposition of the segmentation map (labels) on an image.
 
         Args:
             axes (matplotlib.AxesSubplot, optional): Axes of the figure. Defaults to ``None``.
@@ -201,43 +205,52 @@ class ObjectDetection(Annotation):
             matplotlib.AxesSubplot: The axes of the figure.
 
         Examples:
-            >>> annotations = ObjectDetection.open("objects.json")
+            >>> annotations = COCO.open("coco.json")
             >>> annotations.plot()
         """
-        # Create a map of colors / categories
+        from matplotlib.patches import Polygon
+        
+        # Create matplotlib axes
+        if not ax or figsize:
+            _, ax = plt.subplots(figsize=figsize)
+
         category2name = {category["id"]: category["name"] for category in self.categories}
-        colors = colors or {}
-        colors = {str(name): Color.get(color).to_hex() for name, color in colors.items()}
-        for category in self.categories:
-            if not category["name"] in colors.keys():
-                colors[category["name"]] = Color.random().to_hex()
+        category2colors = colors or {}
+        category2colors = {str(name): Color.get(color).to_hex() for name, color in category2colors.items()}
 
         # Find masks associated to image_id
         if image_id is None:
             image_id = random.choice([image["id"] for image in self.images])
         image = self.get_image(image_id)
         image = Image.open(image["file_name"]).convert("RGB")
-        labels = self.get_labels(image_id)
-        
-        draw = ImageDraw.Draw(image)
-        for label in labels:
-            x_min, y_min, width, height = label["bbox"]
-            bbox = (x_min, y_min, x_min + width, y_min + height)
-            category_id = label["category_id"]
-            category_name = category2name[category_id]
-            color = colors[category_name]
-            draw.line(list(box(*bbox).exterior.coords), fill=color)
-            
-        # Create matplotlib axes
-        if not axes or figsize:
-            _, axes = plt.subplots(figsize=figsize)
-            
-        axes.imshow(image)
-        
-        # Add the legend
-        handles = [mpatches.Patch(facecolor=color, label=category_name) for category_name, color in colors.items()]
-        axes.legend(loc=1, handles=handles, frameon=True)
+        annotations = self.get_labels(image_id)
+        # Plot the image
+        ax.imshow(image)
+        colors = []
+        bboxes = []
+        for annotation in annotations:
+            category_name = category2name.get(annotation.get("category_id", None), None)
+            if category2colors.get(category_name, None):
+                color = category2colors[category_name]
+            else:
+                color = np.random.random(3) * 0.6 + 0.4
+            colors.append(color)
 
-        plt.title(f"image_id n°{image_id}")
+            x, y, w, h = annotation["bbox"]
+            bbox = [(x, y), (x, y + h), (x + w, y + h), (x + w, y)]
+            bbox = np.array(bbox).reshape((4, 2))
+            bboxes.append(Polygon(bbox))
+
+            if plot_name:
+                x, y, _, _ = annotation["bbox"]
+                ax.text(x, y, category_name, fontsize=10, bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.4})
+        # Add the annotations
+        patches = PatchCollection(bboxes, facecolor=colors, linewidths=0, alpha=0.4)
+        ax.add_collection(patches)
+        patches = PatchCollection(bboxes, facecolor="none", edgecolors=colors, linewidths=2, linestyles="--")
+        ax.add_collection(patches)
+        # Add a title
+        ax.set_title(f"image_id n°{image_id}")
         plt.axis("off")
-        return axes
+
+        return ax

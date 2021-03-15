@@ -45,9 +45,9 @@
             "id": 0,
             "name": "buildings",
             "color": [
-                221,
-                167,
-                49
+                206,
+                141,
+                126
             ],
             "filename": "buildings.json"
         },
@@ -55,9 +55,9 @@
             "id": 1,
             "name": "vegetation",
             "color": [
-                51,
-                82,
-                202
+                17,
+                227,
+                242
             ],
             "filename": "vegetation.json"
         }
@@ -99,5 +99,6 @@
             "id": 8,
             "filename": "tile_768-5376-label.tif"
         }
-    ]
+    ],
+    "dir_mosaics": "mosaics_tmp"
 }

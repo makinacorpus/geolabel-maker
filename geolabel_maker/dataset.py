@@ -36,7 +36,6 @@ import json
 import numpy as np
 from pathlib import Path
 from tqdm import tqdm
-import rasterio.mask
 from shapely.geometry import box
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -44,7 +43,6 @@ import matplotlib.patches as mpatches
 # Geolabel Maker
 from geolabel_maker.base import BoundingBox, CRS, GeoBase
 from geolabel_maker.rasters import Raster, RasterCollection
-from geolabel_maker.rasters.utils import color_mask, merge_masks
 from geolabel_maker.vectors import Category, CategoryCollection
 from geolabel_maker.downloads import SentinelHubAPI, MapBoxAPI, OverpassAPI
 from geolabel_maker.utils import retrieve_path, relative_path
@@ -150,7 +148,6 @@ class Dataset(GeoBase):
     def images(self, rasters):
         self._images = RasterCollection(rasters)
         self.dir_images = None
-        self.bounds = None
 
     @property
     def categories(self):
@@ -160,7 +157,6 @@ class Dataset(GeoBase):
     def categories(self, categories):
         self._categories = CategoryCollection(categories)
         self.dir_categories = None
-        self.bounds = None
 
     @property
     def labels(self):
@@ -391,7 +387,7 @@ class Dataset(GeoBase):
                         "height": 10240,   
                     },
                     "overpass": {
-                        "geometries": [
+                        "categories": [
                             {
                                 "selector": "building",
                                 "name": "buildings"
@@ -435,13 +431,14 @@ class Dataset(GeoBase):
             api.download(bbox, out_dir=dir_images, **mapbox)
 
         if overpass:
-            geometries = overpass.pop("geometries", None)
-            assert geometries, "Could not download overpass data if 'geometries' is not provided."
+            categories = overpass.pop("categories", None)
+            assert categories, "Could not download overpass data if 'categories' is not provided."
             api = OverpassAPI()
-            for geometry in geometries:
-                selector = geometry.get("selector", None)
+            for category in categories:
+                selector = category.get("selector", None)
                 assert selector, "Could not download categories if 'selector' is not provided."
-                name = geometry.pop("name", re.sub("[^a-zA-Z_-]", "_", selector))
+                name = category.pop("name", re.sub("[^a-zA-Z_-]", "_", selector))
+                color = category.pop("color", None)
                 out_file = Path(dir_categories) / f"{name}.json"
                 api.download(bbox, selector=selector, out_file=out_file, **overpass)
 
@@ -539,7 +536,9 @@ class Dataset(GeoBase):
 
             Then, all paths will be relative to ``some/other/directory``.
         """
-        self.filename = filename or self.filename or "dataset.json"
+        self.filename = filename or self.filename
+        if not self.filename:
+            return
 
         config = self.to_dict(root=self.root, **kwargs)
         # If a previous configuration file exists, load it and overwrite only the items that changed.
@@ -681,10 +680,11 @@ class Dataset(GeoBase):
         """
         # Clean previously generated labels
         self.labels = []
-        dir_labels = str(out_dir or self.dir_labels or Path(self.root) / "labels")
+        dir_labels = str(out_dir or self.dir_labels or (Path(self.root) / "labels"))
         Path(dir_labels).mkdir(parents=True, exist_ok=True)
 
         # Generate and load the labels
+        logger.info(f"Generating labels at '{dir_labels}'.")
         for image_idx, image in enumerate(tqdm(self.images, desc="Generating Labels", leave=True, position=0)):
             label_path = Path(dir_labels) / f"{Path(image.filename).stem}-label.tif"
             self.generate_label(image_idx, out_file=label_path)
@@ -698,7 +698,7 @@ class Dataset(GeoBase):
         r"""Writes virtual images from images and/or labels.
 
         .. seealso::
-            Generate the labels with :func:`~geolabel_maker.Dataset.generate_labels` method.
+            Generate the labels with :func:`~geolabel_maker.dataset.Dataset.generate_labels` method.
 
         Args:
             make_images (bool, optional): If ``True``, generates a virtual image for georeferenced aerial images. 
@@ -728,13 +728,13 @@ class Dataset(GeoBase):
         # Make virtual images
         if make_images:
             out_file = Path(self.root) / "images.vrt"
-            logger.info(f"Generating Images VRT at '{out_file}'.")
+            logger.info(f"Generating VRT images at '{out_file}'.")
             images_vrt = self.images.generate_vrt(str(out_file), **kwargs)
 
         # Make virtual labels
         if make_labels:
             out_file = Path(self.root) / "labels.vrt"
-            logger.info(f"Generating Labels VRT at '{out_file}'.")
+            logger.info(f"Generating VRT labels at '{out_file}'.")
             labels_vrt = self.labels.generate_vrt(str(out_file), **kwargs)
 
         # Return the path to the created files
@@ -785,19 +785,19 @@ class Dataset(GeoBase):
 
             >>> dataset.generate_mosaics(make_images=True, make_labels=True, zoom="18")
         """
-        dir_mosaics = str(out_dir or self.dir_mosaics or Path(self.root) / "mosaics")
+        dir_mosaics = str(out_dir or self.dir_mosaics or (Path(self.root) / "mosaics"))
         zoom_name = str(zoom or "original")
 
         # Generate mosaics from the images
         if make_images:
             out_dir = Path(dir_mosaics) / "images" / zoom_name
-            logger.info(f"Generating Images Mosaics at '{out_dir}'.")
+            logger.info(f"Generating image mosaics at '{out_dir}'.")
             self.images.generate_mosaics(out_dir=out_dir, zoom=zoom, **kwargs)
-
+            
         # Generate mosaics from the labels
         if make_labels:
             out_dir = Path(dir_mosaics) / "labels" / zoom_name
-            logger.info(f"Generating Labels Mosaics at '{out_dir}'.")
+            logger.info(f"Generating labels mosaics at '{out_dir}'.")
             kwargs.pop("resampling", None)
             self.labels.generate_mosaics(out_dir=out_dir, zoom=zoom, resampling="nearest", **kwargs)
 
@@ -838,18 +838,18 @@ class Dataset(GeoBase):
 
             >>> dataset.generate_tiles(make_images=True, make_labels=True, zoom="18")
         """
-        dir_tiles = str(out_dir or self.dir_tiles or Path(self.root) / "tiles")
-
+        dir_tiles = str(out_dir or self.dir_tiles or (Path(self.root) / "tiles"))
+        
         # Generate tiles from the images
         if make_images:
             out_dir = Path(dir_tiles) / "images"
-            logger.info(f"Generating Images Tiles at '{out_dir}'.")
+            logger.info(f"Generating image tiles at '{dir_tiles}'.")
             self.images.generate_tiles(out_dir, **kwargs)
 
         # Generate tiles from the labels
         if make_labels:
             out_dir = Path(dir_tiles) / "labels"
-            logger.info(f"Generating Labels Tiles at '{out_dir}'.")
+            logger.info(f"Generating label tiles at '{dir_tiles}'.")
             self.labels.generate_tiles(out_dir, **kwargs)
 
         self.dir_tiles = dir_tiles

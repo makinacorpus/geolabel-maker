@@ -83,6 +83,10 @@ class CategoryBase(GeoBase):
     def clip(self, bbox, **kwargs):
         raise NotImplementedError
 
+    @abstractmethod
+    def simplify(self, max_area, **kwargs):
+        raise NotImplementedError
+
 
 class Category(GeoData, CategoryBase):
     r"""
@@ -95,9 +99,9 @@ class Category(GeoData, CategoryBase):
     * :attr:`data` (geopandas.GeoDataFrame): A table of geometries.
 
     * :attr:`filename` (str): Name of the category's file.
-    
+
     * :attr:`crs` (CRS): Coordinate reference system.
-    
+
     * :attr:`bounds` (BoundingBox): Bounding box of the geographic extent.
 
     * :attr:`name` (str): The name of the category corresponding to the elements.
@@ -118,7 +122,7 @@ class Category(GeoData, CategoryBase):
         try:
             return CRS(self.data.crs)
         except:
-            logger.warning(f"There are no CRS for the category {self.name}. " \
+            logger.warning(f"There are no CRS for the category {self.name}. "
                            f"Maybe its in geographic coordinates, or try using `to_crs()` method.")
             return None
 
@@ -175,17 +179,17 @@ class Category(GeoData, CategoryBase):
 
         Examples:
             We can use :func:`sqlalchemy` to connect to the database.
-            
+
             >>> from sqlalchemy import create_engine  
             >>> db_connection_url = "postgres://myusername:mypassword@myhost:5432/mydb"
             >>> con = create_engine(db_connection_url)  
-            
+
             Then, create your request:
-            
+
             >>> sql = "SELECT geom FROM buildings"
-            
+
             Finally, load your category:
-            
+
             >>> category = Category.from_postgis("buildings", sql, con, color=(255, 255, 255))  
         """
         data = gpd.read_postgis(sql, conn, **kwargs)
@@ -208,8 +212,8 @@ class Category(GeoData, CategoryBase):
         """Overwrites the current category by another.
 
         .. note::
-            This operation will not modify the values in place,
-            but will overwrite the category saved on the disk.
+            This operation will modify the values in place,
+            and overwrite the category saved on the disk.
 
         Args:
             category (Category): The category to be saved.
@@ -217,8 +221,14 @@ class Category(GeoData, CategoryBase):
         Returns:
             Category: The saved category.
         """
-        category.save(self.filename)
-        category._filename = self.filename
+        if not self.filename:
+            logger.warning(f"Could not overwrite a category loaded in memory. You should save it first.")
+        else:
+            category.save(self.filename)
+            category = Category(category.data, category.name, color=category.color, filename=self.filename)
+            self.data = category.data
+            self.name = category.name
+            self.color = category.color
         return category
 
     def to_crs(self, crs=None, overwrite=False, **kwargs):
@@ -232,7 +242,7 @@ class Category(GeoData, CategoryBase):
             crs (str, pyproj.crs.CRS): The destination coordinate reference system (CRS).
             overwrite (bool, optional): If ``True``, overwrites the initial category saved on disk with the output. 
                 If ``False``, the output data will not be written on disk. Defaults to ``False``.
-    
+
         Returns:
             Category: The projected category.
 
@@ -243,15 +253,15 @@ class Category(GeoData, CategoryBase):
             >>> category = Category.open("buildings.json", name="buildings", color=(255, 255, 255))
             >>> crs = "EPSG:4326"
             >>> out_category = category.to_crs(crs)
-            
+
             The output category is loaded in-memory:
 
             >>> out_category.filename
                 None
-            
+
             To automatically replace the ``buildings.json`` with the output category,
             use the ``overwrite`` argument:
-            
+
             >>> out_category = category.to_crs(crs, overwrite=True)
             >>> out_category.filename
                 'buildings.json'
@@ -259,7 +269,6 @@ class Category(GeoData, CategoryBase):
         out_data = self.data.to_crs(crs=crs, **kwargs)
         out_category = Category(out_data, self.name, self.color)
 
-        # Overwrite if required
         if overwrite:
             return self.overwrite(out_category)
 
@@ -281,7 +290,7 @@ class Category(GeoData, CategoryBase):
                 in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
             overwrite (bool, optional): If ``True``, overwrites the initial category saved on disk with the output. 
                 If ``False``, the output data will not be written on disk. Defaults to ``False``.
-                
+
         Returns:
             Category: The cropped category.
 
@@ -292,15 +301,15 @@ class Category(GeoData, CategoryBase):
             >>> category = Category.open("buildings.json", name="buildings", color=(255, 255, 255))
             >>> bbox = (1843000, 5173000, 1845000, 5174000)
             >>> out_category = category.crop(bbox)
-            
+
             The output category is loaded in-memory:
 
             >>> out_category.filename
                 None
-            
+
             To automatically replace the ``buildings.json`` with the output category,
             use the ``overwrite`` argument:
-            
+
             >>> out_category = category.crop(bbox, overwrite=True)
             >>> out_category.filename
                 'buildings.json'
@@ -321,12 +330,11 @@ class Category(GeoData, CategoryBase):
         # Create the output category
         out_category = Category(out_data, self.name, color=self.color)
 
-        # Overwrite if required
         if overwrite:
             return self.overwrite(out_category)
 
         return out_category
-    
+
     def clip(self, bbox, overwrite=False):
         r"""Clips points, lines, or polygon geometries to the bounding box extent.
         This method will modify the structure of the points, lines, or polygons so that
@@ -335,11 +343,11 @@ class Category(GeoData, CategoryBase):
         .. note::
             The bounding box coordinates should be in the same 
             coordinate reference system (CRS) as the category.
-    
+
         .. note::
             By default, this method will create an in-memory category.
             To automatically save it, use ``overwrite`` argument.
-    
+
         Args:
             bbox (tuple): Bounding box used to crop the geometries,
                 in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
@@ -348,7 +356,7 @@ class Category(GeoData, CategoryBase):
 
         Returns:
             Category: The clipped category.
-            
+
         Examples:
             If ``buildings.json`` is a category available from the disk, 
             clip it with:
@@ -356,31 +364,78 @@ class Category(GeoData, CategoryBase):
             >>> category = Category.open("buildings.json", name="buildings", color=(255, 255, 255))
             >>> bbox = (1843000, 5173000, 1845000, 5174000)
             >>> out_category = category.clip(bbox)
-            
+
             The output category is loaded in-memory:
 
             >>> out_category.filename
                 None
-            
+
             To automatically replace the ``buildings.json`` with the output category,
             use the ``overwrite`` argument:
-            
+
             >>> out_category = category.clip(bbox, overwrite=True)
             >>> out_category.filename
                 'buildings.json'
         """
         # Create the mask used to clip the data
         mask = gpd.GeoDataFrame([{"geometry": box(*bbox)}], crs=self.crs)
-        
+
         # Clip the data
         out_data = self.data.copy()
         out_data["geometry"] = out_data.buffer(0)
         out_data = gpd.clip(out_data, mask)
-        
+
+        # Create the output category
+        out_category = Category(out_data, name=self.name, color=self.color)
+
+        if overwrite:
+            return self.overwrite(out_category)
+
+        return out_category
+
+    def simplify(self, min_area=0, overwrite=False):
+        r"""Simplify geometries by merging the overlaping ones and removing small ones.
+        This method will modify the structure of the points, lines, or polygons.
+
+        .. note::
+            By default, this method will create an in-memory category.
+            To automatically save it, use ``overwrite`` argument.
+
+        Args:
+            max_area (float): Minimum area (in meters) for each polygon. Defaults to ``0``.
+            overwrite (bool, optional): If ``True``, overwrites the initial category saved on disk with the output. 
+                If ``False``, the output data will not be written on disk. Defaults to ``False``.
+
+        Returns:
+            Category: The simplified category.
+
+        Examples:
+            If ``buildings.json`` is a category available from the disk, 
+            simpl it with:
+
+            >>> category = Category.open("buildings.json", name="buildings", color=(255, 255, 255))
+            >>> out_category = category.simplify(min_area=25)
+
+            The output category is loaded in-memory:
+
+            >>> out_category.filename
+                None
+
+            To automatically replace the ``buildings.json`` with the output category,
+            use the ``overwrite`` argument:
+
+            >>> out_category = category.simplify(min_area=25, overwrite=True)
+            >>> out_category.filename
+                'buildings.json'
+        """
+        # Merge overlapping polygons
+        out_polygons = self.data.unary_union
+        out_data = gpd.GeoDataFrame({"geometry": out_polygons}, crs=self.data.crs)
+        out_data = out_data.loc[out_data.area > min_area]
+
         # Create the output category
         out_category = Category(out_data, self.name, color=self.color)
-        
-        # Overwrite if required
+
         if overwrite:
             return self.overwrite(out_category)
 
@@ -402,7 +457,7 @@ class Category(GeoData, CategoryBase):
         ax = self.data.boundary.plot(ax=ax, edgecolor=color, **kwargs)
         handle = mpatches.Patch(facecolor=self.color.to_hex(), label=self.name)
         ax.legend(loc=1, handles=[handle], frameon=True)
-        plt.title(f"Bounds of the {self.__class__.__name__}")
+        plt.title(f"{self.__class__.__name__}")
         return ax
 
     def inner_repr(self):
@@ -424,7 +479,7 @@ class CategoryCollection(GeoCollection, CategoryBase):
         the duplicated ones will be replaced with random colors.
 
     * :attr:`crs` (CRS): Coordinate reference system.
-    
+
     * :attr:`bounds` (BoundingBox): Bounding box of the geographic extent.
 
     """
@@ -529,7 +584,7 @@ class CategoryCollection(GeoCollection, CategoryBase):
             crs (CRS): The destination coordinate reference system (CRS).
             overwrite (bool, optional): If ``True``, overwrites the initial categories saved on disk with the outputs. 
                 If ``False``, the output data will not be written on disk. Defaults to ``False``.
-    
+
         Returns:
             CategoryCollection: The projected category collection.
 
@@ -575,7 +630,7 @@ class CategoryCollection(GeoCollection, CategoryBase):
             >>> out_categories = categories.crop(bbox)
         """
         return super().crop(*args, **kwargs)
-    
+
     def clip(self, *args, **kwargs):
         r"""Clips all categories in box extent.
 
@@ -608,11 +663,50 @@ class CategoryCollection(GeoCollection, CategoryBase):
             >>> out_categories = categories.clip(bbox)
         """
         out_categories = CategoryCollection()
-        for category in tqdm(self._items, desc="Generating Masks", leave=True, position=0):
+        for category in tqdm(self._items, desc="Clipping", leave=True, position=0):
             try:
                 out_categories.append(category.clip(*args, **kwargs))
             except Exception as error:
                 logger.error(f"Could not clip category '{category.filename}': {error}")
+        return out_categories
+
+    def simplify(self, *args, **kwargs):
+        r"""Clips all categories in box extent.
+
+        .. note::
+            By default, this method will create in-memory categories.
+            To automatically save it, use ``overwrite`` argument.
+
+        .. note::
+            The bounding box coordinates should be in the same 
+            coordinate reference system (CRS) as the category collection.
+
+        .. seealso::
+            See :func:`~geolabel_maker.vectors.category.Category.clip` method for further details.
+
+        Args:
+            bbox (tuple): Bounding box used to crop the geometries,
+                in the format :math:`(X_{min}, Y_{min}, X_{max}, Y_{max})`.
+            overwrite (bool, optional): If ``True``, overwrites the initial categories saved on disk with the outputs. 
+                If ``False``, the output data will not be written on disk. Defaults to ``False``.
+
+        Returns:
+            CategoryCollection: The cropped categories.
+
+        Examples:
+            If ``buildings.json`` and ``vegetation.json`` are vectors available from the disk, 
+            clip them with:
+
+            >>> categories = CategoryCollection.open("buildings.json", "vegetation.json")
+            >>> bbox = (1843000, 5173000, 1845000, 5174000)
+            >>> out_categories = categories.clip(bbox)
+        """
+        out_categories = CategoryCollection()
+        for category in tqdm(self._items, desc="Simplifying", leave=True, position=0):
+            try:
+                out_categories.append(category.simplify(*args, **kwargs))
+            except Exception as error:
+                logger.error(f"Could not simplify category '{category.filename}': {error}")
         return out_categories
 
     def plot(self, ax=None, figsize=None, **kwargs):
@@ -630,7 +724,7 @@ class CategoryCollection(GeoCollection, CategoryBase):
         # Create matplotlib axes
         if not ax or figsize:
             _, ax = plt.subplots(figsize=figsize)
-        
+
         handles = []
         for category in self._items:
             ax = category.plot(ax=ax, **kwargs)

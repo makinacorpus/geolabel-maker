@@ -13,17 +13,6 @@ Rasters
    ~utils.merge_masks
 
 
-Raster
-======
-
 .. automodule:: geolabel_maker.rasters.raster
-    :members:
-    :inherited-members:
-
-
-utils
-=====
-
-.. automodule:: geolabel_maker.rasters.utils
     :members:
     :inherited-members:

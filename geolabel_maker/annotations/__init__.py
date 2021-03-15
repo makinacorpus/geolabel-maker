@@ -7,6 +7,6 @@
 # Copyright (c) 2020, Makina Corpus
 
 
-from .coco import COCO
+from .segmentation import Segmentation
 from .classification import Classification
 from .object_detection import ObjectDetection
