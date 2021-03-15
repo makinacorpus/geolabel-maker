@@ -1,14 +1,15 @@
-import os
+# Encoding: UTF-8
+# File: __init__.py
+# Creation: Monday December 28th 2020
+# Supervisor: Daphné Lercier (dlercier)
+# Author: Arthur Dujardin (arthurdjn)
+# ------
+# Copyright (c) 2020, Makina Corpus
 
-from geolabel_maker.geolabels import (
-    make_all,
-    make_labels,
-    make_rasters,
-    make_tiles,
-    make_annotations,
-)
 
-HERE = os.path.abspath(os.path.dirname(__file__))
+# Basic imports
+from shapely import speedups
 
-__version__ = open(os.path.join(HERE, "VERSION.md")).read().strip()
-__all__ = (make_all, make_labels, make_rasters, make_tiles, make_annotations)
+# Geolabel Maker
+from .dataset import Dataset
+from .version import __version__
